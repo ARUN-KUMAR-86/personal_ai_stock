@@ -1,0 +1,51 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: stock_intel_postgres
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-stockuser}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-stockpass123}
+      POSTGRES_DB: ${POSTGRES_DB:-stock_intel}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-stockuser} -d ${POSTGRES_DB:-stock_intel}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    container_name: stock_intel_backend
+    restart: always
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-stockuser}:${POSTGRES_PASSWORD:-stockpass123}@db:5432/${POSTGRES_DB:-stock_intel}
+      - SECRET_KEY=${SECRET_KEY:-change-me-to-a-secure-random-secret-key-32-chars-min}
+      - OWNER_USERNAME=${OWNER_USERNAME:-owner}
+      - OWNER_PASSWORD=${OWNER_PASSWORD:-SecureOwnerPass123!}
+      - MARKET_DATA_PROVIDER=${MARKET_DATA_PROVIDER:-yahoo}
+      - GROWW_API_AUTH_TOKEN=${GROWW_API_AUTH_TOKEN:-}
+      - GROWW_API_KEY=${GROWW_API_KEY:-}
+      - GROWW_API_SECRET=${GROWW_API_SECRET:-}
+      - FCM_SERVICE_ACCOUNT_PATH=${FCM_SERVICE_ACCOUNT_PATH:-}
+      - AUTO_SCAN_ENABLED=true
+      - SCAN_INTERVAL_MINUTES=15
+    volumes:
+      - ../backend/app:/app/app
+      - fcm_credentials:/app/credentials:ro
+
+volumes:
+  postgres_data:
+  fcm_credentials:

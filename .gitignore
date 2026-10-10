@@ -1,0 +1,45 @@
+# Python & Virtual Environments
+venv/
+.venv/
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Local Database & Secrets
+*.db
+*.sqlite3
+.env
+*.env
+local_secrets/
+*.pem
+*.key
+
+# Firebase & Broker Credentials
+serviceAccountKey.json
+google-services.json
+firebase-credentials.json
+*firebase*.json
+
+# Mobile & Flutter
+mobile/.dart_tool/
+mobile/.flutter-plugins
+mobile/.flutter-plugins-dependencies
+mobile/.packages
+mobile/build/
+mobile/android/.gradle/
+mobile/android/local.properties
+mobile/android/app/build/
+mobile/android/app/*.keystore
+mobile/android/app/*.jks
+
+# IDE & OS
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
