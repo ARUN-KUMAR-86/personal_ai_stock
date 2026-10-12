@@ -1,6 +1,6 @@
 """Portfolio and paper trading execution manager."""
 
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import List, Dict, Any, Optional
 from sqlalchemy.orm import Session
 
@@ -36,6 +36,10 @@ class PortfolioManager:
         reason: Optional[str] = None,
         stop_loss: Optional[float] = None,
         target: Optional[float] = None,
+        holding_period_hours: int = 48,
+        auto_sell_enabled: bool = False,
+        mode: str = "PAPER",
+        order_id: Optional[str] = None,
     ) -> PaperTrade:
         """Executes a simulated paper trade and updates position and ledger."""
         action = action.upper().strip()
@@ -68,6 +72,8 @@ class PortfolioManager:
         pnl = 0.0
 
         if action == "BUY":
+            now_utc = datetime.now(timezone.utc)
+            exit_deadline = now_utc + timedelta(hours=holding_period_hours)
             if pos:
                 # Average up or down
                 total_shares = pos.quantity + quantity
@@ -76,6 +82,9 @@ class PortfolioManager:
                 pos.quantity = total_shares
                 pos.current_price = price
                 pos.fees += fees
+                pos.holding_period_hours = holding_period_hours
+                pos.exit_deadline = exit_deadline
+                pos.auto_sell_enabled = auto_sell_enabled
                 if stop_loss:
                     pos.stop_loss = stop_loss
                 if target:
@@ -89,11 +98,16 @@ class PortfolioManager:
                     current_price=price,
                     stop_loss=stop_loss,
                     target=target,
+                    holding_period_hours=holding_period_hours,
+                    exit_deadline=exit_deadline,
+                    auto_sell_enabled=auto_sell_enabled,
+                    mode=mode,
+                    order_id=order_id,
                     unrealized_pnl=0.0,
                     realized_pnl=0.0,
                     fees=fees,
                     is_open=True,
-                    opened_at=datetime.now(timezone.utc),
+                    opened_at=now_utc,
                 )
                 db.add(pos)
 

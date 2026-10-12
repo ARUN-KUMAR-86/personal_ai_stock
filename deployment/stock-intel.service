@@ -1,0 +1,18 @@
+[Unit]
+Description=Personal AI Stock Intelligence Backend Service
+After=network.target
+
+[Service]
+Type=simple
+User=arun
+WorkingDirectory=/home/arun/personal-ai-stock/backend
+ExecStart=/home/arun/personal-ai-stock/backend/venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+Environment=ENVIRONMENT=production
+Environment=PYTHONPATH=/home/arun/personal-ai-stock/backend
+
+[Install]
+WantedBy=multi-user.target

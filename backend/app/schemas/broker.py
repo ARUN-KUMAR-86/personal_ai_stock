@@ -22,3 +22,11 @@ class BrokerAccountRead(BaseModel):
 class BrokerSyncRequest(BaseModel):
     sync_positions: bool = True
     sync_funds: bool = True
+
+
+class GrowwLoginRequest(BaseModel):
+    api_key: Optional[str] = None
+    api_secret: Optional[str] = None
+    totp_key: Optional[str] = None
+    auth_token: Optional[str] = None
+    order_execution_enabled: bool = False

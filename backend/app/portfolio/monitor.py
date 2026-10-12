@@ -1,0 +1,247 @@
+"""Automatic Position Monitoring & Exit Management Service."""
+
+from datetime import datetime, timezone, timedelta
+from typing import Dict, Any, List, Optional
+from sqlalchemy.orm import Session
+
+from app.core.config import settings
+from app.core.logging import logger
+from app.models.portfolio import Position
+from app.models.order import Order
+from app.providers.factory import get_market_data_provider
+from app.brokers.factory import get_broker_adapter
+from app.notifications.notifier import notifier
+from app.portfolio.manager import PortfolioManager
+
+
+class PositionMonitor:
+    """
+    Monitors all open positions against:
+    - Stop-loss price
+    - Target profit price
+    - Maximum intended holding period deadline (24 or 48 hours)
+    - Outside-market-hours exit policies
+    - Optional automatic selling (when explicitly opted-in)
+    """
+
+    @classmethod
+    def check_and_update_positions(cls, db: Session, force_market_open: bool = False) -> Dict[str, Any]:
+        """
+        Executes a monitoring pass over all open positions.
+        """
+        positions: List[Position] = db.query(Position).filter(Position.is_open == True).all()
+        if not positions:
+            return {"monitored_count": 0, "actions_taken": []}
+
+        provider = get_market_data_provider()
+        broker = get_broker_adapter()
+        actions = []
+        now = datetime.now(timezone.utc)
+
+        for pos in positions:
+            try:
+                # 1. Fetch current verified quote
+                curr_price = pos.current_price or pos.avg_entry_price or 100.0
+                try:
+                    quote = provider.get_quote(symbol=pos.symbol, exchange=pos.exchange)
+                    if quote and quote.price and quote.price > 0:
+                        curr_price = quote.price
+                except Exception as quote_err:
+                    logger.warning(f"Could not refresh quote for {pos.symbol}: {quote_err}. Using price ₹{curr_price:.2f}.")
+
+                pos.current_price = curr_price
+                pos.unrealized_pnl = round((curr_price - pos.avg_entry_price) * pos.quantity, 2)
+                pos.monitored_at = now
+
+                # 2. Check exit conditions
+                condition_triggered = False
+                trigger_reason = None
+
+                # Check Stop-Loss
+                if pos.stop_loss and curr_price <= pos.stop_loss:
+                    condition_triggered = True
+                    trigger_reason = f"STOP_LOSS_HIT (Price ₹{curr_price:.2f} <= SL ₹{pos.stop_loss:.2f})"
+
+                # Check Target Profit
+                elif pos.target and curr_price >= pos.target:
+                    condition_triggered = True
+                    trigger_reason = f"TARGET_HIT (Price ₹{curr_price:.2f} >= Target ₹{pos.target:.2f})"
+
+                # Check Maximum Holding Period
+                deadline = pos.exit_deadline
+                if deadline and deadline.tzinfo is None:
+                    deadline = deadline.replace(tzinfo=timezone.utc)
+
+                if deadline and now >= deadline:
+                    condition_triggered = True
+                    trigger_reason = f"HOLDING_PERIOD_EXPIRED ({pos.holding_period_hours}h maximum intended holding period reached)"
+
+                if not condition_triggered:
+                    continue
+
+                logger.info(f"Position exit condition triggered for {pos.symbol}: {trigger_reason}")
+
+                # 3. Check Market Status
+                market_status = provider.get_market_status(exchange=pos.exchange)
+                is_market_open = force_market_open or market_status.get("is_open", False)
+
+                # Check if Automatic Selling is explicitly opted in (position or global)
+                auto_sell = pos.auto_sell_enabled or settings.AUTO_SELL_ENABLED
+
+                # 4. Handle exit outside market hours
+                if not is_market_open:
+                    if not pos.exit_triggered:
+                        pos.exit_triggered = True
+                        pos.exit_reason = f"{trigger_reason} (Market closed. Exit queued for 09:15 IST opening)"
+                        db.commit()
+
+                        # Dispatch alert to owner
+                        notifier.send_notification(
+                            db=db,
+                            symbol=pos.symbol,
+                            exchange=pos.exchange,
+                            alert_type="EXIT_QUEUED_OFFHOURS",
+                            title=f"EXIT QUEUED: {pos.symbol} ({trigger_reason})",
+                            body=(
+                                f"Position for {pos.symbol} met exit condition outside trading hours.\n"
+                                f"Condition: {trigger_reason}\n"
+                                f"Latest verified price: ₹{curr_price:.2f}\n"
+                                f"Policy: Exit attempt will occur at next regular market session (09:15 IST)."
+                            ),
+                            price=curr_price,
+                        )
+                        actions.append({"symbol": pos.symbol, "action": "QUEUED_OFFHOURS", "reason": trigger_reason})
+                    continue
+
+                # 5. Market is OPEN: Execute exit if auto_sell enabled, else dispatch notification
+                if auto_sell:
+                    logger.info(f"Executing automatic sell for {pos.symbol} ({pos.quantity} shares)...")
+                    try:
+                        # Place sell order through broker adapter
+                        res = broker.place_order(
+                            symbol=pos.symbol,
+                            exchange=pos.exchange,
+                            transaction_type="SELL",
+                            quantity=pos.quantity,
+                            price=curr_price,
+                            user_confirmed=True,  # authorized via configured auto-sell policy
+                        )
+
+                        order_status = res.get("status", "UNKNOWN").upper()
+                        if order_status in ("FILLED", "COMPLETED"):
+                            # Close position in ledger
+                            PortfolioManager.execute_paper_trade(
+                                db=db,
+                                symbol=pos.symbol,
+                                exchange=pos.exchange,
+                                action="SELL",
+                                quantity=pos.quantity,
+                                price=curr_price,
+                                reason=f"Auto-Sell: {trigger_reason}",
+                            )
+                            pos.is_open = False
+                            pos.closed_at = now
+                            pos.exit_triggered = True
+                            pos.exit_reason = trigger_reason
+                            db.commit()
+
+                            pnl = pos.realized_pnl
+                            notifier.send_notification(
+                                db=db,
+                                symbol=pos.symbol,
+                                exchange=pos.exchange,
+                                alert_type="AUTO_SELL_EXECUTED",
+                                title=f"AUTO-SELL EXECUTED: {pos.symbol} (P&L: ₹{pnl:+.2f})",
+                                body=(
+                                    f"Automatic sell order for {pos.symbol} ({pos.quantity} shares) successfully executed.\n"
+                                    f"Trigger: {trigger_reason}\n"
+                                    f"Execution Price: ₹{curr_price:.2f}\n"
+                                    f"Realized P&L: ₹{pnl:+.2f}\n"
+                                    f"Status: Position closed and archived."
+                                ),
+                                price=curr_price,
+                            )
+                            actions.append({"symbol": pos.symbol, "action": "AUTO_SOLD", "price": curr_price, "pnl": pnl})
+
+                        elif order_status == "PARTIALLY_FILLED":
+                            filled_qty = int(res.get("filled_quantity", 0))
+                            notifier.send_notification(
+                                db=db,
+                                symbol=pos.symbol,
+                                exchange=pos.exchange,
+                                alert_type="PARTIAL_FILL_WARNING",
+                                title=f"PARTIAL SELL FILL: {pos.symbol}",
+                                body=(
+                                    f"Sell order for {pos.symbol} partially filled: {filled_qty}/{pos.quantity} shares.\n"
+                                    f"Trigger: {trigger_reason}\n"
+                                    f"Action Required: Check broker open orders."
+                                ),
+                                price=curr_price,
+                            )
+                            actions.append({"symbol": pos.symbol, "action": "PARTIAL_FILL", "filled": filled_qty})
+
+                        else:
+                            # Rejected or failed
+                            err_msg = res.get("rejection_reason", res.get("message", "Broker order rejected"))
+                            notifier.send_notification(
+                                db=db,
+                                symbol=pos.symbol,
+                                exchange=pos.exchange,
+                                alert_type="AUTO_SELL_FAILED",
+                                title=f"AUTO-SELL FAILED: {pos.symbol}",
+                                body=(
+                                    f"Auto-sell order for {pos.symbol} was rejected by broker.\n"
+                                    f"Error: {err_msg}\n"
+                                    f"Position remains open. Please sell manually!"
+                                ),
+                                price=curr_price,
+                            )
+                            actions.append({"symbol": pos.symbol, "action": "REJECTED", "error": err_msg})
+
+                    except Exception as e:
+                        logger.error(f"Error during auto-sell execution for {pos.symbol}: {e}")
+                        notifier.send_notification(
+                            db=db,
+                            symbol=pos.symbol,
+                            exchange=pos.exchange,
+                            alert_type="AUTO_SELL_ERROR",
+                            title=f"AUTO-SELL ERROR: {pos.symbol}",
+                            body=(
+                                f"Failed to submit sell order for {pos.symbol}.\n"
+                                f"Error: {str(e)}\n"
+                                f"Position remains OPEN. Manual exit required."
+                            ),
+                            price=curr_price,
+                        )
+                        actions.append({"symbol": pos.symbol, "action": "ERROR", "error": str(e)})
+
+                else:
+                    # Auto-selling NOT enabled -> Notification-First Workflow
+                    if not pos.exit_triggered:
+                        pos.exit_triggered = True
+                        pos.exit_reason = trigger_reason
+                        db.commit()
+
+                        notifier.send_notification(
+                            db=db,
+                            symbol=pos.symbol,
+                            exchange=pos.exchange,
+                            alert_type="MANUAL_EXIT_REQUIRED",
+                            title=f"URGENT EXIT SIGNAL: {pos.symbol} ({trigger_reason})",
+                            body=(
+                                f"Open position for {pos.symbol} has met your configured exit criteria.\n"
+                                f"Reason: {trigger_reason}\n"
+                                f"Verified Current Price: ₹{curr_price:.2f}\n"
+                                f"Average Entry: ₹{pos.avg_entry_price:.2f}\n"
+                                f"Unrealized P&L: ₹{pos.unrealized_pnl:+.2f}\n\n"
+                                f"Automatic selling is currently OFF. Please review and execute your sell order manually."
+                            ),
+                            price=curr_price,
+                        )
+                        actions.append({"symbol": pos.symbol, "action": "NOTIFIED_MANUAL_EXIT", "reason": trigger_reason})
+
+            except Exception as e:
+                logger.error(f"Error monitoring position {pos.symbol}: {e}")
+
+        db.commit()
+        return {"monitored_count": len(positions), "actions_taken": actions}

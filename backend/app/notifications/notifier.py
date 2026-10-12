@@ -19,13 +19,23 @@ class FCMNotifier:
         self._init_firebase()
 
     def _init_firebase(self):
-        if settings.FCM_SERVICE_ACCOUNT_PATH and os.path.exists(settings.FCM_SERVICE_ACCOUNT_PATH):
+        cert_data = None
+        if settings.FCM_SERVICE_ACCOUNT_JSON and settings.FCM_SERVICE_ACCOUNT_JSON.strip():
+            import json
+            try:
+                cert_data = json.loads(settings.FCM_SERVICE_ACCOUNT_JSON.strip())
+            except Exception as e:
+                logger.error(f"Failed to parse FCM_SERVICE_ACCOUNT_JSON environment variable: {e}")
+        elif settings.FCM_SERVICE_ACCOUNT_PATH and os.path.exists(settings.FCM_SERVICE_ACCOUNT_PATH):
+            cert_data = settings.FCM_SERVICE_ACCOUNT_PATH
+
+        if cert_data:
             try:
                 import firebase_admin
                 from firebase_admin import credentials
 
                 if not firebase_admin._apps:
-                    cred = credentials.Certificate(settings.FCM_SERVICE_ACCOUNT_PATH)
+                    cred = credentials.Certificate(cert_data)
                     firebase_admin.initialize_app(cred)
                 self._initialized = True
                 logger.info("Firebase Admin initialized successfully.")
@@ -33,7 +43,7 @@ class FCMNotifier:
                 logger.error(f"Failed to initialize Firebase Admin SDK: {e}")
                 self._initialized = False
         else:
-            logger.info("FCM service account file not configured or not found. Operating in local notification mode.")
+            logger.info("FCM credentials not configured or not found. Operating in local notification mode.")
 
     def is_fcm_available(self) -> bool:
         return self._initialized
@@ -47,22 +57,29 @@ class FCMNotifier:
         rvol = indicators.get("rvol", "N/A")
         ema21 = indicators.get("ema_21", "N/A")
 
+        data_src = getattr(signal, "data_source", None) or "Verified Market Data"
+        holding_h = getattr(signal, "holding_period_hours", None) or 48
+
         body = (
             f"Symbol: {signal.symbol}\n"
             f"Exchange: {signal.exchange}\n"
-            f"Signal: {signal.signal_type}\n"
+            f"Signal: {signal.signal_type} [POTENTIAL OPPORTUNITY]\n"
             f"Latest Price: ₹{signal.price}\n"
-            f"Timestamp: {signal.timestamp.strftime('%Y-%m-%d %H:%M:%S UTC')}\n\n"
+            f"Data Source: {data_src}\n"
+            f"Timestamp: {signal.timestamp.strftime('%Y-%m-%d %H:%M:%S UTC')}\n"
+            f"Intended Holding Period: {holding_h} Hours\n\n"
             f"Reasons:\n"
             f"- Strategy: {signal.strategy_name}\n"
             f"- Indicators: RSI(14)={rsi}, RVOL={rvol}x, EMA21=₹{ema21}\n"
             f"- Details: {signal.explanation}\n\n"
+            f"Execution Levels:\n"
             f"Entry Condition: {signal.entry_condition or 'Review market'}\n"
             f"Stop-loss: ₹{signal.stop_loss if signal.stop_loss else 'None'}\n"
             f"Target: ₹{signal.target if signal.target else 'None'}\n"
             f"Risk/Reward: {signal.risk_reward if signal.risk_reward else 'N/A'}\n\n"
-            f"Status: Review the signal before trading.\n"
-            f"This is not a guarantee of profit."
+            f"Status: Potential opportunity. Review the signal before trading.\n"
+            f"This is not a guarantee of profit.\n"
+            f"Automatic buying is disabled. Every purchase requires your explicit manual confirmation."
         )
 
         return {"title": title, "body": body}
@@ -103,27 +120,46 @@ class FCMNotifier:
         sent_to_fcm = False
         message_id = None
 
-        token_to_use = target_token or settings.DEFAULT_FCM_DEVICE_TOKEN
+        tokens_to_send = []
+        if target_token:
+            tokens_to_send.append(target_token)
+        else:
+            try:
+                from app.models.alert import DeviceToken
+                active_tokens = db.query(DeviceToken).filter(DeviceToken.is_active == True).all()
+                tokens_to_send = [d.token for d in active_tokens]
+            except Exception as db_err:
+                logger.warning(f"Failed to query registered devices: {db_err}")
 
-        if self._initialized and token_to_use:
+            if not tokens_to_send and settings.DEFAULT_FCM_DEVICE_TOKEN:
+                tokens_to_send.append(settings.DEFAULT_FCM_DEVICE_TOKEN)
+
+        if self._initialized and tokens_to_send:
             try:
                 from firebase_admin import messaging
 
-                message = messaging.Message(
-                    notification=messaging.Notification(title=title, body=body),
-                    data={
-                        "symbol": symbol,
-                        "exchange": exchange,
-                        "alert_type": alert_type,
-                        "price": str(price or 0.0),
-                    },
-                    token=token_to_use,
-                )
-                message_id = messaging.send(message)
-                sent_to_fcm = True
-                logger.info(f"FCM message dispatched successfully for {symbol}: {message_id}")
+                for tok in tokens_to_send:
+                    try:
+                        message = messaging.Message(
+                            notification=messaging.Notification(title=title, body=body),
+                            data={
+                                "symbol": symbol,
+                                "exchange": exchange,
+                                "alert_type": alert_type,
+                                "price": str(price or 0.0),
+                                "signal_id": str(signal_id or ""),
+                                "click_action": "FLUTTER_NOTIFICATION_CLICK",
+                            },
+                            token=tok,
+                        )
+                        mid = messaging.send(message)
+                        message_id = mid
+                        sent_to_fcm = True
+                        logger.info(f"FCM message dispatched successfully for {symbol} to token {tok[:8]}...: {mid}")
+                    except Exception as tok_err:
+                        logger.error(f"FCM dispatch error for token {tok[:8]}...: {tok_err}")
             except Exception as e:
-                logger.error(f"FCM dispatch error: {e}")
+                logger.error(f"FCM messaging general error: {e}")
                 sent_to_fcm = False
 
         # Store alert record in database

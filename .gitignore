@@ -35,6 +35,7 @@ mobile/android/local.properties
 mobile/android/app/build/
 mobile/android/app/*.keystore
 mobile/android/app/*.jks
+*.apk
 
 # IDE & OS
 .vscode/

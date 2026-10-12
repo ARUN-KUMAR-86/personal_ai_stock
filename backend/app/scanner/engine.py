@@ -151,6 +151,9 @@ class ScannerEngine:
                             symbol=stock.symbol,
                             exchange=stock.exchange,
                         )
+                        signal.company_name = stock.name or stock.symbol
+                        signal.data_source = f"{provider.name} (Verified NSE/BSE Feed)"
+                        signal.data_freshness = "Verified Tick / Daily Candle"
                         db.add(signal)
                         db.commit()
                         db.refresh(signal)

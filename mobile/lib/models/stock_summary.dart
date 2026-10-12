@@ -34,4 +34,16 @@ class StockSummary {
       signalStrength: json['signal_strength'] != null ? (json['signal_strength'] as num).toDouble() : 0.0,
     );
   }
+
+  Map<String, dynamic> toJson() => {
+        'symbol': symbol,
+        'exchange': exchange,
+        'name': name,
+        'sector': sector,
+        'latest_price': latestPrice,
+        'latest_timestamp': latestTimestamp?.toIso8601String(),
+        'is_live': isLive,
+        'latest_signal': latestSignal,
+        'signal_strength': signalStrength,
+      };
 }

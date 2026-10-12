@@ -20,6 +20,9 @@ from app.api.v1.portfolio import router as portfolio_router
 from app.api.v1.funds import router as funds_router
 from app.api.v1.groww import router as groww_router
 from app.api.v1.backtest import router as backtest_router
+from app.api.v1.orders import router as orders_router
+from app.api.v1.safety import router as safety_router
+from app.api.v1.watchlist import router as watchlist_router
 
 
 @asynccontextmanager
@@ -66,6 +69,9 @@ app.include_router(portfolio_router, prefix=settings.API_V1_STR)
 app.include_router(funds_router, prefix=settings.API_V1_STR)
 app.include_router(groww_router, prefix=settings.API_V1_STR)
 app.include_router(backtest_router, prefix=settings.API_V1_STR)
+app.include_router(orders_router, prefix=settings.API_V1_STR)
+app.include_router(safety_router, prefix=settings.API_V1_STR)
+app.include_router(watchlist_router, prefix=settings.API_V1_STR)
 
 
 @app.get("/")
@@ -76,4 +82,15 @@ def root():
         "docs_url": "/docs",
         "health_check": f"{settings.API_V1_STR}/health",
         "market_status": f"{settings.API_V1_STR}/market-status",
+    }
+
+
+@app.get("/health")
+def cloud_health_check():
+    """Standard cloud root health-check endpoint for Render / AWS / GCP container probes."""
+    return {
+        "status": "healthy",
+        "app_name": settings.APP_NAME,
+        "environment": settings.ENVIRONMENT,
+        "auto_scan_enabled": settings.AUTO_SCAN_ENABLED,
     }

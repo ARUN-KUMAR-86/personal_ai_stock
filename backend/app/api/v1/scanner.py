@@ -53,3 +53,25 @@ def get_scanner_status(db: Session = Depends(get_db)):
 def get_scan_jobs(limit: int = 10, db: Session = Depends(get_db)):
     """Lists past scanner jobs and results."""
     return db.query(ScanJob).order_by(ScanJob.id.desc()).limit(limit).all()
+
+
+@router.get("/schedule/status")
+def get_schedule_status_endpoint():
+    """Returns recurring automated analysis scheduler status."""
+    from app.scanner.scheduler import get_schedule_status
+    return get_schedule_status()
+
+
+@router.post("/schedule/start")
+def start_schedule_endpoint(interval_minutes: int = 15):
+    """Enables or updates the automated market analysis schedule."""
+    from app.scanner.scheduler import enable_auto_scan
+    return enable_auto_scan(interval_minutes=interval_minutes)
+
+
+@router.post("/schedule/stop")
+def stop_schedule_endpoint():
+    """Pauses or stops the automated market analysis schedule."""
+    from app.scanner.scheduler import disable_auto_scan
+    return disable_auto_scan()
+

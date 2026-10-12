@@ -1,0 +1,14 @@
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.Python
+backend/venv/
+backend/.pytest_cache/
+mobile/build/
+mobile/.dart_tool/
+mobile/android/.gradle/
+*.db
+*.sqlite
+.git
+.github

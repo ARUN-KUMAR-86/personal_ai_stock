@@ -44,6 +44,14 @@ class Settings(BaseSettings):
     MIN_RISK_REWARD_RATIO: float = 1.5
     FUNDS_LOW_THRESHOLD_INR: float = 10000.0
 
+    # Trading Safety & Controls
+    AUTO_SELL_ENABLED: bool = False  # Separate opt-in setting for automatic position exit
+    EMERGENCY_STOP_ENABLED: bool = False  # Emergency control to immediately halt new trades
+    MAX_SLIPPAGE_PCT: float = 1.0  # Slippage threshold requiring quote refresh before buy confirmation
+    DEFAULT_HOLDING_PERIOD_HOURS: int = 48  # Default intended holding period: 24 or 48 hours
+    POSITION_MONITOR_INTERVAL_SECONDS: int = 60
+    ORDER_EXECUTION_MODE: str = "PAPER"  # "PAPER" or "GROWW_LIVE"
+
     # Groww API (Disabled for real execution by default)
     GROWW_API_AUTH_TOKEN: Optional[str] = None
     GROWW_API_KEY: Optional[str] = None
@@ -53,8 +61,14 @@ class Settings(BaseSettings):
 
     # Firebase Cloud Messaging
     FCM_SERVICE_ACCOUNT_PATH: Optional[str] = None
+    FCM_SERVICE_ACCOUNT_JSON: Optional[str] = None
     NOTIFICATION_COOLDOWN_MINUTES: int = 60
     DEFAULT_FCM_DEVICE_TOKEN: Optional[str] = None
+
+    # AI Analysis & Explainable Thesis Generator
+    GEMINI_API_KEY: Optional[str] = None
+    GEMINI_MODEL: str = "gemini-1.5-flash"
+    AI_ANALYSIS_ENABLED: bool = True
 
     # CORS
     CORS_ORIGINS: List[str] = ["*"]

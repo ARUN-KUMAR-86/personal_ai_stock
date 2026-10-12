@@ -6,6 +6,142 @@ import '../models/portfolio.dart';
 class PortfolioScreen extends StatelessWidget {
   const PortfolioScreen({super.key});
 
+  void _showPositionEditDialog(BuildContext context, Position pos) {
+    final slController = TextEditingController(text: pos.stopLoss?.toStringAsFixed(2) ?? '');
+    final tpController = TextEditingController(text: pos.target?.toStringAsFixed(2) ?? '');
+    int holdingHours = pos.holdingPeriodHours;
+    bool autoSell = pos.autoSellEnabled;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: const Color(0xFF1E222D),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return Padding(
+              padding: EdgeInsets.only(
+                left: 20,
+                right: 20,
+                top: 20,
+                bottom: MediaQuery.of(context).viewInsets.bottom + 20,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Monitor Settings: ${pos.symbol}',
+                        style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.close, color: Colors.grey),
+                        onPressed: () => Navigator.pop(ctx),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: slController,
+                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                          style: const TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold),
+                          decoration: const InputDecoration(
+                            labelText: 'Stop-Loss (₹)',
+                            labelStyle: TextStyle(color: Colors.grey),
+                            filled: true,
+                            fillColor: Color(0xFF131722),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: TextField(
+                          controller: tpController,
+                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                          style: const TextStyle(color: Colors.greenAccent, fontWeight: FontWeight.bold),
+                          decoration: const InputDecoration(
+                            labelText: 'Target (₹)',
+                            labelStyle: TextStyle(color: Colors.grey),
+                            filled: true,
+                            fillColor: Color(0xFF131722),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text('Holding Period:', style: TextStyle(color: Colors.white70)),
+                      Row(
+                        children: [24, 48].map((h) {
+                          return Padding(
+                            padding: const EdgeInsets.only(left: 8),
+                            child: ChoiceChip(
+                              label: Text('${h}h'),
+                              selected: holdingHours == h,
+                              selectedColor: Colors.blueAccent.withOpacity(0.3),
+                              onSelected: (val) {
+                                if (val) setModalState(() => holdingHours = h);
+                              },
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Automatic Selling on Exit', style: TextStyle(color: Colors.white, fontSize: 14)),
+                    subtitle: const Text('Submits sell order automatically when criteria are triggered.', style: TextStyle(color: Colors.grey, fontSize: 11)),
+                    value: autoSell,
+                    activeColor: Colors.greenAccent,
+                    onChanged: (val) => setModalState(() => autoSell = val),
+                  ),
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 48,
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.blueAccent,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      ),
+                      onPressed: () async {
+                        final sl = double.tryParse(slController.text);
+                        final tp = double.tryParse(tpController.text);
+                        await context.read<AppState>().updatePositionMonitoring(
+                              pos.id,
+                              stopLoss: sl,
+                              target: tp,
+                              holdingPeriodHours: holdingHours,
+                              autoSellEnabled: autoSell,
+                            );
+                        if (context.mounted) Navigator.pop(ctx);
+                      },
+                      child: const Text('Save Monitoring Parameters', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final state = context.watch<AppState>();
@@ -18,6 +154,18 @@ class PortfolioScreen extends StatelessWidget {
         elevation: 0,
         title: const Text('PORTFOLIO & RISK', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.sync_alt),
+            tooltip: 'Run Position Monitor Check',
+            onPressed: () async {
+              await state.checkPositionMonitoring();
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Position monitor pass executed.'), duration: Duration(seconds: 2)),
+                );
+              }
+            },
+          ),
           IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: () => state.refreshAll(),
@@ -108,11 +256,11 @@ class PortfolioScreen extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 const Text(
-                  'OPEN POSITIONS',
-                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14, letterSpacing: 0.5),
+                  'ACTIVE MONITORED POSITIONS',
+                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13, letterSpacing: 0.5),
                 ),
                 Text(
-                  '${portfolio?.positions.length ?? 0} Active',
+                  '${portfolio?.positions.length ?? 0} Open',
                   style: const TextStyle(color: Colors.grey, fontSize: 12),
                 ),
               ],
@@ -132,12 +280,12 @@ class PortfolioScreen extends StatelessWidget {
                     Icon(Icons.inventory_2_outlined, size: 40, color: Colors.grey.shade600),
                     const SizedBox(height: 12),
                     Text(
-                      'No open positions in paper trading portfolio.',
+                      'No open monitored positions.',
                       style: TextStyle(color: Colors.grey.shade400, fontSize: 13),
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      'Select a stock from the Scanner to execute simulated trades.',
+                      'Confirm a stock recommendation to automatically register positions for monitoring.',
                       style: TextStyle(color: Colors.grey.shade600, fontSize: 11),
                       textAlign: TextAlign.center,
                     ),
@@ -153,7 +301,11 @@ class PortfolioScreen extends StatelessWidget {
                   decoration: BoxDecoration(
                     color: const Color(0xFF1E222D),
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.white.withOpacity(0.04)),
+                    border: Border.all(
+                      color: pos.exitTriggered
+                          ? Colors.orangeAccent
+                          : Colors.white.withOpacity(0.06),
+                    ),
                   ),
                   child: Column(
                     children: [
@@ -166,7 +318,7 @@ class PortfolioScreen extends StatelessWidget {
                                 pos.symbol,
                                 style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
                               ),
-                              const SizedBox(width: 6),
+                              const SizedBox(width: 8),
                               Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                 decoration: BoxDecoration(
@@ -176,26 +328,65 @@ class PortfolioScreen extends StatelessWidget {
                                 child: Text('${pos.quantity} Qty',
                                     style: const TextStyle(color: Colors.lightBlueAccent, fontSize: 10, fontWeight: FontWeight.bold)),
                               ),
+                              const SizedBox(width: 6),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: pos.autoSellEnabled ? Colors.green.withOpacity(0.2) : Colors.grey.withOpacity(0.2),
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: Text(
+                                  pos.autoSellEnabled ? 'Auto-Sell' : 'Manual-Sell',
+                                  style: TextStyle(
+                                    color: pos.autoSellEnabled ? Colors.greenAccent : Colors.white70,
+                                    fontSize: 9,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
                             ],
                           ),
-                          Text(
-                            '${isProfit ? '+' : ''}₹${pos.unrealizedPnl.toStringAsFixed(2)}',
-                            style: TextStyle(
-                              color: isProfit ? Colors.greenAccent : Colors.redAccent,
-                              fontSize: 15,
-                              fontWeight: FontWeight.bold,
-                            ),
+                          Row(
+                            children: [
+                              Text(
+                                '${isProfit ? '+' : ''}₹${pos.unrealizedPnl.toStringAsFixed(2)}',
+                                style: TextStyle(
+                                  color: isProfit ? Colors.greenAccent : Colors.redAccent,
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              IconButton(
+                                icon: const Icon(Icons.settings, size: 18, color: Colors.grey),
+                                onPressed: () => _showPositionEditDialog(context, pos),
+                              ),
+                            ],
                           ),
                         ],
                       ),
-                      const SizedBox(height: 12),
+                      const SizedBox(height: 10),
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           _buildPosMetric('Avg Price', '₹${pos.avgEntryPrice.toStringAsFixed(2)}'),
                           _buildPosMetric('Current Price', '₹${pos.currentPrice.toStringAsFixed(2)}'),
-                          _buildPosMetric('Stop Loss', pos.stopLoss != null ? '₹${pos.stopLoss}' : 'None'),
-                          _buildPosMetric('Target', pos.target != null ? '₹${pos.target}' : 'None'),
+                          _buildPosMetric('Stop Loss', pos.stopLoss != null ? '₹${pos.stopLoss}' : 'None', color: Colors.redAccent),
+                          _buildPosMetric('Target', pos.target != null ? '₹${pos.target}' : 'None', color: Colors.greenAccent),
+                        ],
+                      ),
+                      const Divider(color: Colors.white10, height: 16),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            'Hold: ${pos.holdingPeriodHours}h | Mode: ${pos.mode}',
+                            style: const TextStyle(color: Colors.grey, fontSize: 10),
+                          ),
+                          if (pos.exitTriggered)
+                            Text(
+                              '⚠️ ${pos.exitReason ?? "Exit Triggered"}',
+                              style: const TextStyle(color: Colors.orangeAccent, fontSize: 10, fontWeight: FontWeight.bold),
+                            ),
                         ],
                       ),
                     ],
@@ -208,13 +399,16 @@ class PortfolioScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildPosMetric(String label, String value) {
+  Widget _buildPosMetric(String label, String value, {Color? color}) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(label, style: const TextStyle(color: Colors.grey, fontSize: 10)),
         const SizedBox(height: 2),
-        Text(value, style: const TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w500)),
+        Text(
+          value,
+          style: TextStyle(color: color ?? Colors.white70, fontSize: 12, fontWeight: FontWeight.w500),
+        ),
       ],
     );
   }

@@ -56,3 +56,41 @@ def test_groww_status_endpoint():
     data = response.json()
     assert data["broker"] == "GROWW"
     assert data["order_execution_enabled"] is False  # Safe default
+
+
+def test_cloud_root_health_endpoint():
+    response = client.get("/health")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "healthy"
+
+
+def test_scanner_schedule_endpoints():
+    # 1. Check schedule status
+    status_res = client.get("/api/v1/scanner/schedule/status")
+    assert status_res.status_code == 200
+    assert "auto_scan_active" in status_res.json()
+
+    # 2. Start schedule
+    start_res = client.post("/api/v1/scanner/schedule/start?interval_minutes=30")
+    assert start_res.status_code == 200
+    start_data = start_res.json()
+    assert start_data["status"] == "SCHEDULED"
+    assert start_data["interval_minutes"] == 30
+
+    # Verify status changed
+    status_res2 = client.get("/api/v1/scanner/schedule/status")
+    assert status_res2.status_code == 200
+    assert status_res2.json()["auto_scan_active"] is True
+    assert status_res2.json()["interval_minutes"] == 30
+
+    # 3. Stop schedule
+    stop_res = client.post("/api/v1/scanner/schedule/stop")
+    assert stop_res.status_code == 200
+    assert stop_res.json()["status"] == "STOPPED"
+
+    # Verify status changed
+    status_res3 = client.get("/api/v1/scanner/schedule/status")
+    assert status_res3.status_code == 200
+    assert status_res3.json()["auto_scan_active"] is False
+

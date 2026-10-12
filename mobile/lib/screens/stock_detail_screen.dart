@@ -180,14 +180,16 @@ class _StockDetailScreenState extends State<StockDetailScreen> {
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                       ),
                       onPressed: () async {
+                        final nav = Navigator.of(ctx);
+                        final scaffold = ScaffoldMessenger.of(context);
                         final success = await context.read<AppState>().executePaperTrade(
                               symbol: widget.symbol,
                               action: action,
                               quantity: quantity,
                               price: currentPrice,
                             );
-                        Navigator.pop(ctx);
-                        ScaffoldMessenger.of(context).showSnackBar(
+                        nav.pop();
+                        scaffold.showSnackBar(
                           SnackBar(
                             content: Text(success
                                 ? '$action $quantity shares of ${widget.symbol} executed.'
@@ -213,8 +215,10 @@ class _StockDetailScreenState extends State<StockDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final state = context.watch<AppState>();
     final latestSignal = signals.isNotEmpty ? signals.first : null;
     final currentPrice = latestSignal?.price ?? (candles.isNotEmpty ? (candles.last['close'] as num).toDouble() : 0.0);
+    final isWatched = state.isWatchlisted(widget.symbol);
 
     return Scaffold(
       backgroundColor: const Color(0xFF131722),
@@ -225,6 +229,28 @@ class _StockDetailScreenState extends State<StockDetailScreen> {
           '${widget.symbol} (${widget.exchange})',
           style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
         ),
+        actions: [
+          IconButton(
+            tooltip: isWatched ? 'Remove from Watchlist' : 'Add to Watchlist',
+            icon: Icon(
+              isWatched ? Icons.star : Icons.star_border,
+              color: isWatched ? Colors.amberAccent : Colors.grey,
+            ),
+            onPressed: () {
+              final willBeWatched = !isWatched;
+              state.toggleWatchlist(widget.symbol, exchange: widget.exchange);
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(willBeWatched
+                      ? '⭐ ${widget.symbol} added to persistent Watchlist!'
+                      : '${widget.symbol} removed from Watchlist.'),
+                  duration: const Duration(seconds: 2),
+                  backgroundColor: willBeWatched ? Colors.teal : Colors.grey.shade800,
+                ),
+              );
+            },
+          ),
+        ],
       ),
       body: isLoading
           ? const Center(child: CircularProgressIndicator(color: Colors.blueAccent))

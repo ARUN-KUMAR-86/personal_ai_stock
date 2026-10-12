@@ -1,0 +1,36 @@
+# Fly.io deployment configuration for Personal AI Stock Intelligence
+app = "personal-ai-stock"
+primary_region = "bom" # Mumbai, India (Lowest latency for NSE/Groww)
+
+[build]
+  dockerfile = "backend/Dockerfile"
+  ignorefile = ".dockerignore"
+
+[env]
+  ENVIRONMENT = "production"
+  DATABASE_URL = "sqlite:////data/stock_intel.db"
+  MARKET_DATA_PROVIDER = "yahoo"
+  AUTO_SCAN_ENABLED = "true"
+  SCAN_INTERVAL_MINUTES = "15"
+  SCAN_MARKET_HOURS_ONLY = "false"
+  ORDER_EXECUTION_MODE = "PAPER"
+  CORS_ORIGINS = "*"
+
+[http_service]
+  internal_port = 8000
+  force_https = true
+  auto_stop_machines = false # Keep alive for continuous scanning
+  auto_start_machines = true
+  min_machines_running = 1
+
+[[http_service.checks]]
+  grace_period = "15s"
+  interval = "30s"
+  method = "GET"
+  timeout = "5s"
+  path = "/api/v1/health"
+
+[mounts]
+  source = "stock_data"
+  destination = "/data"
+  initial_size = "1gb"

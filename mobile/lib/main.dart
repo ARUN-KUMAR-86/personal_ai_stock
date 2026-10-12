@@ -8,16 +8,29 @@ import 'screens/portfolio_screen.dart';
 import 'screens/funds_screen.dart';
 import 'screens/settings_screen.dart';
 
-void main() {
+import 'services/notification_service.dart';
+
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  final appState = AppState();
+
   runApp(
     MultiProvider(
       providers: [
-        ChangeNotifierProvider(create: (_) => AppState()),
+        ChangeNotifierProvider.value(value: appState),
       ],
       child: const PersonalStockApp(),
     ),
   );
+
+  // Initialize push notification & background listeners post-render
+  WidgetsBinding.instance.addPostFrameCallback((_) async {
+    try {
+      await NotificationService().initialize(apiService: appState.api);
+    } catch (e) {
+      debugPrint('NotificationService init error (gracefully running local): $e');
+    }
+  });
 }
 
 class PersonalStockApp extends StatelessWidget {
@@ -26,6 +39,7 @@ class PersonalStockApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      navigatorKey: NotificationService.navigatorKey,
       title: 'AI Stock Intelligence',
       debugShowCheckedModeBanner: false,
       theme: ThemeData.dark().copyWith(

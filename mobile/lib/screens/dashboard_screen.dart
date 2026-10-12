@@ -4,7 +4,9 @@ import '../state/app_state.dart';
 import '../widgets/market_badge.dart';
 import '../widgets/stat_card.dart';
 import '../widgets/signal_pill.dart';
-import 'stock_detail_screen.dart';
+import 'stock_recommendation_screen.dart';
+import '../widgets/groww_login_dialog.dart';
+import '../models/stock_summary.dart';
 
 class DashboardScreen extends StatelessWidget {
   const DashboardScreen({super.key});
@@ -12,6 +14,7 @@ class DashboardScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final state = context.watch<AppState>();
+    final isGrowwLive = state.safetyStatus?.executionMode == 'GROWW_LIVE' && state.isGrowwConnected;
 
     return Scaffold(
       backgroundColor: const Color(0xFF131722),
@@ -20,9 +23,39 @@ class DashboardScreen extends StatelessWidget {
         elevation: 0,
         title: const Text(
           'AI STOCK INTEL',
-          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, letterSpacing: 1.0),
+          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 17, letterSpacing: 0.5),
         ),
         actions: [
+          // Groww In-App Broker Login & Status Pill
+          TextButton.icon(
+            style: TextButton.styleFrom(
+              backgroundColor: state.isGrowwConnected
+                  ? Colors.teal.withOpacity(0.2)
+                  : Colors.amber.shade900.withOpacity(0.3),
+              foregroundColor: state.isGrowwConnected ? Colors.tealAccent : Colors.amberAccent,
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+                side: BorderSide(
+                  color: state.isGrowwConnected
+                      ? Colors.tealAccent.withOpacity(0.4)
+                      : Colors.amberAccent.withOpacity(0.4),
+                ),
+              ),
+            ),
+            onPressed: () => GrowwLoginDialog.show(context),
+            icon: Icon(
+              state.isGrowwConnected ? Icons.check_circle : Icons.link,
+              size: 14,
+            ),
+            label: Text(
+              state.isGrowwConnected
+                  ? 'Groww (₹${(state.funds?.availableFunds ?? 0).toStringAsFixed(0)})'
+                  : 'Log In to Groww',
+              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
+            ),
+          ),
+          const SizedBox(width: 4),
           IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: () => state.refreshAll(),
@@ -84,7 +117,428 @@ class DashboardScreen extends StatelessWidget {
                 ),
               ],
             ),
-            const SizedBox(height: 16),
+
+            // Active Trading Execution Mode Banner
+            Container(
+              margin: const EdgeInsets.only(top: 12, bottom: 16),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              decoration: BoxDecoration(
+                color: isGrowwLive
+                    ? Colors.teal.shade900.withOpacity(0.35)
+                    : Colors.blueGrey.shade900.withOpacity(0.4),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                  color: isGrowwLive
+                      ? Colors.tealAccent.withOpacity(0.5)
+                      : Colors.lightBlueAccent.withOpacity(0.3),
+                ),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    isGrowwLive ? Icons.verified_user : Icons.science_outlined,
+                    color: isGrowwLive ? Colors.tealAccent : Colors.lightBlueAccent,
+                    size: 20,
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Text(
+                              isGrowwLive ? 'GROWW LIVE TRADING' : 'PAPER TRADING (SAFE SANDBOX)',
+                              style: TextStyle(
+                                color: isGrowwLive ? Colors.tealAccent : Colors.lightBlueAccent,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 12,
+                                letterSpacing: 0.5,
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                              decoration: BoxDecoration(
+                                color: isGrowwLive
+                                    ? Colors.tealAccent.withOpacity(0.2)
+                                    : Colors.blue.withOpacity(0.2),
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: Text(
+                                isGrowwLive ? 'LIVE' : 'SIMULATED',
+                                style: TextStyle(
+                                  color: isGrowwLive ? Colors.tealAccent : Colors.lightBlueAccent,
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          isGrowwLive
+                              ? 'Verified Groww Trade API active. Orders execute with real broker capital upon approval.'
+                              : 'Orders are fully simulated. Zero capital risk. Auto-risk controls active.',
+                          style: TextStyle(color: Colors.grey.shade400, fontSize: 11),
+                        ),
+                      ],
+                    ),
+                  ),
+                  TextButton(
+                    style: TextButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      visualDensity: VisualDensity.compact,
+                    ),
+                    onPressed: () => GrowwLoginDialog.show(context),
+                    child: Text(
+                      isGrowwLive ? 'Manage' : 'Switch Mode',
+                      style: const TextStyle(
+                        color: Colors.white70,
+                        fontSize: 11,
+                        decoration: TextDecoration.underline,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            // 1. TOP PRIORITY: AI OPPORTUNITIES (Notification-First Hero)
+            Container(
+              margin: const EdgeInsets.only(bottom: 12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(5),
+                            decoration: BoxDecoration(
+                              color: Colors.amber.shade900.withOpacity(0.3),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(Icons.notifications_active, color: Colors.amberAccent, size: 14),
+                          ),
+                          const SizedBox(width: 8),
+                          const Text(
+                            'PRIORITY AI OPPORTUNITIES',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 13,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                        ],
+                      ),
+                      Text(
+                        'Notification-First Approval',
+                        style: TextStyle(color: Colors.grey.shade400, fontSize: 11),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  if (state.latestSignals.isEmpty)
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF1E222D),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.white.withOpacity(0.06)),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.radar, color: Colors.blueAccent, size: 28),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  'AI Scanner is Monitoring Markets',
+                                  style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  'High-confidence trading recommendations will appear here instantly with full analysis.',
+                                  style: TextStyle(color: Colors.grey.shade400, fontSize: 11),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    )
+                  else
+                    ...state.latestSignals.take(2).map((sig) {
+                      return Container(
+                        margin: const EdgeInsets.only(bottom: 12),
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF1E222D),
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(color: Colors.blueAccent.withOpacity(0.35)),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Row(
+                                  children: [
+                                    Text(
+                                      sig.symbol,
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 16,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    SignalPill(signalType: sig.signalType, strength: sig.strength),
+                                  ],
+                                ),
+                                Text(
+                                  '₹${sig.price.toStringAsFixed(2)}',
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 16,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              sig.explanation,
+                              style: TextStyle(color: Colors.grey.shade300, fontSize: 12, height: 1.3),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 10),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  'Target: ₹${sig.target?.toStringAsFixed(2) ?? "--"} • SL: ₹${sig.stopLoss?.toStringAsFixed(2) ?? "--"}',
+                                  style: TextStyle(color: Colors.grey.shade400, fontSize: 11),
+                                ),
+                                Text(
+                                  '${sig.holdingPeriodHours}h Hold • R:R 1:${sig.riskReward?.toStringAsFixed(1) ?? "2.0"}',
+                                  style: const TextStyle(color: Colors.amberAccent, fontSize: 11, fontWeight: FontWeight.bold),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 10),
+                            SizedBox(
+                              width: double.infinity,
+                              height: 38,
+                              child: ElevatedButton.icon(
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.green.shade700,
+                                  foregroundColor: Colors.white,
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                ),
+                                onPressed: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) => StockRecommendationScreen(
+                                        symbol: sig.symbol,
+                                        exchange: sig.exchange,
+                                        initialSignal: sig,
+                                      ),
+                                    ),
+                                  );
+                                },
+                                icon: const Icon(Icons.touch_app, size: 16),
+                                label: const Text(
+                                  'Review Opportunity & Enter Amount (₹)',
+                                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }),
+                ],
+              ),
+            ),
+            // 2. USER PERSISTENT WATCHLIST SECTION
+            Container(
+              margin: const EdgeInsets.only(bottom: 16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
+                        children: [
+                          const Icon(Icons.star, color: Colors.amberAccent, size: 18),
+                          const SizedBox(width: 8),
+                          Text(
+                            'MY WATCHLIST (${state.watchlistSymbols.length})',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 13,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                        ],
+                      ),
+                      if (state.watchlistSymbols.isNotEmpty)
+                        TextButton.icon(
+                          style: TextButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                            visualDensity: VisualDensity.compact,
+                          ),
+                          onPressed: state.isScanningWatchlist ? null : () => state.scanWatchlist(),
+                          icon: state.isScanningWatchlist
+                              ? const SizedBox(
+                                  width: 12,
+                                  height: 12,
+                                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.amberAccent),
+                                )
+                              : const Icon(Icons.radar, size: 14, color: Colors.amberAccent),
+                          label: Text(
+                            state.isScanningWatchlist ? 'Scanning...' : 'Scan Watchlist',
+                            style: const TextStyle(color: Colors.amberAccent, fontSize: 11, fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  if (state.watchlistSymbols.isEmpty)
+                    Container(
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF1E222D),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.white.withOpacity(0.05)),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(Icons.star_outline, color: Colors.grey.shade500, size: 24),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              'No stocks watchlisted yet. Tap ⭐ on any stock in the Scanner to pin priority tickers here.',
+                              style: TextStyle(color: Colors.grey.shade400, fontSize: 11),
+                            ),
+                          ),
+                        ],
+                      ),
+                    )
+                  else
+                    SizedBox(
+                      height: 125,
+                      child: ListView.separated(
+                        scrollDirection: Axis.horizontal,
+                        itemCount: state.watchlistItems.isNotEmpty
+                            ? state.watchlistItems.length
+                            : state.watchlistSymbols.length,
+                        separatorBuilder: (_, __) => const SizedBox(width: 10),
+                        itemBuilder: (context, idx) {
+                          final item = state.watchlistItems.isNotEmpty ? state.watchlistItems[idx] : null;
+                          final symbol = item?.symbol ?? state.watchlistSymbols.elementAt(idx);
+                          final stock = item?.stock ??
+                              state.stocks.firstWhere(
+                                (s) => s.symbol.toUpperCase() == symbol.toUpperCase(),
+                                orElse: () => StockSummary(
+                                  symbol: symbol,
+                                  exchange: 'NSE',
+                                  name: symbol,
+                                  isLive: false,
+                                  latestSignal: 'NO TRADE',
+                                  signalStrength: 0.0,
+                                ),
+                              );
+
+                          return InkWell(
+                            borderRadius: BorderRadius.circular(12),
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => StockRecommendationScreen(
+                                    symbol: symbol,
+                                    exchange: stock.exchange,
+                                  ),
+                                ),
+                              );
+                            },
+                            child: Container(
+                              width: 175,
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF1E222D),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: Colors.amberAccent.withOpacity(0.2)),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Row(
+                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      Expanded(
+                                        child: Text(
+                                          symbol,
+                                          style: const TextStyle(
+                                            color: Colors.white,
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 14,
+                                          ),
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                      InkWell(
+                                        onTap: () => state.toggleWatchlist(symbol),
+                                        child: const Padding(
+                                          padding: EdgeInsets.all(2.0),
+                                          child: Icon(Icons.star, color: Colors.amberAccent, size: 16),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  Text(
+                                    stock.latestPrice != null
+                                        ? '₹${stock.latestPrice!.toStringAsFixed(2)}'
+                                        : 'Awaiting Quote',
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 13,
+                                    ),
+                                  ),
+                                  Row(
+                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      SignalPill(signalType: stock.latestSignal, strength: stock.signalStrength),
+                                      const Icon(Icons.chevron_right, color: Colors.grey, size: 16),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 14),
 
             // Top Summary Grid
             GridView.count(
@@ -133,7 +587,11 @@ class DashboardScreen extends StatelessWidget {
               decoration: BoxDecoration(
                 color: const Color(0xFF1E222D),
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.white.withOpacity(0.06)),
+                border: Border.all(
+                  color: state.isScheduleActive
+                      ? Colors.tealAccent.withOpacity(0.3)
+                      : Colors.white.withOpacity(0.06),
+                ),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -145,12 +603,14 @@ class DashboardScreen extends StatelessWidget {
                         children: [
                           Icon(
                             Icons.radar,
-                            color: state.isScanning ? Colors.amberAccent : Colors.lightBlueAccent,
+                            color: state.isScanning
+                                ? Colors.amberAccent
+                                : (state.isScheduleActive ? Colors.tealAccent : Colors.lightBlueAccent),
                             size: 20,
                           ),
                           const SizedBox(width: 8),
                           const Text(
-                            'BACKGROUND SCANNER',
+                            'CLOUD AI SCANNER',
                             style: TextStyle(
                               color: Colors.white,
                               fontWeight: FontWeight.bold,
@@ -160,11 +620,85 @@ class DashboardScreen extends StatelessWidget {
                           ),
                         ],
                       ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: state.isScheduleActive
+                              ? Colors.teal.withOpacity(0.2)
+                              : Colors.grey.withOpacity(0.2),
+                          borderRadius: BorderRadius.circular(4),
+                          border: Border.all(
+                            color: state.isScheduleActive
+                                ? Colors.tealAccent
+                                : Colors.grey.shade600,
+                            width: 0.8,
+                          ),
+                        ),
+                        child: Text(
+                          state.isScheduleActive ? 'SCHEDULE ACTIVE' : 'PAUSED',
+                          style: TextStyle(
+                            color: state.isScheduleActive ? Colors.tealAccent : Colors.grey.shade400,
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    state.lastScanInfo ??
+                        (state.isScheduleActive
+                            ? 'Server-side analysis active every ${state.scheduleIntervalMinutes} min. Runs even when mobile app is closed.'
+                            : 'Automated analysis is paused. Start analysis to run cloud market scans automatically.'),
+                    style: TextStyle(color: Colors.grey.shade400, fontSize: 12),
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      // Start / Stop Analysis Button
+                      Expanded(
+                        child: state.isScheduleActive
+                            ? OutlinedButton.icon(
+                                style: OutlinedButton.styleFrom(
+                                  side: BorderSide(color: Colors.amberAccent.withOpacity(0.5)),
+                                  foregroundColor: Colors.amberAccent,
+                                  padding: const EdgeInsets.symmetric(vertical: 8),
+                                ),
+                                onPressed: state.isTogglingSchedule ? null : () => state.stopScheduleAnalysis(),
+                                icon: state.isTogglingSchedule
+                                    ? const SizedBox(
+                                        width: 14,
+                                        height: 14,
+                                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.amberAccent),
+                                      )
+                                    : const Icon(Icons.pause, size: 16),
+                                label: const Text('Stop Analysis', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                              )
+                            : ElevatedButton.icon(
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.teal.shade700,
+                                  foregroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(vertical: 8),
+                                ),
+                                onPressed: state.isTogglingSchedule ? null : () => state.startScheduleAnalysis(),
+                                icon: state.isTogglingSchedule
+                                    ? const SizedBox(
+                                        width: 14,
+                                        height: 14,
+                                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                                      )
+                                    : const Icon(Icons.play_arrow, size: 16),
+                                label: const Text('Start Analysis', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                              ),
+                      ),
+                      const SizedBox(width: 10),
+                      // Manual Scan Now Button
                       ElevatedButton.icon(
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.blueAccent,
                           foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                           textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
                         ),
                         onPressed: state.isScanning ? null : () => state.triggerScan(),
@@ -174,15 +708,10 @@ class DashboardScreen extends StatelessWidget {
                                 height: 12,
                                 child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                               )
-                            : const Icon(Icons.play_arrow, size: 16),
+                            : const Icon(Icons.refresh, size: 16),
                         label: Text(state.isScanning ? 'Scanning...' : 'Scan Now'),
                       ),
                     ],
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    state.lastScanInfo ?? 'Last Scan: Ready. Runs automatically every 15 min.',
-                    style: TextStyle(color: Colors.grey.shade400, fontSize: 12),
                   ),
                 ],
               ),
@@ -283,9 +812,10 @@ class DashboardScreen extends StatelessWidget {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (_) => StockDetailScreen(
+                          builder: (_) => StockRecommendationScreen(
                             symbol: sig.symbol,
                             exchange: sig.exchange,
+                            initialSignal: sig,
                           ),
                         ),
                       );

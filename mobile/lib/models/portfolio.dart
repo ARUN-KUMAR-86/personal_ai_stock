@@ -11,6 +11,14 @@ class Position {
   final double realizedPnl;
   final double fees;
   final bool isOpen;
+  final int holdingPeriodHours;
+  final DateTime? exitDeadline;
+  final bool autoSellEnabled;
+  final String exitStrategy;
+  final bool exitTriggered;
+  final String? exitReason;
+  final String mode;
+  final String? orderId;
 
   Position({
     required this.id,
@@ -25,6 +33,14 @@ class Position {
     required this.realizedPnl,
     required this.fees,
     required this.isOpen,
+    this.holdingPeriodHours = 48,
+    this.exitDeadline,
+    this.autoSellEnabled = false,
+    this.exitStrategy = 'TARGET_OR_STOPLOSS_OR_EXPIRY',
+    this.exitTriggered = false,
+    this.exitReason,
+    this.mode = 'PAPER',
+    this.orderId,
   });
 
   factory Position.fromJson(Map<String, dynamic> json) {
@@ -41,6 +57,14 @@ class Position {
       realizedPnl: (json['realized_pnl'] as num).toDouble(),
       fees: (json['fees'] as num).toDouble(),
       isOpen: json['is_open'] ?? true,
+      holdingPeriodHours: json['holding_period_hours'] ?? 48,
+      exitDeadline: json['exit_deadline'] != null ? DateTime.tryParse(json['exit_deadline']) : null,
+      autoSellEnabled: json['auto_sell_enabled'] ?? false,
+      exitStrategy: json['exit_strategy'] ?? 'TARGET_OR_STOPLOSS_OR_EXPIRY',
+      exitTriggered: json['exit_triggered'] ?? false,
+      exitReason: json['exit_reason'],
+      mode: json['mode'] ?? 'PAPER',
+      orderId: json['order_id'],
     );
   }
 }
@@ -65,7 +89,7 @@ class PortfolioSummary {
   });
 
   factory PortfolioSummary.fromJson(Map<String, dynamic> json) {
-    var rawPositions = json['positions'] as List? ?? [];
+    var posList = (json['positions'] as List?)?.map((p) => Position.fromJson(p)).toList() ?? [];
     return PortfolioSummary(
       totalPortfolioValue: (json['total_portfolio_value'] as num).toDouble(),
       totalInvestedValue: (json['total_invested_value'] as num).toDouble(),
@@ -73,7 +97,7 @@ class PortfolioSummary {
       totalRealizedPnl: (json['total_realized_pnl'] as num).toDouble(),
       openPositionsCount: json['open_positions_count'] ?? 0,
       portfolioExposurePct: (json['portfolio_exposure_pct'] as num).toDouble(),
-      positions: rawPositions.map((p) => Position.fromJson(p)).toList(),
+      positions: posList,
     );
   }
 }

@@ -6,7 +6,13 @@ from sqlalchemy.orm import Session
 
 from app.database.session import get_db
 from app.models.alert import AlertHistory
-from app.schemas.alert import AlertRead, AlertMarkReadRequest, NotificationTestRequest
+from app.schemas.alert import (
+    AlertRead,
+    AlertMarkReadRequest,
+    NotificationTestRequest,
+    DeviceTokenCreate,
+    DeviceTokenRead,
+)
 from app.notifications.notifier import notifier
 
 router = APIRouter(prefix="/alerts", tags=["Alerts & Notifications"])
@@ -54,3 +60,45 @@ def test_push_notification(request: NotificationTestRequest, db: Session = Depen
         "fcm_message_id": alert.fcm_message_id,
         "fcm_available": notifier.is_fcm_available(),
     }
+
+
+@router.post("/register-token", response_model=DeviceTokenRead)
+def register_device_token(request: DeviceTokenCreate, db: Session = Depends(get_db)):
+    """Registers an Android phone FCM token to receive real-time push alerts."""
+    from app.models.alert import DeviceToken
+
+    device = db.query(DeviceToken).filter(DeviceToken.token == request.token).first()
+    if device:
+        device.device_name = request.device_name
+        device.is_active = True
+    else:
+        device = DeviceToken(
+            token=request.token,
+            device_name=request.device_name,
+            is_active=True,
+        )
+        db.add(device)
+    db.commit()
+    db.refresh(device)
+    return device
+
+
+@router.post("/unregister-token")
+def unregister_device_token(token: str, db: Session = Depends(get_db)):
+    """Unregisters an Android device from receiving notifications."""
+    from app.models.alert import DeviceToken
+
+    device = db.query(DeviceToken).filter(DeviceToken.token == token).first()
+    if device:
+        device.is_active = False
+        db.commit()
+        return {"status": "UNREGISTERED", "token": token}
+    return {"status": "NOT_FOUND", "token": token}
+
+
+@router.get("/devices", response_model=List[DeviceTokenRead])
+def get_registered_devices(db: Session = Depends(get_db)):
+    """Lists registered devices for notifications."""
+    from app.models.alert import DeviceToken
+
+    return db.query(DeviceToken).filter(DeviceToken.is_active == True).all()

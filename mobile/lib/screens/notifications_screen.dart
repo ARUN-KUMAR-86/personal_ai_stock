@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../state/app_state.dart';
 import '../models/alert.dart';
+import 'stock_recommendation_screen.dart';
 
 class NotificationsScreen extends StatefulWidget {
   const NotificationsScreen({super.key});
@@ -13,65 +14,18 @@ class NotificationsScreen extends StatefulWidget {
 class _NotificationsScreenState extends State<NotificationsScreen> {
   bool unreadOnly = false;
 
-  void _showAlertDetails(StockAlert alert) {
+  void _openRecommendation(StockAlert alert) {
     if (!alert.isRead) {
       context.read<AppState>().markAlertRead(alert.id);
     }
-
-    showDialog(
-      context: context,
-      builder: (ctx) {
-        return AlertDialog(
-          backgroundColor: const Color(0xFF1E222D),
-          title: Text(
-            alert.title,
-            style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
-          ),
-          content: SingleChildScrollView(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      'Symbol: ${alert.symbol} (${alert.exchange})',
-                      style: const TextStyle(color: Colors.blueAccent, fontWeight: FontWeight.bold),
-                    ),
-                    if (alert.price != null)
-                      Text(
-                        '₹${alert.price}',
-                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-                      ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  alert.message,
-                  style: const TextStyle(color: Colors.white70, fontSize: 13, height: 1.4),
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  'Received: ${alert.createdAt.toLocal().toString().substring(0, 19)}',
-                  style: const TextStyle(color: Colors.grey, fontSize: 11),
-                ),
-                if (alert.sentToFcm) ...[
-                  const SizedBox(height: 4),
-                  const Text('Dispatched via Firebase Cloud Messaging',
-                      style: TextStyle(color: Colors.greenAccent, fontSize: 10)),
-                ],
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('Close', style: TextStyle(color: Colors.blueAccent)),
-            ),
-          ],
-        );
-      },
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => StockRecommendationScreen(
+          symbol: alert.symbol,
+          exchange: alert.exchange,
+        ),
+      ),
     );
   }
 
@@ -93,6 +47,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
             onPressed: () async {
               final ok = await state.api.sendTestPushAlert();
               await state.refreshAll();
+              if (!context.mounted) return;
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
                   content: Text(ok
@@ -220,7 +175,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                               ),
                             ],
                           ),
-                          onTap: () => _showAlertDetails(alert),
+                          onTap: () => _openRecommendation(alert),
                         ),
                       );
                     },

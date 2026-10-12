@@ -4,6 +4,12 @@ A private, self-hosted quantitative stock scanning and decision-support applicat
 
 Automatically scans supported Indian stock markets (NSE / BSE), computes verifiable technical indicators, identifies high-confluence entry and exit opportunities, calculates ATR-based stop-loss and target levels, enforces strict portfolio risk limits, tracks paper trading performance, and dispatches push alerts to your Android phone via Firebase Cloud Messaging.
 
+> [!IMPORTANT]
+> **Free Cloud Backend & Android App Ready**:
+> - **Zero-Laptop Cloud Operation**: Refer to [`docs/CLOUD_DEPLOYMENT.md`](file:///home/arun/personal-ai-stock/docs/CLOUD_DEPLOYMENT.md) for 1-click Render free-tier deployment, market hours keep-alive, and Firebase setup.
+> - **Ready-to-Install Android APK**: [`mobile/build/app/outputs/flutter-apk/app-arm64-v8a-release.apk`](file:///home/arun/personal-ai-stock/mobile/build/app/outputs/flutter-apk/app-arm64-v8a-release.apk) or [`/home/arun/Downloads/app-arm64-v8a-release.apk`](file:///home/arun/Downloads/app-arm64-v8a-release.apk) (21.9 MB).
+> - **Personal User Guide**: Refer to [`docs/PERSONAL_USER_GUIDE.md`](file:///home/arun/personal-ai-stock/docs/PERSONAL_USER_GUIDE.md) for day-to-day workflow instructions.
+
 ---
 
 ## 1. System Architecture
@@ -207,3 +213,4 @@ Inspect logs:
 ```bash
 docker-compose logs -f backend
 ```
+# personal_ai_stock

@@ -104,3 +104,34 @@ def sync_stocks(exchange: str = "NSE", db: Session = Depends(get_db)):
     """Triggers discovery and synchronization of the stock universe."""
     added = scanner_engine.sync_universe(db, exchange=exchange)
     return {"message": f"Universe synchronized. Added {added} new instruments.", "exchange": exchange}
+
+
+@router.get("/{symbol}/thesis")
+def get_stock_ai_thesis(
+    symbol: str,
+    exchange: str = "NSE",
+    db: Session = Depends(get_db),
+):
+    """Fetches or generates an on-demand explainable AI thesis for any stock symbol."""
+    from app.analysis.narrative import ai_narrative_generator
+    from app.strategies.registry import strategy_registry
+
+    # Check if a recent signal already has an AI thesis
+    latest_sig = (
+        db.query(StockSignal)
+        .filter(StockSignal.symbol == symbol.upper(), StockSignal.exchange == exchange.upper())
+        .order_by(StockSignal.created_at.desc())
+        .first()
+    )
+    if latest_sig and latest_sig.ai_thesis:
+        return latest_sig.ai_thesis
+
+    provider = get_market_data_provider()
+    df = provider.get_historical_ohlcv(symbol=symbol.upper(), exchange=exchange.upper())
+    if df.empty or len(df) < 20:
+        raise HTTPException(status_code=404, detail=f"Insufficient history to generate thesis for {symbol}")
+
+    strat = strategy_registry.get("MomentumBreakout") or strategy_registry.get_all()[0]
+    sig = strat.evaluate(df=df, symbol=symbol.upper(), exchange=exchange.upper())
+    return sig.ai_thesis
+

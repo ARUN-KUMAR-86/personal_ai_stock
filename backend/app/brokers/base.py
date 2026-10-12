@@ -54,6 +54,19 @@ class BaseBrokerAdapter(ABC):
         quantity: int,
         order_type: str = "MARKET",
         price: Optional[float] = None,
+        user_confirmed: bool = False,
     ) -> Dict[str, Any]:
         """Places order on exchange through broker (disabled by default)."""
         pass
+
+    def get_order_status(self, order_id: str) -> Dict[str, Any]:
+        """Retrieves verified status of placed broker order."""
+        return {"order_id": order_id, "status": "UNKNOWN", "filled_quantity": 0}
+
+    def get_api_availability(self) -> Dict[str, Any]:
+        """Checks API availability, permissions, and session health."""
+        return {
+            "broker": self.broker_name,
+            "is_configured": self.is_configured(),
+            "is_authenticated": False,
+        }

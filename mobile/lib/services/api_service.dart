@@ -6,6 +6,8 @@ import '../models/signal.dart';
 import '../models/alert.dart';
 import '../models/portfolio.dart';
 import '../models/funds.dart';
+import '../models/order.dart';
+import '../models/watchlist.dart';
 import 'storage_service.dart';
 
 class ApiService {
@@ -111,6 +113,37 @@ class ApiService {
     return {'is_scanning': false};
   }
 
+  Future<Map<String, dynamic>> getScheduleStatus() async {
+    try {
+      final url = await _getUrl('/scanner/schedule/status');
+      final res = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 8));
+      if (res.statusCode == 200) {
+        return jsonDecode(res.body);
+      }
+    } catch (_) {}
+    return {'auto_scan_active': false, 'scheduler_running': false};
+  }
+
+  Future<Map<String, dynamic>> startSchedule({int intervalMinutes = 15}) async {
+    final url = await _getUrl('/scanner/schedule/start?interval_minutes=$intervalMinutes');
+    final headers = await _headers();
+    final res = await http.post(Uri.parse(url), headers: headers).timeout(const Duration(seconds: 10));
+    if (res.statusCode == 200) {
+      return jsonDecode(res.body);
+    }
+    throw Exception('Failed to start analysis schedule: ${res.statusCode}');
+  }
+
+  Future<Map<String, dynamic>> stopSchedule() async {
+    final url = await _getUrl('/scanner/schedule/stop');
+    final headers = await _headers();
+    final res = await http.post(Uri.parse(url), headers: headers).timeout(const Duration(seconds: 10));
+    if (res.statusCode == 200) {
+      return jsonDecode(res.body);
+    }
+    throw Exception('Failed to stop analysis schedule: ${res.statusCode}');
+  }
+
   Future<List<StockAlert>> getAlerts({bool unreadOnly = false}) async {
     final url = await _getUrl('/alerts/history?unread_only=$unreadOnly');
     final res = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 8));
@@ -144,6 +177,38 @@ class ApiService {
       }),
     );
     return res.statusCode == 200;
+  }
+
+  Future<bool> registerDeviceToken(String token, {String deviceName = 'Android Phone'}) async {
+    try {
+      final url = await _getUrl('/alerts/register-token');
+      final headers = await _headers();
+      final res = await http.post(
+        Uri.parse(url),
+        headers: headers,
+        body: jsonEncode({
+          'token': token,
+          'device_name': deviceName,
+        }),
+      ).timeout(const Duration(seconds: 8));
+      return res.statusCode == 200;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<bool> unregisterDeviceToken(String token) async {
+    try {
+      final url = await _getUrl('/alerts/unregister-token?token=${Uri.encodeComponent(token)}');
+      final headers = await _headers();
+      final res = await http.post(
+        Uri.parse(url),
+        headers: headers,
+      ).timeout(const Duration(seconds: 8));
+      return res.statusCode == 200;
+    } catch (_) {
+      return false;
+    }
   }
 
   Future<PortfolioSummary> getPortfolioSummary() async {
@@ -212,5 +277,318 @@ class ApiService {
       }
     }
     return false;
+  }
+
+  Future<StockSignal> getStockRecommendation(String symbol, {String exchange = 'NSE'}) async {
+    final url = await _getUrl('/signals/recommendation/$symbol?exchange=$exchange');
+    final res = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 10));
+    if (res.statusCode == 200) {
+      return StockSignal.fromJson(jsonDecode(res.body));
+    }
+    throw Exception('Failed to load stock recommendation for $symbol (${res.statusCode})');
+  }
+
+  Future<StockSignal> regenerateAIThesis(int signalId) async {
+    final url = await _getUrl('/signals/$signalId/thesis/regenerate');
+    final headers = await _headers();
+    final res = await http.post(Uri.parse(url), headers: headers).timeout(const Duration(seconds: 12));
+    if (res.statusCode == 200) {
+      return StockSignal.fromJson(jsonDecode(res.body));
+    }
+    throw Exception('Failed to regenerate AI investment thesis (${res.statusCode})');
+  }
+
+  Future<Map<String, dynamic>> getStockAIThesis(String symbol, {String exchange = 'NSE'}) async {
+    final url = await _getUrl('/stocks/$symbol/thesis?exchange=$exchange');
+    final res = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 10));
+    if (res.statusCode == 200) {
+      return Map<String, dynamic>.from(jsonDecode(res.body));
+    }
+    throw Exception('Failed to load AI thesis for $symbol (${res.statusCode})');
+  }
+
+  Future<OrderCalculation> calculateOrderMetrics({
+    required String symbol,
+    required double investmentAmount,
+    double? entryPrice,
+    double? stopLoss,
+    double? target,
+    int holdingPeriodHours = 48,
+  }) async {
+    final url = await _getUrl('/orders/calculate');
+    final headers = await _headers();
+    final res = await http.post(
+      Uri.parse(url),
+      headers: headers,
+      body: jsonEncode({
+        'symbol': symbol,
+        'exchange': 'NSE',
+        'investment_amount': investmentAmount,
+        'entry_price': entryPrice,
+        'stop_loss': stopLoss,
+        'target': target,
+        'holding_period_hours': holdingPeriodHours,
+      }),
+    ).timeout(const Duration(seconds: 6));
+    if (res.statusCode == 200) {
+      return OrderCalculation.fromJson(jsonDecode(res.body));
+    }
+    throw Exception('Failed to calculate trade metrics: ${res.body}');
+  }
+
+  Future<PreparedBuyOrder> prepareBuyOrder({
+    required String symbol,
+    required double investmentAmount,
+    required double expectedPrice,
+    required double stopLoss,
+    required double target,
+    int holdingPeriodHours = 48,
+    int? signalId,
+  }) async {
+    final url = await _getUrl('/orders/prepare-buy');
+    final headers = await _headers();
+    final res = await http.post(
+      Uri.parse(url),
+      headers: headers,
+      body: jsonEncode({
+        'symbol': symbol,
+        'exchange': 'NSE',
+        'investment_amount': investmentAmount,
+        'expected_price': expectedPrice,
+        'stop_loss': stopLoss,
+        'target': target,
+        'holding_period_hours': holdingPeriodHours,
+        'signal_id': signalId,
+      }),
+    ).timeout(const Duration(seconds: 8));
+    if (res.statusCode == 200) {
+      return PreparedBuyOrder.fromJson(jsonDecode(res.body));
+    }
+    throw Exception(jsonDecode(res.body)['detail'] ?? 'Failed to prepare buy order');
+  }
+
+  Future<ConfirmedOrder> confirmBuyOrder({
+    required String clientOrderId,
+    required String symbol,
+    required double investmentAmount,
+    required double confirmedPrice,
+    required int quantity,
+    required double stopLoss,
+    required double target,
+    int holdingPeriodHours = 48,
+    bool autoSellEnabled = false,
+    int? signalId,
+  }) async {
+    final url = await _getUrl('/orders/buy-confirm');
+    final headers = await _headers();
+    final res = await http.post(
+      Uri.parse(url),
+      headers: headers,
+      body: jsonEncode({
+        'client_order_id': clientOrderId,
+        'symbol': symbol,
+        'exchange': 'NSE',
+        'investment_amount': investmentAmount,
+        'confirmed_price': confirmedPrice,
+        'quantity': quantity,
+        'stop_loss': stopLoss,
+        'target': target,
+        'holding_period_hours': holdingPeriodHours,
+        'auto_sell_enabled': autoSellEnabled,
+        'user_confirmed': true,
+        'signal_id': signalId,
+      }),
+    ).timeout(const Duration(seconds: 12));
+    if (res.statusCode == 200) {
+      return ConfirmedOrder.fromJson(jsonDecode(res.body));
+    }
+    throw Exception(jsonDecode(res.body)['detail'] ?? 'Order execution failed');
+  }
+
+  Future<SafetyStatus> getSafetyStatus() async {
+    final url = await _getUrl('/safety/status');
+    final res = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 6));
+    if (res.statusCode == 200) {
+      return SafetyStatus.fromJson(jsonDecode(res.body));
+    }
+    throw Exception('Failed to load safety status');
+  }
+
+  Future<bool> toggleEmergencyStop(bool enabled) async {
+    final url = await _getUrl('/safety/emergency-stop?enabled=$enabled');
+    final headers = await _headers();
+    final res = await http.post(Uri.parse(url), headers: headers);
+    return res.statusCode == 200;
+  }
+
+  Future<SafetyStatus> updateSafetySettings({
+    bool? emergencyStopEnabled,
+    bool? autoSellEnabled,
+    double? maxPositionRiskPct,
+    double? maxSingleStockPct,
+    double? maxPortfolioExposurePct,
+  }) async {
+    final url = await _getUrl('/safety/settings');
+    final headers = await _headers();
+    final res = await http.put(
+      Uri.parse(url),
+      headers: headers,
+      body: jsonEncode({
+        if (emergencyStopEnabled != null) 'emergency_stop_enabled': emergencyStopEnabled,
+        if (autoSellEnabled != null) 'auto_sell_enabled': autoSellEnabled,
+        if (maxPositionRiskPct != null) 'max_position_risk_pct': maxPositionRiskPct,
+        if (maxSingleStockPct != null) 'max_single_stock_pct': maxSingleStockPct,
+        if (maxPortfolioExposurePct != null) 'max_portfolio_exposure_pct': maxPortfolioExposurePct,
+      }),
+    );
+    if (res.statusCode == 200) {
+      return SafetyStatus.fromJson(jsonDecode(res.body));
+    }
+    throw Exception('Failed to update safety settings');
+  }
+
+  Future<bool> updatePositionMonitoring(
+    int positionId, {
+    double? stopLoss,
+    double? target,
+    int? holdingPeriodHours,
+    bool? autoSellEnabled,
+  }) async {
+    final url = await _getUrl('/safety/positions/$positionId/monitoring');
+    final headers = await _headers();
+    final res = await http.put(
+      Uri.parse(url),
+      headers: headers,
+      body: jsonEncode({
+        if (stopLoss != null) 'stop_loss': stopLoss,
+        if (target != null) 'target': target,
+        if (holdingPeriodHours != null) 'holding_period_hours': holdingPeriodHours,
+        if (autoSellEnabled != null) 'auto_sell_enabled': autoSellEnabled,
+      }),
+    );
+    return res.statusCode == 200;
+  }
+
+  Future<bool> triggerPositionMonitorCheck() async {
+    final url = await _getUrl('/safety/monitor-check');
+    final headers = await _headers();
+    final res = await http.post(Uri.parse(url), headers: headers);
+    return res.statusCode == 200;
+  }
+
+  Future<Map<String, dynamic>> getGrowwStatus() async {
+    try {
+      final url = await _getUrl('/groww/status');
+      final res = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 6));
+      if (res.statusCode == 200) {
+        return jsonDecode(res.body);
+      }
+    } catch (_) {}
+    return {'is_configured': false, 'is_authenticated': false};
+  }
+
+  Future<Map<String, dynamic>> loginGroww({
+    String? apiKey,
+    String? apiSecret,
+    String? totpKey,
+    String? authToken,
+    bool orderExecutionEnabled = false,
+  }) async {
+    final url = await _getUrl('/groww/login');
+    final headers = await _headers();
+    final res = await http.post(
+      Uri.parse(url),
+      headers: headers,
+      body: jsonEncode({
+        if (apiKey != null && apiKey.isNotEmpty) 'api_key': apiKey,
+        if (apiSecret != null && apiSecret.isNotEmpty) 'api_secret': apiSecret,
+        if (totpKey != null && totpKey.isNotEmpty) 'totp_key': totpKey,
+        if (authToken != null && authToken.isNotEmpty) 'auth_token': authToken,
+        'order_execution_enabled': orderExecutionEnabled,
+      }),
+    ).timeout(const Duration(seconds: 10));
+    if (res.statusCode == 200) {
+      return jsonDecode(res.body);
+    }
+    throw Exception(jsonDecode(res.body)['detail'] ?? 'Groww login failed');
+  }
+
+  Future<Map<String, dynamic>> logoutGroww() async {
+    final url = await _getUrl('/groww/logout');
+    final headers = await _headers();
+    final res = await http.post(Uri.parse(url), headers: headers);
+    if (res.statusCode == 200) {
+      return jsonDecode(res.body);
+    }
+    return {'success': false};
+  }
+
+  Future<Map<String, dynamic>> refreshGrowwAuth() async {
+    final url = await _getUrl('/groww/auth/refresh');
+    final headers = await _headers();
+    final res = await http.post(Uri.parse(url), headers: headers);
+    if (res.statusCode == 200) {
+      return jsonDecode(res.body);
+    }
+    throw Exception('Failed to refresh Groww session: ${res.body}');
+  }
+
+  // Watchlist Endpoints
+  Future<List<WatchlistItem>> getWatchlist({String exchange = 'NSE'}) async {
+    try {
+      final url = await _getUrl('/watchlist?exchange=$exchange');
+      final res = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 8));
+      if (res.statusCode == 200) {
+        final List raw = jsonDecode(res.body);
+        return raw.map((item) => WatchlistItem.fromJson(item)).toList();
+      }
+    } catch (_) {}
+    return [];
+  }
+
+  Future<WatchlistItem> addToWatchlist(String symbol, {String exchange = 'NSE', String? notes}) async {
+    final query = notes != null ? '?exchange=$exchange&notes=${Uri.encodeComponent(notes)}' : '?exchange=$exchange';
+    final url = await _getUrl('/watchlist/${symbol.toUpperCase()}$query');
+    final headers = await _headers();
+    final res = await http.post(Uri.parse(url), headers: headers).timeout(const Duration(seconds: 8));
+    if (res.statusCode == 200) {
+      return WatchlistItem.fromJson(jsonDecode(res.body));
+    }
+    throw Exception('Failed to add to watchlist: ${res.body}');
+  }
+
+  Future<bool> removeFromWatchlist(String symbol, {String exchange = 'NSE'}) async {
+    try {
+      final url = await _getUrl('/watchlist/${symbol.toUpperCase()}?exchange=$exchange');
+      final headers = await _headers();
+      final res = await http.delete(Uri.parse(url), headers: headers).timeout(const Duration(seconds: 8));
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body);
+        return data['removed'] == true;
+      }
+    } catch (_) {}
+    return false;
+  }
+
+  Future<bool> checkIsWatchlisted(String symbol, {String exchange = 'NSE'}) async {
+    try {
+      final url = await _getUrl('/watchlist/check/${symbol.toUpperCase()}?exchange=$exchange');
+      final res = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 5));
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body);
+        return data['is_watchlisted'] == true;
+      }
+    } catch (_) {}
+    return false;
+  }
+
+  Future<Map<String, dynamic>> scanWatchlist({String exchange = 'NSE', bool force = true}) async {
+    final url = await _getUrl('/watchlist/scan?exchange=$exchange&force=$force');
+    final headers = await _headers();
+    final res = await http.post(Uri.parse(url), headers: headers).timeout(const Duration(seconds: 25));
+    if (res.statusCode == 200) {
+      return jsonDecode(res.body);
+    }
+    throw Exception('Failed to scan watchlist: ${res.body}');
   }
 }

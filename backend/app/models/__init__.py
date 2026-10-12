@@ -4,10 +4,13 @@ from app.models.stock import Stock
 from app.models.candle import Candle
 from app.models.signal import StockSignal
 from app.models.scan_job import ScanJob
-from app.models.alert import AlertHistory
+from app.models.alert import AlertHistory, DeviceToken
 from app.models.portfolio import Position, PaperTrade
 from app.models.broker import BrokerAccount
 from app.models.user import User
+from app.models.order import Order
+from app.models.watchlist import WatchlistItem
+from app.models.setting import AppSetting
 
 __all__ = [
     "Stock",
@@ -15,8 +18,12 @@ __all__ = [
     "StockSignal",
     "ScanJob",
     "AlertHistory",
+    "DeviceToken",
     "Position",
     "PaperTrade",
     "BrokerAccount",
     "User",
+    "Order",
+    "WatchlistItem",
+    "AppSetting",
 ]

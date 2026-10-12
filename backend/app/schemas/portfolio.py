@@ -18,6 +18,14 @@ class PositionRead(BaseModel):
     realized_pnl: float
     fees: float
     is_open: bool
+    holding_period_hours: int = 48
+    exit_deadline: Optional[datetime] = None
+    auto_sell_enabled: bool = False
+    exit_strategy: str = "TARGET_OR_STOPLOSS_OR_EXPIRY"
+    exit_triggered: bool = False
+    exit_reason: Optional[str] = None
+    mode: str = "PAPER"
+    order_id: Optional[str] = None
     opened_at: datetime
     closed_at: Optional[datetime] = None
 

@@ -32,3 +32,18 @@ class NotificationTestRequest(BaseModel):
     symbol: str = "RELIANCE"
     exchange: str = "NSE"
     device_token: Optional[str] = None
+
+
+class DeviceTokenCreate(BaseModel):
+    token: str
+    device_name: Optional[str] = "Android Phone"
+
+
+class DeviceTokenRead(BaseModel):
+    id: int
+    token: str
+    device_name: Optional[str] = None
+    is_active: bool
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)

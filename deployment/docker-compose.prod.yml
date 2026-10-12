@@ -1,0 +1,52 @@
+version: '3.8'
+
+services:
+  caddy:
+    image: caddy:2.8-alpine
+    container_name: stock_intel_caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      - DOMAIN=${DOMAIN:-localhost}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - backend
+
+  backend:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    container_name: stock_intel_backend
+    restart: unless-stopped
+    expose:
+      - "8000"
+    environment:
+      - PORT=8000
+      - ENVIRONMENT=production
+      - DATABASE_URL=sqlite:////app/data/stock_intel.db
+      - SECRET_KEY=${SECRET_KEY:-generate-a-strong-32-char-secret-key-here}
+      - OWNER_USERNAME=${OWNER_USERNAME:-owner}
+      - OWNER_PASSWORD=${OWNER_PASSWORD:-SecureOwnerPass123!}
+      - MARKET_DATA_PROVIDER=${MARKET_DATA_PROVIDER:-yahoo}
+      - AUTO_SCAN_ENABLED=true
+      - SCAN_INTERVAL_MINUTES=15
+      - SCAN_MARKET_HOURS_ONLY=false
+      - FCM_SERVICE_ACCOUNT_PATH=/app/credentials/firebase-service-account.json
+      - GROWW_API_AUTH_TOKEN=${GROWW_API_AUTH_TOKEN:-}
+      - GROWW_API_KEY=${GROWW_API_KEY:-}
+      - GROWW_API_SECRET=${GROWW_API_SECRET:-}
+      - GROWW_TOTP_KEY=${GROWW_TOTP_KEY:-}
+      - ORDER_EXECUTION_MODE=${ORDER_EXECUTION_MODE:-PAPER}
+    volumes:
+      - stock_data:/app/data
+      - ../credentials:/app/credentials:ro
+
+volumes:
+  stock_data:
+  caddy_data:
+  caddy_config:

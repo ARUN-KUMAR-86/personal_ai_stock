@@ -39,10 +39,7 @@ class SignalPill extends StatelessWidget {
       decoration: BoxDecoration(
         color: bg,
         borderRadius: BorderRadius.circular(12),
-        border: Border.merge(
-          Border.all(color: text.withOpacity(0.5), width: 1.0),
-          Border.all(color: Colors.transparent),
-        ),
+        border: Border.all(color: text.withOpacity(0.5), width: 1.0),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,

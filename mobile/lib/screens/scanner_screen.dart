@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../state/app_state.dart';
-import '../models/stock_summary.dart';
 import '../widgets/signal_pill.dart';
-import 'stock_detail_screen.dart';
+import '../models/stock_summary.dart';
+import 'stock_recommendation_screen.dart';
 
 class ScannerScreen extends StatefulWidget {
   const ScannerScreen({super.key});
@@ -19,6 +19,7 @@ class _ScannerScreenState extends State<ScannerScreen> {
 
   final List<String> signalFilters = [
     'ALL',
+    '⭐ WATCHLIST',
     'BUY WATCH',
     'HOLD',
     'SELL/EXIT WATCH',
@@ -29,11 +30,30 @@ class _ScannerScreenState extends State<ScannerScreen> {
   Widget build(BuildContext context) {
     final state = context.watch<AppState>();
 
+    List<StockSummary> baseList = state.stocks;
+    if (selectedSignal == '⭐ WATCHLIST') {
+      final stockMap = {for (var s in state.stocks) s.symbol.toUpperCase(): s};
+      baseList = state.watchlistSymbols.map((sym) {
+        if (stockMap.containsKey(sym)) return stockMap[sym]!;
+        final wItem = state.watchlistItems.where((w) => w.symbol.toUpperCase() == sym).firstOrNull;
+        if (wItem != null && wItem.stock != null) return wItem.stock!;
+        return StockSummary(
+          symbol: sym,
+          exchange: 'NSE',
+          name: sym,
+          isLive: false,
+          latestSignal: 'NO TRADE',
+          signalStrength: 0.0,
+        );
+      }).toList();
+    }
+
     // Filter stocks
-    var filtered = state.stocks.where((s) {
+    var filtered = baseList.where((s) {
       final matchesSearch = s.symbol.toLowerCase().contains(searchQuery.toLowerCase()) ||
           s.name.toLowerCase().contains(searchQuery.toLowerCase());
-      final matchesSignal = selectedSignal == 'ALL' || s.latestSignal == selectedSignal;
+      final matchesSignal = (selectedSignal == 'ALL' || selectedSignal == '⭐ WATCHLIST') ||
+          s.latestSignal == selectedSignal;
       return matchesSearch && matchesSignal;
     }).toList();
 
@@ -54,8 +74,20 @@ class _ScannerScreenState extends State<ScannerScreen> {
         title: const Text('STOCK SCANNER', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
         actions: [
           IconButton(
-            icon: Icon(state.isScanning ? Icons.sync : Icons.refresh),
-            onPressed: state.isScanning ? null : () => state.refreshAll(),
+            tooltip: 'Trigger Market Scan',
+            icon: state.isScanning
+                ? const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.blueAccent),
+                  )
+                : const Icon(Icons.radar, color: Colors.blueAccent),
+            onPressed: state.isScanning ? null : () => state.triggerScan(),
+          ),
+          IconButton(
+            tooltip: 'Refresh Universe',
+            icon: const Icon(Icons.refresh),
+            onPressed: () => state.refreshAll(),
           ),
         ],
       ),
@@ -175,13 +207,29 @@ class _ScannerScreenState extends State<ScannerScreen> {
                           title: Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              Text(
-                                stock.symbol,
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 15,
-                                ),
+                              Row(
+                                children: [
+                                  InkWell(
+                                    onTap: () => state.toggleWatchlist(stock.symbol, exchange: stock.exchange),
+                                    borderRadius: BorderRadius.circular(16),
+                                    child: Padding(
+                                      padding: const EdgeInsets.only(right: 8),
+                                      child: Icon(
+                                        state.isWatchlisted(stock.symbol) ? Icons.star : Icons.star_border,
+                                        color: state.isWatchlisted(stock.symbol) ? Colors.amberAccent : Colors.grey.shade500,
+                                        size: 18,
+                                      ),
+                                    ),
+                                  ),
+                                  Text(
+                                    stock.symbol,
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 15,
+                                    ),
+                                  ),
+                                ],
                               ),
                               Text(
                                 stock.latestPrice != null
@@ -226,7 +274,7 @@ class _ScannerScreenState extends State<ScannerScreen> {
                             Navigator.push(
                               context,
                               MaterialPageRoute(
-                                builder: (_) => StockDetailScreen(
+                                builder: (_) => StockRecommendationScreen(
                                   symbol: stock.symbol,
                                   exchange: stock.exchange,
                                 ),

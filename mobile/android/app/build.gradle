@@ -24,10 +24,11 @@ if (flutterVersionName == null) {
 
 android {
     namespace "com.personal.aistock"
-    compileSdk 34
-    ndkVersion flutter.ndkVersion
+    compileSdk 35
+    ndkVersion "25.1.8937393"
 
     compileOptions {
+        coreLibraryDesugaringEnabled true
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17
     }
@@ -42,10 +43,11 @@ android {
 
     defaultConfig {
         applicationId "com.personal.aistock"
-        minSdk 21
-        targetSdk 34
+        minSdk 23
+        targetSdk 35
         versionCode flutterVersionCode.toInteger()
         versionName flutterVersionName
+        multiDexEnabled true
     }
 
     buildTypes {
@@ -57,6 +59,14 @@ android {
     }
 }
 
+dependencies {
+    coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.1.4'
+}
+
 flutter {
     source '../..'
+}
+
+if (file("google-services.json").exists()) {
+    apply plugin: "com.google.gms.google-services"
 }
