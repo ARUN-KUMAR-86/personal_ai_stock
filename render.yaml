@@ -1,9 +1,9 @@
 services:
   - type: web
     name: personal-ai-stock-backend
-    env: docker
-    dockerfilePath: backend/Dockerfile
-    dockerContext: backend
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
     plan: free
     region: singapore # Closest free-tier region to Indian market (NSE)
     healthCheckPath: /health
@@ -18,11 +18,11 @@ services:
       - key: OWNER_USERNAME
         value: owner
       - key: OWNER_PASSWORD
-        sync: false
+        value: "SecureOwnerPass123!"
       - key: GEMINI_API_KEY
-        sync: false
+        value: ""
       - key: FCM_SERVICE_ACCOUNT_JSON
-        sync: false
+        value: ""
       - key: MARKET_DATA_PROVIDER
         value: yahoo
       - key: AUTO_SCAN_ENABLED
@@ -32,7 +32,7 @@ services:
       - key: SCAN_MARKET_HOURS_ONLY
         value: "false"
       - key: CORS_ORIGINS
-        value: "*"
+        value: '["*"]'
       - key: NOTIFICATION_COOLDOWN_MINUTES
         value: "60"
       - key: GROWW_ORDER_EXECUTION_ENABLED

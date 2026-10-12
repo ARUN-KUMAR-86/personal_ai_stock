@@ -1,7 +1,8 @@
 """Application configuration and settings."""
 
 import os
-from typing import List, Optional
+from typing import Any, List, Optional, Union
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -71,7 +72,27 @@ class Settings(BaseSettings):
     AI_ANALYSIS_ENABLED: bool = True
 
     # CORS
-    CORS_ORIGINS: List[str] = ["*"]
+    CORS_ORIGINS: Union[List[str], str] = ["*"]
+
+    @field_validator("CORS_ORIGINS", mode="before")
+    @classmethod
+    def assemble_cors_origins(cls, v: Any) -> List[str]:
+        if isinstance(v, str):
+            val = v.strip()
+            if not val or val == "*":
+                return ["*"]
+            if val.startswith("[") and val.endswith("]"):
+                try:
+                    import json
+                    parsed = json.loads(val)
+                    if isinstance(parsed, list):
+                        return [str(item).strip() for item in parsed]
+                except Exception:
+                    pass
+            return [item.strip() for item in val.split(",") if item.strip()]
+        elif isinstance(v, list):
+            return [str(item).strip() for item in v]
+        return ["*"]
 
     model_config = SettingsConfigDict(
         env_file=".env",
