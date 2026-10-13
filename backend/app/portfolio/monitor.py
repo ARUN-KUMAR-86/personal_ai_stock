@@ -8,6 +8,7 @@ from app.core.config import settings
 from app.core.logging import logger
 from app.models.portfolio import Position
 from app.models.order import Order
+from app.models.broker import BrokerAccount
 from app.providers.factory import get_market_data_provider
 from app.brokers.factory import get_broker_adapter
 from app.notifications.notifier import notifier
@@ -85,8 +86,13 @@ class PositionMonitor:
                 market_status = provider.get_market_status(exchange=pos.exchange)
                 is_market_open = force_market_open or market_status.get("is_open", False)
 
-                # Check if Automatic Selling is explicitly opted in (position or global)
-                auto_sell = pos.auto_sell_enabled or settings.AUTO_SELL_ENABLED
+                # Check broker account settings to check trading mode
+                account = db.query(BrokerAccount).filter(BrokerAccount.broker_name == "GROWW").first()
+                is_hybrid_guard = account and ("Hybrid Guard" in (account.trading_mode or "") or "Option B" in (account.trading_mode or ""))
+
+                # In Option B (Hybrid Guard): auto-sell is activated for STOP_LOSS breaches specifically
+                is_stop_loss = trigger_reason.startswith("STOP_LOSS")
+                auto_sell = pos.auto_sell_enabled or settings.AUTO_SELL_ENABLED or (is_hybrid_guard and is_stop_loss)
 
                 # 4. Handle exit outside market hours
                 if not is_market_open:
@@ -146,18 +152,24 @@ class PositionMonitor:
                             db.commit()
 
                             pnl = pos.realized_pnl
+                            alert_title = (
+                                f"HYBRID GUARD: AUTO STOP-LOSS EXECUTED: {pos.symbol}"
+                                if (is_hybrid_guard and is_stop_loss)
+                                else f"AUTO-SELL EXECUTED: {pos.symbol} (P&L: ₹{pnl:+.2f})"
+                            )
                             notifier.send_notification(
                                 db=db,
                                 symbol=pos.symbol,
                                 exchange=pos.exchange,
                                 alert_type="AUTO_SELL_EXECUTED",
-                                title=f"AUTO-SELL EXECUTED: {pos.symbol} (P&L: ₹{pnl:+.2f})",
+                                title=alert_title,
                                 body=(
                                     f"Automatic sell order for {pos.symbol} ({pos.quantity} shares) successfully executed.\n"
+                                    f"Policy: {'Option B (Hybrid Guard Auto Stop-Loss)' if (is_hybrid_guard and is_stop_loss) else 'Configured Auto-Sell'}\n"
                                     f"Trigger: {trigger_reason}\n"
                                     f"Execution Price: ₹{curr_price:.2f}\n"
                                     f"Realized P&L: ₹{pnl:+.2f}\n"
-                                    f"Status: Position closed and archived."
+                                    f"Status: Position closed to prevent capital erosion."
                                 ),
                                 price=curr_price,
                             )
@@ -222,23 +234,20 @@ class PositionMonitor:
                         pos.exit_reason = trigger_reason
                         db.commit()
 
-                        notifier.send_notification(
+                        notifier.send_trade_alert(
                             db=db,
                             symbol=pos.symbol,
                             exchange=pos.exchange,
-                            alert_type="MANUAL_EXIT_REQUIRED",
-                            title=f"URGENT EXIT SIGNAL: {pos.symbol} ({trigger_reason})",
-                            body=(
-                                f"Open position for {pos.symbol} has met your configured exit criteria.\n"
-                                f"Reason: {trigger_reason}\n"
-                                f"Verified Current Price: ₹{curr_price:.2f}\n"
-                                f"Average Entry: ₹{pos.avg_entry_price:.2f}\n"
-                                f"Unrealized P&L: ₹{pos.unrealized_pnl:+.2f}\n\n"
-                                f"Automatic selling is currently OFF. Please review and execute your sell order manually."
-                            ),
-                            price=curr_price,
+                            action="SELL",
+                            suggested_investment=float(pos.avg_entry_price * pos.quantity),
+                            estimated_quantity=pos.quantity,
+                            estimated_order_value=float(curr_price * pos.quantity),
+                            reason=trigger_reason,
+                            risk_level="Medium",
+                            stop_loss=pos.stop_loss,
+                            target=pos.target,
                         )
-                        actions.append({"symbol": pos.symbol, "action": "NOTIFIED_MANUAL_EXIT", "reason": trigger_reason})
+                        actions.append({"symbol": pos.symbol, "action": "NOTIFIED_TRADE_ALERT_SELL", "reason": trigger_reason})
 
             except Exception as e:
                 logger.error(f"Error monitoring position {pos.symbol}: {e}")

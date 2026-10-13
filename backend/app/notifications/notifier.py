@@ -180,5 +180,92 @@ class FCMNotifier:
         db.refresh(alert_record)
         return alert_record
 
+    def send_trade_alert(
+        self,
+        db: Session,
+        symbol: str,
+        exchange: str,
+        action: str,  # "BUY" or "SELL"
+        price: float,
+        suggested_investment: float = 100.0,
+        estimated_quantity: int = 1,
+        reason: str = "AI analysis and market signals",
+        risk_level: str = "Medium",
+        stop_loss: Optional[float] = None,
+        target: Optional[float] = None,
+        signal_id: Optional[int] = None,
+    ) -> AlertHistory:
+        """
+        Creates and dispatches a dedicated PERSONAL AI STOCK — TRADE ALERT.
+        Awaits explicit user approval: no order is placed until approved.
+        """
+        order_val = round(price * max(1, estimated_quantity), 2)
+        title = f"PERSONAL AI STOCK — TRADE ALERT: {action.upper()} {symbol.upper()}"
+        body = (
+            f"Stock: {symbol.upper()}\n"
+            f"Action: {action.upper()}\n"
+            f"Suggested investment: ₹{suggested_investment:,.2f}\n"
+            f"Estimated quantity: {estimated_quantity} shares\n"
+            f"Estimated order value: ₹{order_val:,.2f}\n"
+            f"Reason: {reason}\n"
+            f"Risk: {risk_level}\n"
+            f"Stop-loss: ₹{stop_loss:.2f if stop_loss else 'N/A'}\n"
+            f"Target: ₹{target:.2f if target else 'N/A'}\n\n"
+            f"[ APPROVE {action.upper()} ]  [ REJECT ]\n\n"
+            f"No order is placed until you approve it."
+        )
+
+        sent_to_fcm = False
+        message_id = None
+        try:
+            from app.models.alert import DeviceToken
+            tokens = [d.token for d in db.query(DeviceToken).filter(DeviceToken.is_active == True).all()]
+            if self._initialized and tokens:
+                from firebase_admin import messaging
+                for tok in tokens:
+                    msg = messaging.Message(
+                        notification=messaging.Notification(title=title, body=body),
+                        data={
+                            "symbol": symbol.upper(),
+                            "exchange": exchange.upper(),
+                            "action": action.upper(),
+                            "alert_type": "TRADE_ALERT",
+                            "price": str(price),
+                            "click_action": "FLUTTER_NOTIFICATION_CLICK",
+                        },
+                        token=tok,
+                    )
+                    mid = messaging.send(msg)
+                    message_id = mid
+                    sent_to_fcm = True
+        except Exception as e:
+            logger.warning(f"FCM push error for trade alert: {e}")
+
+        alert = AlertHistory(
+            symbol=symbol.upper(),
+            exchange=exchange.upper(),
+            alert_type="TRADE_ALERT",
+            title=title,
+            message=body,
+            signal_id=signal_id,
+            price=price,
+            action=action.upper(),
+            suggested_investment=suggested_investment,
+            estimated_quantity=estimated_quantity,
+            estimated_order_value=order_val,
+            reason=reason,
+            risk_level=risk_level,
+            stop_loss=stop_loss,
+            target=target,
+            status="PENDING_APPROVAL",
+            sent_to_fcm=sent_to_fcm,
+            fcm_message_id=message_id,
+            created_at=datetime.now(timezone.utc),
+        )
+        db.add(alert)
+        db.commit()
+        db.refresh(alert)
+        return alert
+
 
 notifier = FCMNotifier()

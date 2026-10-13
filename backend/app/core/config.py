@@ -68,7 +68,7 @@ class Settings(BaseSettings):
 
     # AI Analysis & Explainable Thesis Generator
     GEMINI_API_KEY: Optional[str] = None
-    GEMINI_MODEL: str = "gemini-1.5-flash"
+    GEMINI_MODEL: str = "gemini-1.5-pro"
     AI_ANALYSIS_ENABLED: bool = True
 
     # CORS

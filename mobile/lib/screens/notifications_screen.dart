@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../state/app_state.dart';
 import '../models/alert.dart';
+import '../widgets/trade_alert_card.dart';
 import 'stock_recommendation_screen.dart';
 
 class NotificationsScreen extends StatefulWidget {
@@ -101,6 +102,12 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                     padding: const EdgeInsets.all(16),
                     itemBuilder: (context, idx) {
                       final alert = alertsList[idx];
+                      if (alert.isTradeAlert) {
+                        return TradeAlertCard(
+                          alert: alert,
+                          onResponded: () => state.refreshAll(),
+                        );
+                      }
                       return Container(
                         margin: const EdgeInsets.only(bottom: 10),
                         decoration: BoxDecoration(

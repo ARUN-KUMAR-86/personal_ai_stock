@@ -62,14 +62,15 @@ personal-ai-stock/
 
 ## 2. Key Features
 
-- **Multi-Provider Market Data Layer**: Real quotes and historical candles for Indian NSE and BSE stocks via Yahoo Finance (clearly labeled with data freshness and delay flags), official Groww Trade API, and deterministic Test Simulated mode.
-- **Transparent Quantitative Strategies**: No black-box predictions. Uses explicit rule confluences (Trend Momentum Breakout, Mean Reversion Pullback in Uptrend, MACD Bullish Crossover).
-- **Exact Execution Levels**: Every generated signal specifies Current Price, Entry Condition, Stop-Loss Level, Target Level, Risk/Reward Ratio, Confidence Strength, and Invalidation Conditions.
-- **Alert Deduplication & Cooldown**: Prevents notification spam by suppressing duplicate alerts for the same stock within a configurable cooldown period (e.g. 60 minutes).
-- **Manual-Trading-First Safety**: Automated real-money order execution is disabled by default. The system empowers the owner to review signals before executing trades manually.
-- **Paper Trading Engine**: Track simulated positions, average buy prices, transaction fees (brokerage + STT + GST), and realized/unrealized P&L without risking real capital.
-- **Groww Broker Integration**: Synchronize available margin, unsettled funds, and demat holdings using official Groww Trade API.
-- **Android Push Notifications**: Dispatches alerts to your phone via Firebase Cloud Messaging (FCM).
+- **Dedicated Trading Control Dashboard**: Real-time overview of Groww connection, account balance, available funds, configurable trading budget (₹100, ₹300, ₹400, custom), open position capital, and today's P/L.
+- **Secure Single Groww Connection**: Initial 1-time credential setup with encrypted storage, daily session renewal (addressing Groww API daily token expiration), Disconnect/Switch Account safeguards, and strict account verification (`GROWW-ARUN-PRIMARY`) before every trade.
+- **Pre-Trade Notification & 1-Tap Approval**: Every potential entry or exit dispatches an Android push notification with suggested investment, quantity, reason, risk, stop-loss, and target. Zero trades are submitted without explicit owner approval.
+- **Rule-Based Profit Realization & Bank Withdrawal**: Realize trading gains automatically or via approval, with separate configurable rules for moving profits to your bank account while safeguarding invested principal.
+- **Gemini 1.5 Pro AI Research Engine**: Multi-dimensional stock evaluation analyzing Technicals, Fundamentals, News & Events, Risk Profile, and Trade Evaluation with automated fallback tiers (`gemini-1.5-pro` -> `gemini-2.5-flash` -> `gemini-1.5-flash` -> Quantitative Model).
+- **Multi-Provider Market Data Layer**: Real quotes and historical candles for Indian NSE and BSE stocks via Yahoo Finance, official Groww Trade API, and deterministic Test Simulated mode.
+- **Transparent Quantitative Strategies**: Explicit rule confluences (Trend Momentum Breakout, Mean Reversion Pullback in Uptrend, MACD Bullish Crossover).
+- **Paper Trading Engine & Safety Gates**: Track simulated positions, average buy prices, transaction fees (brokerage + STT + GST), and realized/unrealized P&L without risking real capital.
+- **Android Push Notifications**: High-priority alert dispatch via Firebase Cloud Messaging (FCM) with cooldown deduplication.
 
 ---
 

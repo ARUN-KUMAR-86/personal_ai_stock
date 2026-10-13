@@ -6,28 +6,31 @@ class StorageService {
   static const String keyAuthToken = 'auth_jwt_token';
   static const String keyFcmToken = 'fcm_device_token';
 
+  /// Primary Production Cloud URL (Render 24/7)
+  static const String cloudProductionUrl = 'https://personal-ai-stock-backend.onrender.com';
+
   /// Compile-time configured API URL passed via `--dart-define=API_URL=https://...`
   static const String definedApiUrl = String.fromEnvironment('API_URL', defaultValue: '');
 
   /// Default base URL logic:
-  /// 1. If defined at build-time (e.g. production cloud URL), use it.
-  /// 2. If web, use localhost:8000.
-  /// Default base URL logic:
-  /// 1. If defined at build-time (e.g. production cloud URL), use it.
-  /// 2. If web, use localhost:8000.
-  /// 3. Physical phone default: use current workstation IP (10.246.109.77:8000).
+  /// Always load the live cloud backend by default! No copy-pasting needed.
   static String get defaultBaseUrl {
     if (definedApiUrl.isNotEmpty) {
       return definedApiUrl.trim();
     }
-    return kIsWeb ? 'http://localhost:8000' : 'http://10.246.109.77:8000';
+    return cloudProductionUrl;
   }
 
   static Future<String> getBaseUrl() async {
     final prefs = await SharedPreferences.getInstance();
     final saved = prefs.getString(keyBaseUrl);
-    // Ignore stale emulator IP on physical devices
-    if (saved != null && saved.trim().isNotEmpty && !saved.contains('10.0.2.2')) {
+    // If the saved URL is empty or points to stale emulator or local IP,
+    // automatically default to the live cloud URL!
+    if (saved != null &&
+        saved.trim().isNotEmpty &&
+        !saved.contains('10.0.2.2') &&
+        !saved.contains('10.246.109.77') &&
+        !saved.contains('192.168.1.77')) {
       return saved.trim();
     }
     return defaultBaseUrl;

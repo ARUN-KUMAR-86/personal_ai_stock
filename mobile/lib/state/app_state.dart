@@ -7,6 +7,7 @@ import '../models/portfolio.dart';
 import '../models/funds.dart';
 import '../models/order.dart';
 import '../models/watchlist.dart';
+import '../models/trading_control.dart';
 import '../services/api_service.dart';
 import '../services/storage_service.dart';
 
@@ -21,10 +22,13 @@ class AppState extends ChangeNotifier {
   List<StockSummary> stocks = [];
   List<StockSignal> latestSignals = [];
   List<StockAlert> alerts = [];
+  List<StockAlert> tradeAlerts = [];
   PortfolioSummary? portfolio;
   BrokerFunds? funds;
   SafetyStatus? safetyStatus;
   Map<String, dynamic>? growwStatus;
+  TradingControlSummary? tradingControl;
+  List<FundTransaction> fundTransactions = [];
 
   // Watchlist state
   List<WatchlistItem> watchlistItems = [];
@@ -38,12 +42,16 @@ class AppState extends ChangeNotifier {
       growwStatus!['is_configured'] == true &&
       growwStatus!['is_authenticated'] == true;
 
+  List<StockAlert> get pendingTradeAlerts =>
+      tradeAlerts.where((a) => a.isPendingApproval).toList();
+
   bool isScanning = false;
   String? lastScanInfo;
   bool isScheduleActive = false;
   String? scheduleNextRun;
   int scheduleIntervalMinutes = 15;
   bool isTogglingSchedule = false;
+  bool isTradingToggling = false;
 
   AppState() {
     refreshAll();
@@ -137,6 +145,19 @@ class AppState extends ChangeNotifier {
         isScheduleActive = sched['auto_scan_active'] == true;
         scheduleNextRun = sched['next_run_time'];
         scheduleIntervalMinutes = sched['interval_minutes'] ?? 15;
+      } catch (_) {}
+
+      // Fetch dedicated trading control and trade alerts
+      try {
+        tradingControl = await api.getTradingControlSummary();
+      } catch (_) {}
+
+      try {
+        tradeAlerts = await api.getTradeAlerts();
+      } catch (_) {}
+
+      try {
+        fundTransactions = await api.getFundTransactions();
       } catch (_) {}
     } catch (e) {
       errorMessage = e.toString();
@@ -411,5 +432,128 @@ class AppState extends ChangeNotifier {
       funds = await api.getFunds();
       notifyListeners();
     } catch (_) {}
+  }
+
+  // Trading Control Actions
+  Future<void> refreshTradingControl() async {
+    try {
+      tradingControl = await api.getTradingControlSummary();
+      tradeAlerts = await api.getTradeAlerts();
+      fundTransactions = await api.getFundTransactions();
+      notifyListeners();
+    } catch (_) {}
+  }
+
+  Future<void> startTrading() async {
+    try {
+      isTradingToggling = true;
+      notifyListeners();
+      await api.startTrading();
+      await refreshTradingControl();
+      await refreshAll();
+    } catch (e) {
+      errorMessage = 'Failed to start trading: $e';
+    } finally {
+      isTradingToggling = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> stopTrading() async {
+    try {
+      isTradingToggling = true;
+      notifyListeners();
+      await api.stopTrading();
+      await refreshTradingControl();
+      await refreshAll();
+    } catch (e) {
+      errorMessage = 'Failed to stop trading: $e';
+    } finally {
+      isTradingToggling = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> updateTradingBudget(double amount) async {
+    try {
+      tradingControl = await api.updateTradingControlSettings(tradingBudget: amount);
+      notifyListeners();
+    } catch (e) {
+      errorMessage = 'Failed to update trading budget: $e';
+      notifyListeners();
+    }
+  }
+
+  Future<void> updateTradingSettings({
+    double? tradingBudget,
+    double? maxAmountPerTrade,
+    double? dailyLossLimit,
+    bool? autoWithdrawProfits,
+    double? autoWithdrawThreshold,
+    String? tradingMode,
+  }) async {
+    try {
+      tradingControl = await api.updateTradingControlSettings(
+        tradingBudget: tradingBudget,
+        maxAmountPerTrade: maxAmountPerTrade,
+        dailyLossLimit: dailyLossLimit,
+        autoWithdrawProfits: autoWithdrawProfits,
+        autoWithdrawThreshold: autoWithdrawThreshold,
+        tradingMode: tradingMode,
+      );
+      notifyListeners();
+    } catch (e) {
+      errorMessage = 'Failed to update settings: $e';
+      notifyListeners();
+    }
+  }
+
+  Future<bool> respondToTradeAlert(int alertId, String action, {double? confirmedPrice}) async {
+    try {
+      final res = await api.respondToTradeAlert(alertId, action: action, confirmedPrice: confirmedPrice);
+      await refreshTradingControl();
+      await refreshAll();
+      return res['success'] == true;
+    } catch (e) {
+      errorMessage = 'Trade alert response error: $e';
+      notifyListeners();
+      return false;
+    }
+  }
+
+  Future<bool> recordFundTransaction(String type, double amount, {String? note}) async {
+    try {
+      await api.recordFundTransaction(type: type, amount: amount, note: note);
+      await refreshTradingControl();
+      return true;
+    } catch (e) {
+      errorMessage = 'Transaction error: $e';
+      notifyListeners();
+      return false;
+    }
+  }
+
+  Future<bool> renewGrowwSession() async {
+    try {
+      final res = await api.renewGrowwSession();
+      await refreshGrowwStatus();
+      await refreshTradingControl();
+      return res['success'] == true;
+    } catch (e) {
+      errorMessage = 'Session renewal failed: $e';
+      notifyListeners();
+      return false;
+    }
+  }
+
+  Future<void> disconnectGroww() async {
+    try {
+      await api.switchGrowwAccount();
+      await refreshGrowwStatus();
+      await refreshTradingControl();
+    } catch (e) {
+      errorMessage = 'Disconnect failed: $e';
+      notifyListeners();
+    }
   }
 }

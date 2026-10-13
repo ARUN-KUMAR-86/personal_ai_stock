@@ -23,6 +23,8 @@ from app.api.v1.backtest import router as backtest_router
 from app.api.v1.orders import router as orders_router
 from app.api.v1.safety import router as safety_router
 from app.api.v1.watchlist import router as watchlist_router
+from app.api.v1.trading_control import router as trading_control_router
+
 
 
 @asynccontextmanager
@@ -72,6 +74,7 @@ app.include_router(backtest_router, prefix=settings.API_V1_STR)
 app.include_router(orders_router, prefix=settings.API_V1_STR)
 app.include_router(safety_router, prefix=settings.API_V1_STR)
 app.include_router(watchlist_router, prefix=settings.API_V1_STR)
+app.include_router(trading_control_router, prefix=settings.API_V1_STR)
 
 
 @app.get("/")

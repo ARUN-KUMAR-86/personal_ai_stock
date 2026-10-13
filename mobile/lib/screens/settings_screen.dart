@@ -39,10 +39,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _autoDetectUrl() async {
     setState(() {
       isSaving = true;
-      connectionStatus = 'Scanning for active workstation server...';
+      connectionStatus = 'Scanning for active backend (Cloud & Local)...';
     });
 
     final candidates = [
+      StorageService.cloudProductionUrl,
       'http://10.246.109.77:8000',
       'http://192.168.1.77:8000',
       'http://localhost:8000',
@@ -52,8 +53,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
     for (final candidate in candidates) {
       try {
         final res = await http
-            .get(Uri.parse('$candidate/api/v1/health'))
-            .timeout(const Duration(milliseconds: 2000));
+            .get(Uri.parse('$candidate/health'))
+            .timeout(const Duration(milliseconds: 3000));
         if (res.statusCode == 200) {
           foundUrl = candidate;
           break;
@@ -68,14 +69,38 @@ class _SettingsScreenState extends State<SettingsScreen> {
       await StorageService.setBaseUrl(foundUrl);
       setState(() {
         isSaving = false;
-        connectionStatus = 'Connected to $foundUrl (Server online)';
+        connectionStatus = 'Connected to $foundUrl (Online)';
       });
       context.read<AppState>().refreshAll();
     } else {
       setState(() {
         isSaving = false;
-        connectionStatus = 'Could not reach server. Verify backend is running on your PC.';
+        connectionStatus = 'Could not reach server. Verify internet or local PC backend.';
       });
+    }
+  }
+
+  Future<void> _connectToCloud() async {
+    setState(() {
+      isSaving = true;
+      connectionStatus = 'Connecting to 24/7 Cloud backend...';
+    });
+    _urlController.text = StorageService.cloudProductionUrl;
+    await StorageService.setBaseUrl(StorageService.cloudProductionUrl);
+    if (!mounted) return;
+    final api = context.read<AppState>().api;
+    final ok = await api.checkHealth();
+    if (!mounted) return;
+    setState(() {
+      isSaving = false;
+      if (ok) {
+        connectionStatus = 'Connected to 24/7 Cloud (Online)';
+      } else {
+        connectionStatus = 'Cloud waking up... Please wait 20s and test again.';
+      }
+    });
+    if (ok) {
+      context.read<AppState>().refreshAll();
     }
   }
 
@@ -418,19 +443,25 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   runSpacing: 6,
                   children: [
                     ActionChip(
-                      backgroundColor: const Color(0xFF131722),
-                      side: BorderSide(color: Colors.blueAccent.withOpacity(0.4)),
-                      label: const Text('⚡ Hotspot IP (10.246.109.77)', style: TextStyle(color: Colors.lightBlueAccent, fontSize: 11)),
-                      onPressed: () {
-                        _urlController.text = 'http://10.246.109.77:8000';
-                        _saveUrl();
-                      },
+                      backgroundColor: Colors.teal.shade900.withOpacity(0.4),
+                      side: const BorderSide(color: Colors.tealAccent),
+                      label: const Text('☁️ 24/7 Cloud (Render)', style: TextStyle(color: Colors.tealAccent, fontSize: 11, fontWeight: FontWeight.bold)),
+                      onPressed: _connectToCloud,
                     ),
                     ActionChip(
                       backgroundColor: const Color(0xFF131722),
                       side: BorderSide(color: Colors.tealAccent.withOpacity(0.4)),
-                      label: const Text('🔍 Auto-Detect Server', style: TextStyle(color: Colors.tealAccent, fontSize: 11)),
+                      label: const Text('🔍 Auto-Detect', style: TextStyle(color: Colors.tealAccent, fontSize: 11)),
                       onPressed: _autoDetectUrl,
+                    ),
+                    ActionChip(
+                      backgroundColor: const Color(0xFF131722),
+                      side: BorderSide(color: Colors.blueAccent.withOpacity(0.4)),
+                      label: const Text('⚡ Local PC (Hotspot)', style: TextStyle(color: Colors.lightBlueAccent, fontSize: 11)),
+                      onPressed: () {
+                        _urlController.text = 'http://10.246.109.77:8000';
+                        _saveUrl();
+                      },
                     ),
                   ],
                 ),

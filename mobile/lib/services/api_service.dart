@@ -8,6 +8,7 @@ import '../models/portfolio.dart';
 import '../models/funds.dart';
 import '../models/order.dart';
 import '../models/watchlist.dart';
+import '../models/trading_control.dart';
 import 'storage_service.dart';
 
 class ApiService {
@@ -31,10 +32,24 @@ class ApiService {
     try {
       final url = await _getUrl('/health');
       final res = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 4));
-      return res.statusCode == 200;
-    } catch (_) {
-      return false;
-    }
+      if (res.statusCode == 200) return true;
+    } catch (_) {}
+
+    // Automatic Cloud Fallback:
+    // If current URL is unreachable, automatically test and connect to 24/7 Cloud backend!
+    try {
+      final cloudUrl = StorageService.cloudProductionUrl;
+      final currentUrl = await StorageService.getBaseUrl();
+      if (currentUrl != cloudUrl) {
+        final res = await http.get(Uri.parse('$cloudUrl/health')).timeout(const Duration(seconds: 5));
+        if (res.statusCode == 200) {
+          await StorageService.setBaseUrl(cloudUrl);
+          return true;
+        }
+      }
+    } catch (_) {}
+
+    return false;
   }
 
   Future<MarketStatus> getMarketStatus({String exchange = 'NSE'}) async {
@@ -590,5 +605,165 @@ class ApiService {
       return jsonDecode(res.body);
     }
     throw Exception('Failed to scan watchlist: ${res.body}');
+  }
+
+  // Dedicated Trading Control API methods
+  Future<TradingControlSummary> getTradingControlSummary() async {
+    final url = await _getUrl('/trading-control/summary');
+    final res = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 8));
+    if (res.statusCode == 200) {
+      return TradingControlSummary.fromJson(jsonDecode(res.body));
+    }
+    throw Exception('Failed to load trading control summary (${res.statusCode})');
+  }
+
+  Future<Map<String, dynamic>> startTrading() async {
+    final url = await _getUrl('/trading-control/start');
+    final headers = await _headers();
+    final res = await http.post(Uri.parse(url), headers: headers).timeout(const Duration(seconds: 8));
+    if (res.statusCode == 200) {
+      return jsonDecode(res.body);
+    }
+    throw Exception('Failed to start trading (${res.statusCode})');
+  }
+
+  Future<Map<String, dynamic>> stopTrading() async {
+    final url = await _getUrl('/trading-control/stop');
+    final headers = await _headers();
+    final res = await http.post(Uri.parse(url), headers: headers).timeout(const Duration(seconds: 8));
+    if (res.statusCode == 200) {
+      return jsonDecode(res.body);
+    }
+    throw Exception('Failed to stop trading (${res.statusCode})');
+  }
+
+  Future<TradingControlSummary> updateTradingControlSettings({
+    double? tradingBudget,
+    double? maxAmountPerTrade,
+    double? dailyLossLimit,
+    bool? autoWithdrawProfits,
+    double? autoWithdrawThreshold,
+    bool? isTradingActive,
+    String? tradingMode,
+  }) async {
+    final url = await _getUrl('/trading-control/settings');
+    final headers = await _headers();
+    final body = <String, dynamic>{};
+    if (tradingBudget != null) body['trading_budget'] = tradingBudget;
+    if (maxAmountPerTrade != null) body['max_amount_per_trade'] = maxAmountPerTrade;
+    if (dailyLossLimit != null) body['daily_loss_limit'] = dailyLossLimit;
+    if (autoWithdrawProfits != null) body['auto_withdraw_profits'] = autoWithdrawProfits;
+    if (autoWithdrawThreshold != null) body['auto_withdraw_threshold'] = autoWithdrawThreshold;
+    if (isTradingActive != null) body['is_trading_active'] = isTradingActive;
+    if (tradingMode != null) body['trading_mode'] = tradingMode;
+
+    final res = await http.post(
+      Uri.parse(url),
+      headers: headers,
+      body: jsonEncode(body),
+    ).timeout(const Duration(seconds: 8));
+
+    if (res.statusCode == 200) {
+      return TradingControlSummary.fromJson(jsonDecode(res.body));
+    }
+    throw Exception('Failed to update trading control settings: ${res.body}');
+  }
+
+  Future<List<FundTransaction>> getFundTransactions({int limit = 50}) async {
+    final url = await _getUrl('/trading-control/transactions?limit=$limit');
+    final res = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 8));
+    if (res.statusCode == 200) {
+      final List raw = jsonDecode(res.body);
+      return raw.map((item) => FundTransaction.fromJson(item)).toList();
+    }
+    return [];
+  }
+
+  Future<FundTransaction> recordFundTransaction({
+    required String type,
+    required double amount,
+    String? note,
+  }) async {
+    final url = await _getUrl('/trading-control/transactions');
+    final headers = await _headers();
+    final res = await http.post(
+      Uri.parse(url),
+      headers: headers,
+      body: jsonEncode({
+        'transaction_type': type,
+        'amount': amount,
+        'note': note,
+      }),
+    ).timeout(const Duration(seconds: 8));
+
+    if (res.statusCode == 200) {
+      return FundTransaction.fromJson(jsonDecode(res.body));
+    }
+    throw Exception('Failed to record fund transaction: ${res.body}');
+  }
+
+  // Trade Alert Approval Flow
+  Future<List<StockAlert>> getTradeAlerts({String? status, int limit = 20}) async {
+    var query = '?limit=$limit';
+    if (status != null) query += '&status=${Uri.encodeComponent(status)}';
+    final url = await _getUrl('/alerts/trade-alerts$query');
+    final res = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 8));
+    if (res.statusCode == 200) {
+      final List raw = jsonDecode(res.body);
+      return raw.map((item) => StockAlert.fromJson(item)).toList();
+    }
+    return [];
+  }
+
+  Future<Map<String, dynamic>> respondToTradeAlert(
+    int alertId, {
+    required String action,
+    double? confirmedPrice,
+  }) async {
+    final url = await _getUrl('/alerts/trade-alerts/$alertId/respond');
+    final headers = await _headers();
+    final body = <String, dynamic>{'action': action};
+    if (confirmedPrice != null) body['confirmed_price'] = confirmedPrice;
+
+    final res = await http.post(
+      Uri.parse(url),
+      headers: headers,
+      body: jsonEncode(body),
+    ).timeout(const Duration(seconds: 15));
+
+    if (res.statusCode == 200) {
+      return jsonDecode(res.body);
+    }
+    throw Exception('Failed to respond to trade alert: ${res.body}');
+  }
+
+  // Groww Verification & Renewal
+  Future<Map<String, dynamic>> renewGrowwSession() async {
+    final url = await _getUrl('/groww/renew');
+    final headers = await _headers();
+    final res = await http.post(Uri.parse(url), headers: headers).timeout(const Duration(seconds: 10));
+    if (res.statusCode == 200) {
+      return jsonDecode(res.body);
+    }
+    throw Exception('Failed to renew Groww session: ${res.body}');
+  }
+
+  Future<Map<String, dynamic>> verifyGrowwConnection() async {
+    final url = await _getUrl('/groww/verify');
+    final res = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 8));
+    if (res.statusCode == 200) {
+      return jsonDecode(res.body);
+    }
+    throw Exception('Failed to verify Groww connection: ${res.body}');
+  }
+
+  Future<Map<String, dynamic>> switchGrowwAccount() async {
+    final url = await _getUrl('/groww/switch-account');
+    final headers = await _headers();
+    final res = await http.post(Uri.parse(url), headers: headers).timeout(const Duration(seconds: 8));
+    if (res.statusCode == 200) {
+      return jsonDecode(res.body);
+    }
+    throw Exception('Failed to switch Groww account: ${res.body}');
   }
 }

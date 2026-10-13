@@ -17,6 +17,18 @@ class AlertRead(BaseModel):
     is_read: bool
     sent_to_fcm: bool
     fcm_message_id: Optional[str] = None
+    action: Optional[str] = "BUY"
+    suggested_investment: Optional[float] = 100.0
+    estimated_quantity: Optional[int] = 1
+    estimated_order_value: Optional[float] = 100.0
+    reason: Optional[str] = None
+    risk_level: Optional[str] = "Medium"
+    stop_loss: Optional[float] = None
+    target: Optional[float] = None
+    status: Optional[str] = "PENDING_APPROVAL"
+    responded_at: Optional[datetime] = None
+    order_id: Optional[str] = None
+    broker_verified: Optional[bool] = False
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)

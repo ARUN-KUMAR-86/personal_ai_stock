@@ -5,6 +5,8 @@ import 'package:personal_ai_stock/models/signal.dart';
 import 'package:personal_ai_stock/models/portfolio.dart';
 import 'package:personal_ai_stock/models/order.dart';
 import 'package:personal_ai_stock/models/watchlist.dart';
+import 'package:personal_ai_stock/models/trading_control.dart';
+import 'package:personal_ai_stock/models/alert.dart';
 
 void main() {
   group('Dart Models JSON Parsing Tests', () {
@@ -280,6 +282,95 @@ void main() {
       expect(serialized['symbol'], 'INFY');
       expect(serialized['stock']['symbol'], 'INFY');
       expect(serialized['stock']['signal_strength'], 88.5);
+    });
+
+    test('TradingControlSummary parses correctly matching wireframe', () {
+      final json = {
+        'groww_account_status': 'Connected*',
+        'groww_account_id': 'GROWW-ARUN-PRIMARY',
+        'groww_account_name': 'Arun Kumar',
+        'token_expired': false,
+        'account_balance': 1000.0,
+        'available_funds': 1000.0,
+        'trading_budget': 300.0,
+        'amount_in_positions': 0.0,
+        'todays_pnl': 0.0,
+        'is_trading_active': true,
+        'trading_mode': 'Notification + Approval',
+        'max_amount_per_trade': 100.0,
+        'daily_loss_limit': 50.0,
+        'auto_withdraw_profits': false,
+        'auto_withdraw_threshold': 100.0,
+        'open_positions_count': 0,
+        'pending_alerts_count': 1,
+      };
+
+      final tc = TradingControlSummary.fromJson(json);
+      expect(tc.growwAccountStatus, 'Connected*');
+      expect(tc.growwAccountId, 'GROWW-ARUN-PRIMARY');
+      expect(tc.accountBalance, 1000.0);
+      expect(tc.availableFunds, 1000.0);
+      expect(tc.tradingBudget, 300.0);
+      expect(tc.amountInPositions, 0.0);
+      expect(tc.todaysPnl, 0.0);
+      expect(tc.isTradingActive, true);
+      expect(tc.tradingMode, 'Notification + Approval');
+      expect(tc.maxAmountPerTrade, 100.0);
+      expect(tc.dailyLossLimit, 50.0);
+      expect(tc.autoWithdrawProfits, false);
+    });
+
+    test('FundTransaction parses correctly', () {
+      final json = {
+        'id': 1,
+        'transaction_type': 'DEPOSIT',
+        'amount': 500.0,
+        'note': 'Added funds via UPI',
+        'created_at': '2026-10-13T10:00:00Z',
+      };
+
+      final tx = FundTransaction.fromJson(json);
+      expect(tx.id, 1);
+      expect(tx.transactionType, 'DEPOSIT');
+      expect(tx.amount, 500.0);
+      expect(tx.note, 'Added funds via UPI');
+    });
+
+    test('StockAlert trade alert fields and pending approval status parse correctly', () {
+      final json = {
+        'id': 10,
+        'symbol': 'TATASTEEL',
+        'exchange': 'NSE',
+        'alert_type': 'TRADE_ALERT',
+        'title': 'AI Trade Alert: BUY TATASTEEL',
+        'message': 'Suggested investment ₹100',
+        'price': 155.0,
+        'is_read': false,
+        'sent_to_fcm': true,
+        'created_at': '2026-10-13T11:00:00Z',
+        'action': 'BUY',
+        'suggested_investment': 100.0,
+        'estimated_quantity': 1,
+        'estimated_order_value': 100.0,
+        'reason': 'AI breakout signal with 2.2 R:R',
+        'risk_level': 'Medium',
+        'stop_loss': 150.0,
+        'target': 165.0,
+        'status': 'PENDING_APPROVAL',
+        'broker_verified': false,
+      };
+
+      final alert = StockAlert.fromJson(json);
+      expect(alert.symbol, 'TATASTEEL');
+      expect(alert.isTradeAlert, true);
+      expect(alert.isPendingApproval, true);
+      expect(alert.action, 'BUY');
+      expect(alert.suggestedInvestment, 100.0);
+      expect(alert.estimatedQuantity, 1);
+      expect(alert.estimatedOrderValue, 100.0);
+      expect(alert.stopLoss, 150.0);
+      expect(alert.target, 165.0);
+      expect(alert.status, 'PENDING_APPROVAL');
     });
   });
 }

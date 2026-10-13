@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'state/app_state.dart';
 import 'screens/dashboard_screen.dart';
+import 'screens/trading_control_screen.dart';
 import 'screens/scanner_screen.dart';
 import 'screens/notifications_screen.dart';
 import 'screens/portfolio_screen.dart';
@@ -72,6 +73,7 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
 
   final List<Widget> _screens = const [
     DashboardScreen(),
+    TradingControlScreen(),
     ScannerScreen(),
     NotificationsScreen(),
     PortfolioScreen(),
@@ -81,20 +83,18 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
 
   @override
   Widget build(BuildContext context) {
+    final state = context.watch<AppState>();
+    final pendingCount = state.pendingTradeAlerts.length;
+
     return Scaffold(
       body: IndexedStack(
         index: _currentIndex,
         children: _screens,
       ),
       bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _currentIndex > 4 ? 4 : _currentIndex,
+        currentIndex: _currentIndex > 4 ? 0 : _currentIndex,
         onTap: (index) {
-          if (index == 4) {
-            // Show sheet to pick Funds or Settings
-            _showMoreMenu();
-          } else {
-            setState(() => _currentIndex = index);
-          }
+          setState(() => _currentIndex = index);
         },
         type: BottomNavigationBarType.fixed,
         backgroundColor: const Color(0xFF1E222D),
@@ -102,69 +102,43 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
         unselectedItemColor: Colors.grey.shade500,
         selectedFontSize: 11,
         unselectedFontSize: 11,
-        items: const [
-          BottomNavigationBarItem(
+        items: [
+          const BottomNavigationBarItem(
             icon: Icon(Icons.dashboard_outlined),
             activeIcon: Icon(Icons.dashboard),
             label: 'Dashboard',
           ),
-          BottomNavigationBarItem(
+          const BottomNavigationBarItem(
+            icon: Icon(Icons.tune_outlined),
+            activeIcon: Icon(Icons.tune),
+            label: 'Trading',
+          ),
+          const BottomNavigationBarItem(
             icon: Icon(Icons.radar),
             label: 'Scanner',
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.notifications_none),
-            activeIcon: Icon(Icons.notifications),
+            icon: pendingCount > 0
+                ? Badge(
+                    label: Text('$pendingCount'),
+                    child: const Icon(Icons.notifications_none),
+                  )
+                : const Icon(Icons.notifications_none),
+            activeIcon: pendingCount > 0
+                ? Badge(
+                    label: Text('$pendingCount'),
+                    child: const Icon(Icons.notifications),
+                  )
+                : const Icon(Icons.notifications),
             label: 'Alerts',
           ),
-          BottomNavigationBarItem(
+          const BottomNavigationBarItem(
             icon: Icon(Icons.pie_chart_outline),
             activeIcon: Icon(Icons.pie_chart),
             label: 'Portfolio',
           ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.more_horiz),
-            label: 'More',
-          ),
         ],
       ),
-    );
-  }
-
-  void _showMoreMenu() {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: const Color(0xFF1E222D),
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      builder: (ctx) {
-        return SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              ListTile(
-                leading: const Icon(Icons.account_balance_wallet, color: Colors.blueAccent),
-                title: const Text('Trading Funds & Groww', style: TextStyle(color: Colors.white)),
-                subtitle: const Text('Margins, unsettled cash, broker sync', style: TextStyle(color: Colors.grey, fontSize: 11)),
-                onTap: () {
-                  Navigator.pop(ctx);
-                  setState(() => _currentIndex = 4);
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.settings, color: Colors.white70),
-                title: const Text('App Settings & LAN IP', style: TextStyle(color: Colors.white)),
-                subtitle: const Text('Backend IP, risk limits, security', style: TextStyle(color: Colors.grey, fontSize: 11)),
-                onTap: () {
-                  Navigator.pop(ctx);
-                  setState(() => _currentIndex = 5);
-                },
-              ),
-            ],
-          ),
-        );
-      },
     );
   }
 }

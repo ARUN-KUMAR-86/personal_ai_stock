@@ -76,6 +76,51 @@ def _migrate_sqlite_columns():
                 if col not in pos_cols:
                     cursor.execute(f"ALTER TABLE portfolio_positions ADD COLUMN {col} {col_type};")
 
+        # Check broker_accounts columns
+        cursor.execute("PRAGMA table_info(broker_accounts);")
+        broker_cols = [row[1] for row in cursor.fetchall()]
+        if broker_cols:
+            new_broker_cols = {
+                "account_id": "VARCHAR(100) DEFAULT 'GROWW-ARUN-PRIMARY'",
+                "account_holder_name": "VARCHAR(100) DEFAULT 'Arun Kumar'",
+                "auth_status": "VARCHAR(30) DEFAULT 'CONNECTED'",
+                "token_expiry": "DATETIME",
+                "account_balance": "FLOAT DEFAULT 1000.0",
+                "trading_budget": "FLOAT DEFAULT 300.0",
+                "max_amount_per_trade": "FLOAT DEFAULT 100.0",
+                "daily_loss_limit": "FLOAT DEFAULT 50.0",
+                "auto_withdraw_profits": "BOOLEAN DEFAULT 0",
+                "auto_withdraw_threshold": "FLOAT DEFAULT 100.0",
+                "is_trading_active": "BOOLEAN DEFAULT 1",
+                "trading_mode": "VARCHAR(50) DEFAULT 'Notification + Approval'",
+            }
+            for col, col_type in new_broker_cols.items():
+                if col not in broker_cols:
+                    cursor.execute(f"ALTER TABLE broker_accounts ADD COLUMN {col} {col_type};")
+
+        # Check alert_history columns
+        cursor.execute("PRAGMA table_info(alert_history);")
+        alert_cols = [row[1] for row in cursor.fetchall()]
+        if alert_cols:
+            new_alert_cols = {
+                "action": "VARCHAR(10) DEFAULT 'BUY'",
+                "suggested_investment": "FLOAT DEFAULT 100.0",
+                "estimated_quantity": "INTEGER DEFAULT 1",
+                "estimated_order_value": "FLOAT DEFAULT 100.0",
+                "reason": "TEXT",
+                "risk_level": "VARCHAR(20) DEFAULT 'Medium'",
+                "stop_loss": "FLOAT",
+                "target": "FLOAT",
+                "status": "VARCHAR(30) DEFAULT 'PENDING_APPROVAL'",
+                "responded_at": "DATETIME",
+                "order_id": "VARCHAR(64)",
+                "broker_verified": "BOOLEAN DEFAULT 0",
+                "execution_result": "JSON",
+            }
+            for col, col_type in new_alert_cols.items():
+                if col not in alert_cols:
+                    cursor.execute(f"ALTER TABLE alert_history ADD COLUMN {col} {col_type};")
+
         conn.commit()
         conn.close()
     except Exception as e:

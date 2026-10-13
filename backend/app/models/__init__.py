@@ -6,7 +6,7 @@ from app.models.signal import StockSignal
 from app.models.scan_job import ScanJob
 from app.models.alert import AlertHistory, DeviceToken
 from app.models.portfolio import Position, PaperTrade
-from app.models.broker import BrokerAccount
+from app.models.broker import BrokerAccount, FundTransaction
 from app.models.user import User
 from app.models.order import Order
 from app.models.watchlist import WatchlistItem
@@ -22,6 +22,7 @@ __all__ = [
     "Position",
     "PaperTrade",
     "BrokerAccount",
+    "FundTransaction",
     "User",
     "Order",
     "WatchlistItem",

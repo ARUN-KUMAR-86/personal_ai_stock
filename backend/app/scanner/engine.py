@@ -161,18 +161,30 @@ class ScannerEngine:
                         # 3. Notification dispatch for actionable signals
                         if signal.signal_type in ("BUY WATCH", "SELL/EXIT WATCH"):
                             signals_generated += 1
-                            # Check deduplication cooldown
-                            if not notifier.should_suppress_duplicate(db, stock.symbol, signal.signal_type):
-                                formatted = notifier.format_alert_message(signal)
-                                notifier.send_notification(
+                            from app.models.broker import BrokerAccount
+                            account = db.query(BrokerAccount).filter(BrokerAccount.broker_name == "GROWW").first()
+                            
+                            is_active = account.is_trading_active if account else True
+                            if not is_active:
+                                logger.info(f"Market monitoring stopped in Trading Controls. Suppressing trade alert for {stock.symbol}.")
+                            elif not notifier.should_suppress_duplicate(db, stock.symbol, signal.signal_type):
+                                max_trade_val = account.max_amount_per_trade if account else 100.0
+                                qty = max(1, int(max_trade_val // signal.price)) if signal.price <= max_trade_val else 1
+                                action = "BUY" if "BUY" in signal.signal_type else "SELL"
+                                
+                                notifier.send_trade_alert(
                                     db=db,
                                     symbol=stock.symbol,
                                     exchange=stock.exchange,
-                                    alert_type=signal.signal_type,
-                                    title=formatted["title"],
-                                    body=formatted["body"],
-                                    signal_id=signal.id,
+                                    action=action,
                                     price=signal.price,
+                                    suggested_investment=max_trade_val,
+                                    estimated_quantity=qty,
+                                    reason=f"{signal.strategy_name}: {signal.explanation}",
+                                    risk_level="Medium",
+                                    stop_loss=signal.stop_loss,
+                                    target=signal.target,
+                                    signal_id=signal.id,
                                 )
 
                         job.scanned_stocks += 1

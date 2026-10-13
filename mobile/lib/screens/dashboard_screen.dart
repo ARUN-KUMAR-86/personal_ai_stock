@@ -5,7 +5,10 @@ import '../widgets/market_badge.dart';
 import '../widgets/stat_card.dart';
 import '../widgets/signal_pill.dart';
 import 'stock_recommendation_screen.dart';
+import 'trading_control_screen.dart';
+import 'settings_screen.dart';
 import '../widgets/groww_login_dialog.dart';
+import '../widgets/trade_alert_card.dart';
 import '../models/stock_summary.dart';
 
 class DashboardScreen extends StatelessWidget {
@@ -58,7 +61,16 @@ class DashboardScreen extends StatelessWidget {
           const SizedBox(width: 4),
           IconButton(
             icon: const Icon(Icons.refresh),
+            tooltip: 'Refresh',
             onPressed: () => state.refreshAll(),
+          ),
+          IconButton(
+            icon: const Icon(Icons.settings_outlined),
+            tooltip: 'Settings',
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const SettingsScreen()),
+            ),
           ),
         ],
       ),
@@ -204,6 +216,57 @@ class DashboardScreen extends StatelessWidget {
                 ],
               ),
             ),
+
+            // Pending Trade Alerts requiring owner approval (Section 4)
+            if (state.pendingTradeAlerts.isNotEmpty) ...[
+              Container(
+                margin: const EdgeInsets.only(bottom: 16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(5),
+                          decoration: BoxDecoration(
+                            color: Colors.amber.shade900.withOpacity(0.3),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(Icons.gavel, color: Colors.amberAccent, size: 14),
+                        ),
+                        const SizedBox(width: 8),
+                        const Text(
+                          'ACTION REQUIRED: TRADE APPROVAL',
+                          style: TextStyle(
+                            color: Colors.amberAccent,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 13,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                        const Spacer(),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: Colors.amber.withOpacity(0.2),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Text(
+                            '${state.pendingTradeAlerts.length} PENDING',
+                            style: const TextStyle(color: Colors.amberAccent, fontSize: 10, fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    ...state.pendingTradeAlerts.map((alert) => TradeAlertCard(alert: alert)),
+                  ],
+                ),
+              ),
+            ],
+
+            // Dedicated Trading Controls Card (Section 3)
+            _buildTradingControlSummaryCard(context, state),
 
             // 1. TOP PRIORITY: AI OPPORTUNITIES (Notification-First Hero)
             Container(
@@ -825,6 +888,184 @@ class DashboardScreen extends StatelessWidget {
               }),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildTradingControlSummaryCard(BuildContext context, AppState state) {
+    final tc = state.tradingControl;
+    final isTradingActive = tc?.isTradingActive ?? true;
+    final statusColor = tc?.growwAccountStatus.contains('Connected') == true
+        ? Colors.tealAccent
+        : (tc?.growwAccountStatus.contains('Expired') == true ? Colors.amberAccent : Colors.redAccent);
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1E222D),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.blueAccent.withOpacity(0.25)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.25),
+            blurRadius: 8,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Row(
+                children: [
+                  Icon(Icons.tune_rounded, color: Colors.blueAccent, size: 18),
+                  SizedBox(width: 8),
+                  Text(
+                    'PERSONAL AI STOCK',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13,
+                      letterSpacing: 1,
+                    ),
+                  ),
+                ],
+              ),
+              InkWell(
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const TradingControlScreen()),
+                ),
+                child: Row(
+                  children: [
+                    Text(
+                      'Controls Screen',
+                      style: TextStyle(color: Colors.blueAccent.shade100, fontSize: 11, fontWeight: FontWeight.w600),
+                    ),
+                    const SizedBox(width: 2),
+                    Icon(Icons.chevron_right, size: 16, color: Colors.blueAccent.shade100),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          const Divider(color: Colors.white12, height: 1),
+          const SizedBox(height: 12),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Groww Account', style: TextStyle(color: Colors.grey, fontSize: 11)),
+                  const SizedBox(height: 2),
+                  Row(
+                    children: [
+                      Container(
+                        width: 7,
+                        height: 7,
+                        decoration: BoxDecoration(shape: BoxShape.circle, color: statusColor),
+                      ),
+                      const SizedBox(width: 5),
+                      Text(
+                        tc?.growwAccountStatus ?? 'Connected*',
+                        style: TextStyle(color: statusColor, fontWeight: FontWeight.bold, fontSize: 13),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  const Text('Trading Budget', style: TextStyle(color: Colors.grey, fontSize: 11)),
+                  const SizedBox(height: 2),
+                  Text(
+                    '₹${(tc?.tradingBudget ?? 300.0).toStringAsFixed(0)}',
+                    style: const TextStyle(color: Colors.lightBlueAccent, fontWeight: FontWeight.bold, fontSize: 14),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Available Funds', style: TextStyle(color: Colors.grey, fontSize: 11)),
+                  const SizedBox(height: 2),
+                  Text(
+                    '₹${(tc?.availableFunds ?? 1000.0).toStringAsFixed(2)}',
+                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 13),
+                  ),
+                ],
+              ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  const Text("Today's P/L", style: TextStyle(color: Colors.grey, fontSize: 11)),
+                  const SizedBox(height: 2),
+                  Text(
+                    '${(tc?.todaysPnl ?? 0) >= 0 ? "+" : ""}₹${(tc?.todaysPnl ?? 0.0).toStringAsFixed(2)}',
+                    style: TextStyle(
+                      color: (tc?.todaysPnl ?? 0) >= 0 ? Colors.greenAccent : Colors.redAccent,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              Expanded(
+                child: ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: isTradingActive ? Colors.red.shade900.withOpacity(0.7) : Colors.teal.shade800,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                  onPressed: state.isTradingToggling
+                      ? null
+                      : () => isTradingActive ? state.stopTrading() : state.startTrading(),
+                  icon: Icon(isTradingActive ? Icons.stop_circle_outlined : Icons.play_arrow_outlined, size: 16),
+                  label: Text(
+                    isTradingActive ? 'Stop Trading' : 'Start Trading',
+                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.white70,
+                    side: const BorderSide(color: Colors.white24),
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                  onPressed: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const TradingControlScreen()),
+                  ),
+                  icon: const Icon(Icons.settings_input_component, size: 15),
+                  label: const Text('Trading Settings', style: TextStyle(fontSize: 12)),
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }

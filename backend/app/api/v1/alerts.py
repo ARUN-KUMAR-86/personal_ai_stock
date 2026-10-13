@@ -96,9 +96,183 @@ def unregister_device_token(token: str, db: Session = Depends(get_db)):
     return {"status": "NOT_FOUND", "token": token}
 
 
-@router.get("/devices", response_model=List[DeviceTokenRead])
-def get_registered_devices(db: Session = Depends(get_db)):
-    """Lists registered devices for notifications."""
-    from app.models.alert import DeviceToken
+@router.get("/trade-alerts", response_model=List[AlertRead])
+def get_trade_alerts(
+    status: Optional[str] = None,
+    limit: int = 20,
+    db: Session = Depends(get_db),
+):
+    """Retrieves trade alerts with pending approval status and historical responses."""
+    query = db.query(AlertHistory).filter(AlertHistory.alert_type == "TRADE_ALERT")
+    if status:
+        query = query.filter(AlertHistory.status == status.upper())
+    return query.order_by(AlertHistory.created_at.desc()).limit(limit).all()
 
-    return db.query(DeviceToken).filter(DeviceToken.is_active == True).all()
+
+@router.post("/trade-alerts/{alert_id}/respond")
+def respond_to_trade_alert(
+    alert_id: int,
+    request: dict,  # {"action": "APPROVE" or "REJECT", "confirmed_price": float (optional)}
+    db: Session = Depends(get_db),
+):
+    """
+    1-Tap Approval / Rejection Workflow for PERSONAL AI STOCK — TRADE ALERT.
+    No real or simulated trade is placed without user approval.
+    Enforces authorized Groww account verification and daily token validity.
+    """
+    from datetime import datetime, timezone
+    from app.models.broker import BrokerAccount
+    from app.models.portfolio import Position, PaperTrade
+    from app.brokers.factory import get_broker_adapter
+    from app.portfolio.manager import PortfolioManager
+
+    alert = db.query(AlertHistory).filter(AlertHistory.id == alert_id).first()
+    if not alert:
+        raise HTTPException(status_code=404, detail="Trade alert not found.")
+
+    if alert.status != "PENDING_APPROVAL":
+        return {
+            "success": False,
+            "status": alert.status,
+            "message": f"Trade alert has already been responded to ({alert.status}).",
+        }
+
+    user_action = str(request.get("action", "")).upper().strip()
+    if user_action not in ("APPROVE", "REJECT"):
+        raise HTTPException(status_code=400, detail="Action must be APPROVE or REJECT.")
+
+    # 1. REJECT Flow
+    if user_action == "REJECT":
+        alert.status = "REJECTED"
+        alert.responded_at = datetime.now(timezone.utc)
+        alert.is_read = True
+        db.commit()
+        return {
+            "success": True,
+            "status": "REJECTED",
+            "symbol": alert.symbol,
+            "message": f"Trade alert for {alert.symbol} was rejected. No order placed.",
+        }
+
+    # 2. APPROVE Flow
+    account = db.query(BrokerAccount).filter(BrokerAccount.broker_name == "GROWW").first()
+    if account and not account.is_trading_active:
+        raise HTTPException(
+            status_code=400,
+            detail="Trading is currently paused in Trading Controls. Resume trading to execute approved orders.",
+        )
+
+    broker = get_broker_adapter()
+    # Check authorized account match
+    if not broker.verify_authorized_account():
+        raise HTTPException(
+            status_code=403,
+            detail=f"Groww account mismatch: Session does not match authorized account {broker.authorized_account_id}.",
+        )
+
+    # Check token expiry
+    if broker.is_token_expired():
+        raise HTTPException(
+            status_code=401,
+            detail="Groww access token has expired. Please renew your daily session before approving trades.",
+        )
+
+    exec_price = float(request.get("confirmed_price") or alert.price or 100.0)
+    qty = max(1, alert.estimated_quantity or 1)
+    action_type = (alert.action or "BUY").upper()
+
+    try:
+        # Place order through broker adapter (with user_confirmed=True)
+        broker_res = broker.place_order(
+            symbol=alert.symbol,
+            exchange=alert.exchange,
+            transaction_type=action_type,
+            quantity=qty,
+            price=exec_price,
+            user_confirmed=True,
+        )
+
+        broker_order_id = str(broker_res.get("order_id", f"ORD-{alert.symbol}-{alert.id}"))
+        actual_price = float(broker_res.get("price", exec_price))
+        actual_qty = int(broker_res.get("filled_quantity", qty))
+
+        # Register position / execute trade in portfolio
+        trade = PortfolioManager.execute_paper_trade(
+            db=db,
+            symbol=alert.symbol,
+            exchange=alert.exchange,
+            action=action_type,
+            quantity=actual_qty,
+            price=actual_price,
+            reason=f"Approved Trade Alert #{alert.id}",
+            stop_loss=alert.stop_loss,
+            target=alert.target,
+            mode=broker_res.get("mode", "PAPER"),
+            order_id=broker_order_id,
+        )
+
+        # Update broker account balance
+        if account:
+            if action_type == "BUY":
+                cost = (actual_price * actual_qty) + trade.fees
+                account.available_funds = max(0.0, account.available_funds - cost)
+            else:
+                proceeds = (actual_price * actual_qty) - trade.fees
+                account.available_funds += proceeds
+                account.account_balance += trade.pnl
+
+        # Update alert status
+        alert.status = "EXECUTED"
+        alert.responded_at = datetime.now(timezone.utc)
+        alert.order_id = broker_order_id
+        alert.broker_verified = True
+        alert.is_read = True
+        alert.execution_result = {
+            "broker_order_id": broker_order_id,
+            "executed_price": actual_price,
+            "filled_quantity": actual_qty,
+            "fees": trade.fees,
+            "pnl": trade.pnl,
+        }
+        db.commit()
+
+        # Check auto-withdraw rule on profitable sales
+        if action_type == "SELL" and account and account.auto_withdraw_profits and trade.pnl >= account.auto_withdraw_threshold:
+            from app.api.v1.trading_control import check_auto_withdraw
+            check_auto_withdraw(db)
+
+        # Send execution confirmation notification
+        try:
+            notifier.send_notification(
+                db=db,
+                symbol=alert.symbol,
+                exchange=alert.exchange,
+                alert_type=f"{action_type}_EXECUTED",
+                title=f"PERSONAL AI STOCK — ORDER EXECUTED ({action_type})",
+                body=(
+                    f"Order #{broker_order_id} verified on {alert.symbol}.\n"
+                    f"Executed: {actual_qty} shares @ ₹{actual_price:.2f}\n"
+                    f"P&L: ₹{trade.pnl:.2f}\n"
+                    f"Available Funds: ₹{(account.available_funds if account else 0.0):.2f}"
+                ),
+                price=actual_price,
+            )
+        except Exception:
+            pass
+
+        return {
+            "success": True,
+            "status": "EXECUTED",
+            "action": action_type,
+            "symbol": alert.symbol,
+            "order_id": broker_order_id,
+            "price": actual_price,
+            "quantity": actual_qty,
+            "pnl": trade.pnl,
+            "message": f"Successfully executed {action_type} for {alert.symbol} ({actual_qty} shares at ₹{actual_price:.2f}).",
+        }
+
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to execute order with broker: {str(e)}")
+
