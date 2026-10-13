@@ -895,9 +895,12 @@ class DashboardScreen extends StatelessWidget {
   Widget _buildTradingControlSummaryCard(BuildContext context, AppState state) {
     final tc = state.tradingControl;
     final isTradingActive = tc?.isTradingActive ?? true;
-    final statusColor = tc?.growwAccountStatus.contains('Connected') == true
+    final isLiveBroker = state.isGrowwConnected;
+    final accountStatusText = tc?.growwAccountStatus ?? (isLiveBroker ? 'Connected' : 'Not Connected (Paper Mode)');
+    final isConn = accountStatusText.startsWith('Connected') && !accountStatusText.contains('Not');
+    final statusColor = isConn
         ? Colors.tealAccent
-        : (tc?.growwAccountStatus.contains('Expired') == true ? Colors.amberAccent : Colors.redAccent);
+        : (accountStatusText.contains('Expired') ? Colors.amberAccent : Colors.grey.shade400);
 
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
@@ -973,7 +976,7 @@ class DashboardScreen extends StatelessWidget {
                       ),
                       const SizedBox(width: 5),
                       Text(
-                        tc?.growwAccountStatus ?? 'Connected*',
+                        accountStatusText,
                         style: TextStyle(color: statusColor, fontWeight: FontWeight.bold, fontSize: 13),
                       ),
                     ],

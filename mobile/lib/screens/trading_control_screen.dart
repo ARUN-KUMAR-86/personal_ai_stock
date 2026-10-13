@@ -26,6 +26,8 @@ class _TradingControlScreenState extends State<TradingControlScreen> {
     final state = context.watch<AppState>();
     final tc = state.tradingControl;
     final isTradingActive = tc?.isTradingActive ?? true;
+    final isLiveBroker = state.isGrowwConnected;
+    final accountStatusText = tc?.growwAccountStatus ?? (isLiveBroker ? 'Connected' : 'Not Connected (Paper Mode)');
 
     return Scaffold(
       backgroundColor: const Color(0xFF131722),
@@ -103,14 +105,14 @@ class _TradingControlScreenState extends State<TradingControlScreen> {
                             height: 8,
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
-                              color: _getAccountStatusColor(tc?.growwAccountStatus ?? 'Connected*'),
+                              color: _getAccountStatusColor(accountStatusText),
                             ),
                           ),
                           const SizedBox(width: 6),
                           Text(
-                            tc?.growwAccountStatus ?? 'Connected*',
+                            accountStatusText,
                             style: TextStyle(
-                              color: _getAccountStatusColor(tc?.growwAccountStatus ?? 'Connected*'),
+                              color: _getAccountStatusColor(accountStatusText),
                               fontSize: 14,
                               fontWeight: FontWeight.bold,
                             ),
@@ -545,9 +547,9 @@ class _TradingControlScreenState extends State<TradingControlScreen> {
   }
 
   Color _getAccountStatusColor(String status) {
-    if (status.contains('Connected')) return Colors.greenAccent;
+    if (status.startsWith('Connected') && !status.contains('Not')) return Colors.greenAccent;
     if (status.contains('Expired')) return Colors.amberAccent;
-    return Colors.redAccent;
+    return Colors.grey.shade400;
   }
 
   // ──────────────────────────

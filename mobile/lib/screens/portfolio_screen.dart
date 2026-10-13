@@ -192,8 +192,54 @@ class PortfolioScreen extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('TOTAL PORTFOLIO VALUE',
-                      style: TextStyle(color: Colors.grey, fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 0.5)),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text('TOTAL PORTFOLIO VALUE',
+                          style: TextStyle(color: Colors.grey, fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 0.5)),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: (state.safetyStatus?.executionMode == 'GROWW_LIVE' && state.isGrowwConnected)
+                              ? Colors.green.withOpacity(0.15)
+                              : Colors.amber.withOpacity(0.15),
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(
+                            color: (state.safetyStatus?.executionMode == 'GROWW_LIVE' && state.isGrowwConnected)
+                                ? Colors.green.withOpacity(0.4)
+                                : Colors.amber.withOpacity(0.4),
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              (state.safetyStatus?.executionMode == 'GROWW_LIVE' && state.isGrowwConnected)
+                                  ? Icons.verified
+                                  : Icons.science_outlined,
+                              size: 11,
+                              color: (state.safetyStatus?.executionMode == 'GROWW_LIVE' && state.isGrowwConnected)
+                                  ? Colors.greenAccent
+                                  : Colors.amberAccent,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              (state.safetyStatus?.executionMode == 'GROWW_LIVE' && state.isGrowwConnected)
+                                  ? 'LIVE BROKER'
+                                  : 'PAPER TRADING (SIMULATED)',
+                              style: TextStyle(
+                                color: (state.safetyStatus?.executionMode == 'GROWW_LIVE' && state.isGrowwConnected)
+                                    ? Colors.greenAccent
+                                    : Colors.amberAccent,
+                                fontSize: 9,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
                   const SizedBox(height: 6),
                   Text(
                     '₹${portfolio?.totalPortfolioValue.toStringAsFixed(2) ?? '0.00'}',
@@ -378,14 +424,39 @@ class PortfolioScreen extends StatelessWidget {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Text(
-                            'Hold: ${pos.holdingPeriodHours}h | Mode: ${pos.mode}',
-                            style: const TextStyle(color: Colors.grey, fontSize: 10),
+                          Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: pos.mode == 'PAPER'
+                                      ? Colors.amber.withOpacity(0.18)
+                                      : Colors.green.withOpacity(0.18),
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: Text(
+                                  pos.mode == 'PAPER' ? 'PAPER (SIMULATED)' : 'LIVE BROKER',
+                                  style: TextStyle(
+                                    color: pos.mode == 'PAPER' ? Colors.amberAccent : Colors.greenAccent,
+                                    fontSize: 9,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              Text(
+                                'Hold: ${pos.holdingPeriodHours}h',
+                                style: const TextStyle(color: Colors.grey, fontSize: 10),
+                              ),
+                            ],
                           ),
                           if (pos.exitTriggered)
-                            Text(
-                              '⚠️ ${pos.exitReason ?? "Exit Triggered"}',
-                              style: const TextStyle(color: Colors.orangeAccent, fontSize: 10, fontWeight: FontWeight.bold),
+                            Flexible(
+                              child: Text(
+                                '⚠️ ${pos.exitReason ?? "Exit Triggered"}',
+                                style: const TextStyle(color: Colors.orangeAccent, fontSize: 10, fontWeight: FontWeight.bold),
+                                overflow: TextOverflow.ellipsis,
+                              ),
                             ),
                         ],
                       ),

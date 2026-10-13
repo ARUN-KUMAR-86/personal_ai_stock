@@ -84,11 +84,11 @@ def get_trading_control_summary(db: Session = Depends(get_db)):
     is_auth = api_status.get("is_authenticated", False)
     is_expired = api_status.get("is_token_expired", False)
     if is_auth and not is_expired:
-        status_str = "Connected*"
+        status_str = "Connected (Live Broker)"
     elif is_expired:
-        status_str = "Expired (Re-authenticate)*"
+        status_str = "Expired (Re-authenticate)"
     else:
-        status_str = "Disconnected" if not api_status.get("is_configured") else "Connected*"
+        status_str = "Disconnected (Paper Mode)"
 
     # Calculate amount in open positions
     open_positions = db.query(Position).filter(Position.is_open == True).all()
