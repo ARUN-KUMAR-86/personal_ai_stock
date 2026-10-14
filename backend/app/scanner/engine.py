@@ -122,7 +122,10 @@ class ScannerEngine:
             job.total_stocks = len(target_stocks)
             db.commit()
 
-            primary_strategy = strategy_registry.get("MomentumBreakout") or strategy_registry.get_all()[0]
+            from app.models.broker import BrokerAccount
+            account = db.query(BrokerAccount).filter(BrokerAccount.broker_name == "GROWW").first()
+            selected_algo = getattr(account, "active_algorithm", "HighestGainMaximizer") if account else "HighestGainMaximizer"
+            primary_strategy = strategy_registry.get(selected_algo) or strategy_registry.get("HighestGainMaximizer") or strategy_registry.get_all()[0]
 
             failed_symbols = []
             signals_generated = 0
@@ -154,6 +157,9 @@ class ScannerEngine:
                         signal.company_name = stock.name or stock.symbol
                         signal.data_source = f"{provider.name} (Verified NSE/BSE Feed)"
                         signal.data_freshness = "Verified Tick / Daily Candle"
+                        if not getattr(signal, "priority", None):
+                            signal.priority = "HIGH" if signal.strength >= 75 else ("MEDIUM" if signal.strength >= 50 else "LOW")
+
                         db.add(signal)
                         db.commit()
                         db.refresh(signal)
@@ -161,7 +167,6 @@ class ScannerEngine:
                         # 3. Notification dispatch for actionable signals
                         if signal.signal_type in ("BUY WATCH", "SELL/EXIT WATCH"):
                             signals_generated += 1
-                            from app.models.broker import BrokerAccount
                             account = db.query(BrokerAccount).filter(BrokerAccount.broker_name == "GROWW").first()
                             
                             is_active = account.is_trading_active if account else True
@@ -181,7 +186,7 @@ class ScannerEngine:
                                     suggested_investment=max_trade_val,
                                     estimated_quantity=qty,
                                     reason=f"{signal.strategy_name}: {signal.explanation}",
-                                    risk_level="Medium",
+                                    risk_level=signal.priority or "Medium",
                                     stop_loss=signal.stop_loss,
                                     target=signal.target,
                                     signal_id=signal.id,

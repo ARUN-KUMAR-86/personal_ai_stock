@@ -155,6 +155,25 @@ class PortfolioScreen extends StatelessWidget {
         title: const Text('PORTFOLIO & RISK', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
         actions: [
           IconButton(
+            icon: const Icon(Icons.bolt, color: Colors.amberAccent),
+            tooltip: 'Run Auto Take Money Check',
+            onPressed: () async {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Checking open positions for auto-take-money / auto-sell targets...'), duration: Duration(seconds: 1)),
+              );
+              final res = await state.triggerAutoSellCheck();
+              await state.checkAndExecuteAutoSell();
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(res['message'] ?? 'Auto-sell check complete.'),
+                    backgroundColor: Colors.teal,
+                  ),
+                );
+              }
+            },
+          ),
+          IconButton(
             icon: const Icon(Icons.sync_alt),
             tooltip: 'Run Position Monitor Check',
             onPressed: () async {
@@ -380,14 +399,26 @@ class PortfolioScreen extends StatelessWidget {
                                 decoration: BoxDecoration(
                                   color: pos.autoSellEnabled ? Colors.green.withOpacity(0.2) : Colors.grey.withOpacity(0.2),
                                   borderRadius: BorderRadius.circular(4),
-                                ),
-                                child: Text(
-                                  pos.autoSellEnabled ? 'Auto-Sell' : 'Manual-Sell',
-                                  style: TextStyle(
-                                    color: pos.autoSellEnabled ? Colors.greenAccent : Colors.white70,
-                                    fontSize: 9,
-                                    fontWeight: FontWeight.bold,
+                                  border: Border.all(
+                                    color: pos.autoSellEnabled ? Colors.greenAccent.withOpacity(0.5) : Colors.transparent,
                                   ),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    if (pos.autoSellEnabled) ...[
+                                      const Icon(Icons.bolt, size: 10, color: Colors.amberAccent),
+                                      const SizedBox(width: 2),
+                                    ],
+                                    Text(
+                                      pos.autoSellEnabled ? 'Auto Take Money' : 'Manual-Sell',
+                                      style: TextStyle(
+                                        color: pos.autoSellEnabled ? Colors.greenAccent : Colors.white70,
+                                        fontSize: 9,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
                             ],
@@ -458,6 +489,145 @@ class PortfolioScreen extends StatelessWidget {
                                 overflow: TextOverflow.ellipsis,
                               ),
                             ),
+                        ],
+                      ),
+                    ],
+                  ),
+                );
+              }),
+
+            const SizedBox(height: 24),
+
+            // Simulation Paper Trades Section (Always visible even if offline/restarted)
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  'SIMULATION PAPER TRADES',
+                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13, letterSpacing: 0.5),
+                ),
+                Text(
+                  '${state.paperTrades.length} Recorded',
+                  style: const TextStyle(color: Colors.grey, fontSize: 12),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+
+            if (state.paperTrades.isEmpty)
+              Container(
+                padding: const EdgeInsets.all(24),
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1E222D),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Column(
+                  children: [
+                    Icon(Icons.history_toggle_off, size: 36, color: Colors.grey.shade600),
+                    const SizedBox(height: 8),
+                    Text(
+                      'No simulation trades placed yet.',
+                      style: TextStyle(color: Colors.grey.shade400, fontSize: 13),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Place paper trades from any stock detail screen to test strategies risk-free.',
+                      style: TextStyle(color: Colors.grey.shade600, fontSize: 11),
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                ),
+              )
+            else
+              ...state.paperTrades.map((pt) {
+                final isBuy = pt.action.toUpperCase() == 'BUY';
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 10),
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF1E222D),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: Colors.white.withOpacity(0.05)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: isBuy ? Colors.green.withOpacity(0.2) : Colors.red.withOpacity(0.2),
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: Text(
+                                  pt.action.toUpperCase(),
+                                  style: TextStyle(
+                                    color: isBuy ? Colors.greenAccent : Colors.redAccent,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                pt.symbol,
+                                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15),
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                '${pt.quantity} Shares',
+                                style: TextStyle(color: Colors.grey.shade400, fontSize: 12),
+                              ),
+                            ],
+                          ),
+                          Text(
+                            '₹${pt.price.toStringAsFixed(2)}',
+                            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Row(
+                            children: [
+                              if (pt.autoSellEnabled) ...[
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                                  decoration: BoxDecoration(
+                                    color: Colors.amber.withOpacity(0.18),
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                  child: const Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(Icons.bolt, size: 10, color: Colors.amberAccent),
+                                      SizedBox(width: 2),
+                                      Text(
+                                        'Auto Take Money',
+                                        style: TextStyle(color: Colors.amberAccent, fontSize: 9, fontWeight: FontWeight.bold),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(width: 6),
+                              ],
+                              if (pt.target != null)
+                                Text('TP: ₹${pt.target!.toStringAsFixed(1)} ', style: const TextStyle(color: Colors.greenAccent, fontSize: 10)),
+                              if (pt.stopLoss != null)
+                                Text('SL: ₹${pt.stopLoss!.toStringAsFixed(1)}', style: const TextStyle(color: Colors.redAccent, fontSize: 10)),
+                            ],
+                          ),
+                          Text(
+                            '${pt.timestamp.day}/${pt.timestamp.month} ${pt.timestamp.hour.toString().padLeft(2, '0')}:${pt.timestamp.minute.toString().padLeft(2, '0')}',
+                            style: TextStyle(color: Colors.grey.shade500, fontSize: 10),
+                          ),
                         ],
                       ),
                     ],

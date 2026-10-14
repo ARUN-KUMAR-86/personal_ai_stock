@@ -67,6 +67,105 @@ class Position {
       orderId: json['order_id'],
     );
   }
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'symbol': symbol,
+        'exchange': exchange,
+        'quantity': quantity,
+        'avg_entry_price': avgEntryPrice,
+        'current_price': currentPrice,
+        'stop_loss': stopLoss,
+        'target': target,
+        'unrealized_pnl': unrealizedPnl,
+        'realized_pnl': realizedPnl,
+        'fees': fees,
+        'is_open': isOpen,
+        'holding_period_hours': holdingPeriodHours,
+        'exit_deadline': exitDeadline?.toIso8601String(),
+        'auto_sell_enabled': autoSellEnabled,
+        'exit_strategy': exitStrategy,
+        'exit_triggered': exitTriggered,
+        'exit_reason': exitReason,
+        'mode': mode,
+        'order_id': orderId,
+      };
+}
+
+class PaperTrade {
+  final int id;
+  final String symbol;
+  final String exchange;
+  final String action;
+  final int quantity;
+  final double price;
+  final double fees;
+  final double totalAmount;
+  final double pnl;
+  final String? reason;
+  final DateTime timestamp;
+  final double? stopLoss;
+  final double? target;
+  final int holdingPeriodHours;
+  final bool autoSellEnabled;
+
+  PaperTrade({
+    required this.id,
+    required this.symbol,
+    required this.exchange,
+    required this.action,
+    required this.quantity,
+    required this.price,
+    required this.fees,
+    required this.totalAmount,
+    required this.pnl,
+    this.reason,
+    required this.timestamp,
+    this.stopLoss,
+    this.target,
+    this.holdingPeriodHours = 48,
+    this.autoSellEnabled = true,
+  });
+
+  factory PaperTrade.fromJson(Map<String, dynamic> json) {
+    return PaperTrade(
+      id: json['id'] ?? 0,
+      symbol: json['symbol'] ?? '',
+      exchange: json['exchange'] ?? 'NSE',
+      action: json['action'] ?? 'BUY',
+      quantity: json['quantity'] ?? 0,
+      price: (json['price'] as num?)?.toDouble() ?? 0.0,
+      fees: (json['fees'] as num?)?.toDouble() ?? 0.0,
+      totalAmount: (json['total_amount'] as num?)?.toDouble() ?? 0.0,
+      pnl: (json['pnl'] as num?)?.toDouble() ?? 0.0,
+      reason: json['reason'],
+      timestamp: json['timestamp'] != null
+          ? DateTime.tryParse(json['timestamp']) ?? DateTime.now()
+          : DateTime.now(),
+      stopLoss: (json['stop_loss'] as num?)?.toDouble(),
+      target: (json['target'] as num?)?.toDouble(),
+      holdingPeriodHours: json['holding_period_hours'] ?? 48,
+      autoSellEnabled: json['auto_sell_enabled'] ?? true,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'symbol': symbol,
+        'exchange': exchange,
+        'action': action,
+        'quantity': quantity,
+        'price': price,
+        'fees': fees,
+        'total_amount': totalAmount,
+        'pnl': pnl,
+        'reason': reason,
+        'timestamp': timestamp.toIso8601String(),
+        'stop_loss': stopLoss,
+        'target': target,
+        'holding_period_hours': holdingPeriodHours,
+        'auto_sell_enabled': autoSellEnabled,
+      };
 }
 
 class PortfolioSummary {
@@ -91,13 +190,23 @@ class PortfolioSummary {
   factory PortfolioSummary.fromJson(Map<String, dynamic> json) {
     var posList = (json['positions'] as List?)?.map((p) => Position.fromJson(p)).toList() ?? [];
     return PortfolioSummary(
-      totalPortfolioValue: (json['total_portfolio_value'] as num).toDouble(),
-      totalInvestedValue: (json['total_invested_value'] as num).toDouble(),
-      totalUnrealizedPnl: (json['total_unrealized_pnl'] as num).toDouble(),
-      totalRealizedPnl: (json['total_realized_pnl'] as num).toDouble(),
+      totalPortfolioValue: (json['total_portfolio_value'] as num?)?.toDouble() ?? 0.0,
+      totalInvestedValue: (json['total_invested_value'] as num?)?.toDouble() ?? 0.0,
+      totalUnrealizedPnl: (json['total_unrealized_pnl'] as num?)?.toDouble() ?? 0.0,
+      totalRealizedPnl: (json['total_realized_pnl'] as num?)?.toDouble() ?? 0.0,
       openPositionsCount: json['open_positions_count'] ?? 0,
-      portfolioExposurePct: (json['portfolio_exposure_pct'] as num).toDouble(),
+      portfolioExposurePct: (json['portfolio_exposure_pct'] as num?)?.toDouble() ?? 0.0,
       positions: posList,
     );
   }
+
+  Map<String, dynamic> toJson() => {
+        'total_portfolio_value': totalPortfolioValue,
+        'total_invested_value': totalInvestedValue,
+        'total_unrealized_pnl': totalUnrealizedPnl,
+        'total_realized_pnl': totalRealizedPnl,
+        'open_positions_count': openPositionsCount,
+        'portfolio_exposure_pct': portfolioExposurePct,
+        'positions': positions.map((p) => p.toJson()).toList(),
+      };
 }

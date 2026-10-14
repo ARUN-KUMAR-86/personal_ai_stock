@@ -49,3 +49,24 @@ def test_macd_crossover_strategy():
     assert signal.symbol == "INFY"
     assert signal.strategy_name == "MacdCross"
     assert signal.signal_type in ("BUY WATCH", "HOLD", "SELL/EXIT WATCH", "NO TRADE")
+
+
+def test_highest_gain_maximizer_strategy():
+    from app.strategies.highest_gain_maximizer import HighestGainMaximizerStrategy
+
+    provider = MockMarketDataProvider()
+    df = provider.get_historical_ohlcv("TATASTEEL")
+
+    strategy = HighestGainMaximizerStrategy()
+    signal = strategy.evaluate(df, "TATASTEEL", "NSE")
+
+    assert signal.symbol == "TATASTEEL"
+    assert signal.strategy_name == "HighestProfitMaximizer"
+    assert signal.priority in ("HIGH", "MEDIUM", "LOW")
+    assert signal.target is not None
+    assert signal.stop_loss is not None
+    assert signal.target > signal.price
+    assert signal.stop_loss < signal.price
+    assert signal.ai_thesis is not None
+    assert "priority" in signal.ai_thesis
+

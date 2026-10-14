@@ -6,6 +6,7 @@ import '../state/app_state.dart';
 import '../models/signal.dart';
 import '../models/order.dart';
 import '../widgets/signal_pill.dart';
+import '../widgets/priority_badge.dart';
 import '../widgets/groww_login_dialog.dart';
 
 class StockRecommendationScreen extends StatefulWidget {
@@ -36,7 +37,7 @@ class _StockRecommendationScreenState extends State<StockRecommendationScreen> {
   late TextEditingController _stopLossController;
   late TextEditingController _targetController;
   int _holdingPeriodHours = 48;
-  bool _autoSellEnabled = false;
+  bool _autoSellEnabled = true;
 
   // Live Calculated Metrics
   OrderCalculation? calculation;
@@ -501,15 +502,21 @@ class _StockRecommendationScreenState extends State<StockRecommendationScreen> {
                   _buildSummaryRow('Configured Target:', '₹${prepared.target.toStringAsFixed(2)}', color: Colors.greenAccent),
                   const Divider(color: Colors.white12, height: 20),
 
-                  // Optional Automatic Position Exit Setting
+                  // Automatic Position Exit & Take Money Setting
                   SwitchListTile(
                     contentPadding: EdgeInsets.zero,
-                    title: const Text(
-                      'Enable Automatic Selling on Exit',
-                      style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600),
+                    title: const Row(
+                      children: [
+                        Icon(Icons.bolt, color: Colors.amberAccent, size: 16),
+                        SizedBox(width: 4),
+                        Text(
+                          'Auto Take Money & Auto-Sell on Target',
+                          style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold),
+                        ),
+                      ],
                     ),
                     subtitle: const Text(
-                      'Submits sell order automatically when Target, Stop-Loss, or 24/48h holding period is met.',
+                      'Submits sell order automatically when Target (+5% to +15%), Stop-Loss, or holding period is met to lock in profits.',
                       style: TextStyle(color: Colors.grey, fontSize: 11),
                     ),
                     value: _autoSellEnabled,
@@ -821,9 +828,18 @@ class _StockRecommendationScreenState extends State<StockRecommendationScreen> {
                               ],
                             ),
                             if (signal != null)
-                              SignalPill(
-                                signalType: signal!.signalType,
-                                strength: signal!.strength,
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  if (signal!.priority.isNotEmpty && signal!.priority.toUpperCase() != 'NORMAL') ...[
+                                    PriorityBadge(priority: signal!.priority),
+                                    const SizedBox(width: 8),
+                                  ],
+                                  SignalPill(
+                                    signalType: signal!.signalType,
+                                    strength: signal!.strength,
+                                  ),
+                                ],
                               ),
                           ],
                         ),

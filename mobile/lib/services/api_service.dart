@@ -31,21 +31,17 @@ class ApiService {
   Future<bool> checkHealth() async {
     try {
       final url = await _getUrl('/health');
-      final res = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 4));
+      final res = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 5));
       if (res.statusCode == 200) return true;
     } catch (_) {}
 
-    // Automatic Cloud Fallback:
-    // If current URL is unreachable, automatically test and connect to 24/7 Cloud backend!
+    // Resilient Cloud Fallback with wake-up handling (takes up to 18 seconds for sleeping Render):
     try {
-      final cloudUrl = StorageService.cloudProductionUrl;
-      final currentUrl = await StorageService.getBaseUrl();
-      if (currentUrl != cloudUrl) {
-        final res = await http.get(Uri.parse('$cloudUrl/health')).timeout(const Duration(seconds: 5));
-        if (res.statusCode == 200) {
-          await StorageService.setBaseUrl(cloudUrl);
-          return true;
-        }
+      const cloudUrl = StorageService.cloudProductionUrl;
+      final res = await http.get(Uri.parse('$cloudUrl/health')).timeout(const Duration(seconds: 18));
+      if (res.statusCode == 200) {
+        await StorageService.setBaseUrl(cloudUrl);
+        return true;
       }
     } catch (_) {}
 
@@ -240,6 +236,10 @@ class ApiService {
     required String action,
     required int quantity,
     double? price,
+    double? stopLoss,
+    double? target,
+    int holdingPeriodHours = 48,
+    bool autoSellEnabled = true,
   }) async {
     final url = await _getUrl('/portfolio/paper-trades');
     final headers = await _headers();
@@ -250,11 +250,54 @@ class ApiService {
         'symbol': symbol,
         'action': action,
         'quantity': quantity,
-        'price': price,
+        if (price != null) 'price': price,
         'exchange': 'NSE',
+        if (stopLoss != null) 'stop_loss': stopLoss,
+        if (target != null) 'target': target,
+        'holding_period_hours': holdingPeriodHours,
+        'auto_sell_enabled': autoSellEnabled,
       }),
-    );
-    return res.statusCode == 200;
+    ).timeout(const Duration(seconds: 10));
+    return res.statusCode == 200 || res.statusCode == 201;
+  }
+
+  Future<List<PaperTrade>> getPaperTrades({int limit = 50}) async {
+    try {
+      final url = await _getUrl('/portfolio/paper-trades?limit=$limit');
+      final res = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 8));
+      if (res.statusCode == 200) {
+        final List raw = jsonDecode(res.body);
+        return raw.map((item) => PaperTrade.fromJson(item)).toList();
+      }
+    } catch (_) {}
+    return [];
+  }
+
+  Future<void> syncPaperTrades(List<PaperTrade> trades) async {
+    if (trades.isEmpty) return;
+    try {
+      final url = await _getUrl('/portfolio/sync-paper-trades');
+      final headers = await _headers();
+      await http.post(
+        Uri.parse(url),
+        headers: headers,
+        body: jsonEncode({
+          'trades': trades.map((t) => t.toJson()).toList(),
+        }),
+      ).timeout(const Duration(seconds: 10));
+    } catch (_) {}
+  }
+
+  Future<Map<String, dynamic>> triggerAutoSellCheck() async {
+    try {
+      final url = await _getUrl('/portfolio/auto-sell-check');
+      final headers = await _headers();
+      final res = await http.post(Uri.parse(url), headers: headers).timeout(const Duration(seconds: 10));
+      if (res.statusCode == 200) {
+        return jsonDecode(res.body);
+      }
+    } catch (_) {}
+    return {};
   }
 
   Future<BrokerFunds> getFunds() async {
@@ -637,6 +680,10 @@ class ApiService {
     throw Exception('Failed to stop trading (${res.statusCode})');
   }
 
+  Future<Map<String, dynamic>> checkPositionMonitoring() async {
+    return triggerAutoSellCheck();
+  }
+
   Future<TradingControlSummary> updateTradingControlSettings({
     double? tradingBudget,
     double? maxAmountPerTrade,
@@ -645,6 +692,8 @@ class ApiService {
     double? autoWithdrawThreshold,
     bool? isTradingActive,
     String? tradingMode,
+    String? activeAlgorithm,
+    bool? autoTakeProfit,
   }) async {
     final url = await _getUrl('/trading-control/settings');
     final headers = await _headers();
@@ -656,6 +705,8 @@ class ApiService {
     if (autoWithdrawThreshold != null) body['auto_withdraw_threshold'] = autoWithdrawThreshold;
     if (isTradingActive != null) body['is_trading_active'] = isTradingActive;
     if (tradingMode != null) body['trading_mode'] = tradingMode;
+    if (activeAlgorithm != null) body['active_algorithm'] = activeAlgorithm;
+    if (autoTakeProfit != null) body['auto_take_profit'] = autoTakeProfit;
 
     final res = await http.post(
       Uri.parse(url),

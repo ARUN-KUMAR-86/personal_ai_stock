@@ -125,6 +125,8 @@ def get_trading_control_summary(db: Session = Depends(get_db)):
         token_expiry=adapter.token_expiry or account.token_expiry,
         last_verified_at=datetime.now(timezone.utc),
         is_broker_verified=True,
+        active_algorithm=getattr(account, "active_algorithm", "Highest Profit Maximizer (Auto Take Money)"),
+        auto_take_profit=getattr(account, "auto_take_profit", True),
     )
 
 
@@ -195,6 +197,12 @@ def update_trading_control_settings(
 
     if update.trading_mode is not None:
         account.trading_mode = update.trading_mode
+
+    if update.active_algorithm is not None:
+        account.active_algorithm = update.active_algorithm
+
+    if update.auto_take_profit is not None:
+        account.auto_take_profit = update.auto_take_profit
 
     db.commit()
     db.refresh(account)

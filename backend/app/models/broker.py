@@ -28,7 +28,9 @@ class BrokerAccount(Base):
     auto_withdraw_profits = Column(Boolean, default=False)
     auto_withdraw_threshold = Column(Float, default=100.0)
     is_trading_active = Column(Boolean, default=True)
-    trading_mode = Column(String(50), default="Notification + Approval")
+    trading_mode = Column(String(50), default="Option B: Hybrid Guard (Auto Stop-Loss)")
+    active_algorithm = Column(String(100), default="Highest Profit Maximizer (Auto Take Money)")
+    auto_take_profit = Column(Boolean, default=True)
     
     last_synced_at = Column(DateTime, nullable=True)
     error_message = Column(Text, nullable=True)

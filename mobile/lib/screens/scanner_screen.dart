@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../state/app_state.dart';
 import '../widgets/signal_pill.dart';
+import '../widgets/priority_badge.dart';
 import '../models/stock_summary.dart';
 import 'stock_recommendation_screen.dart';
 
@@ -19,6 +20,8 @@ class _ScannerScreenState extends State<ScannerScreen> {
 
   final List<String> signalFilters = [
     'ALL',
+    '🔴 HIGH PRIORITY',
+    '🟢 MEDIUM PRIORITY',
     '⭐ WATCHLIST',
     'BUY WATCH',
     'HOLD',
@@ -52,8 +55,16 @@ class _ScannerScreenState extends State<ScannerScreen> {
     var filtered = baseList.where((s) {
       final matchesSearch = s.symbol.toLowerCase().contains(searchQuery.toLowerCase()) ||
           s.name.toLowerCase().contains(searchQuery.toLowerCase());
-      final matchesSignal = (selectedSignal == 'ALL' || selectedSignal == '⭐ WATCHLIST') ||
-          s.latestSignal == selectedSignal;
+      bool matchesSignal = true;
+      if (selectedSignal == 'ALL' || selectedSignal == '⭐ WATCHLIST') {
+        matchesSignal = true;
+      } else if (selectedSignal == '🔴 HIGH PRIORITY') {
+        matchesSignal = s.isHighPriority;
+      } else if (selectedSignal == '🟢 MEDIUM PRIORITY') {
+        matchesSignal = s.isMediumPriority;
+      } else {
+        matchesSignal = s.latestSignal == selectedSignal;
+      }
       return matchesSearch && matchesSignal;
     }).toList();
 
@@ -195,12 +206,34 @@ class _ScannerScreenState extends State<ScannerScreen> {
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
                     itemBuilder: (context, idx) {
                       final stock = filtered[idx];
+                      final isHigh = stock.isHighPriority;
+                      final isMed = stock.isMediumPriority;
+
+                      final bgColor = isHigh
+                          ? const Color(0xFF241317)
+                          : (isMed ? const Color(0xFF122318) : const Color(0xFF1E222D));
+                      final borderColor = isHigh
+                          ? Colors.redAccent.withOpacity(0.85)
+                          : (isMed ? Colors.greenAccent.withOpacity(0.75) : Colors.white.withOpacity(0.04));
+
                       return Container(
                         margin: const EdgeInsets.only(bottom: 8),
                         decoration: BoxDecoration(
-                          color: const Color(0xFF1E222D),
+                          color: bgColor,
                           borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: Colors.white.withOpacity(0.04)),
+                          border: Border.all(
+                            color: borderColor,
+                            width: (isHigh || isMed) ? 1.4 : 1.0,
+                          ),
+                          boxShadow: (isHigh || isMed)
+                              ? [
+                                  BoxShadow(
+                                    color: (isHigh ? Colors.redAccent : Colors.greenAccent).withOpacity(0.12),
+                                    blurRadius: 6,
+                                    offset: const Offset(0, 2),
+                                  )
+                                ]
+                              : null,
                         ),
                         child: ListTile(
                           contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
@@ -229,6 +262,10 @@ class _ScannerScreenState extends State<ScannerScreen> {
                                       fontSize: 15,
                                     ),
                                   ),
+                                  if (stock.priority.isNotEmpty && stock.priority.toUpperCase() != 'NORMAL') ...[
+                                    const SizedBox(width: 8),
+                                    PriorityBadge(priority: stock.priority, fontSize: 9.0),
+                                  ],
                                 ],
                               ),
                               Text(

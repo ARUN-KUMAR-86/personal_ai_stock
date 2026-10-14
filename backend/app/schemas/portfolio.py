@@ -39,6 +39,10 @@ class PaperTradeCreate(BaseModel):
     quantity: int
     price: Optional[float] = None  # None for current market price
     reason: Optional[str] = "Manual signal follow"
+    stop_loss: Optional[float] = None
+    target: Optional[float] = None
+    holding_period_hours: int = 48
+    auto_sell_enabled: bool = True
 
 
 class PaperTradeRead(BaseModel):
@@ -65,3 +69,23 @@ class PortfolioSummary(BaseModel):
     open_positions_count: int
     portfolio_exposure_pct: float
     positions: List[PositionRead]
+
+
+class PaperTradeSyncItem(BaseModel):
+    symbol: str
+    exchange: str = "NSE"
+    action: str
+    quantity: int
+    price: float
+    fees: float = 0.0
+    total_amount: float
+    pnl: float = 0.0
+    reason: Optional[str] = None
+    stop_loss: Optional[float] = None
+    target: Optional[float] = None
+    auto_sell_enabled: bool = True
+    timestamp: Optional[datetime] = None
+
+
+class PaperTradeSyncRequest(BaseModel):
+    trades: List[PaperTradeSyncItem]

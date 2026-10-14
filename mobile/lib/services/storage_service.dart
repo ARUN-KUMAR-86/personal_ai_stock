@@ -1,10 +1,16 @@
+import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../models/portfolio.dart';
 
 class StorageService {
   static const String keyBaseUrl = 'backend_base_url';
   static const String keyAuthToken = 'auth_jwt_token';
   static const String keyFcmToken = 'fcm_device_token';
+  static const String keyCachedPortfolio = 'cached_portfolio_json';
+  static const String keyCachedPaperTrades = 'cached_paper_trades_json';
+  static const String keyActiveAlgorithm = 'user_active_algorithm';
+  static const String keyAutoTakeProfit = 'user_auto_take_profit';
 
   /// Primary Production Cloud URL (Render 24/7)
   static const String cloudProductionUrl = 'https://personal-ai-stock-backend.onrender.com';
@@ -92,5 +98,89 @@ class StorageService {
     }
     await prefs.setStringList(keyWatchlist, list);
     return added;
+  }
+
+  // ────────────────────────────────────────────────────────────
+  // Offline & Persistent Local Storage for Paper Trades & Portfolio
+  // Ensures trades are NEVER lost when app is closed / reopened!
+  // ────────────────────────────────────────────────────────────
+
+  static Future<void> saveCachedPortfolio(PortfolioSummary portfolio) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final jsonStr = jsonEncode(portfolio.toJson());
+      await prefs.setString(keyCachedPortfolio, jsonStr);
+    } catch (e) {
+      debugPrint('Error caching portfolio locally: $e');
+    }
+  }
+
+  static Future<PortfolioSummary?> getCachedPortfolio() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final str = prefs.getString(keyCachedPortfolio);
+      if (str != null && str.isNotEmpty) {
+        final decoded = jsonDecode(str);
+        return PortfolioSummary.fromJson(decoded);
+      }
+    } catch (e) {
+      debugPrint('Error reading cached portfolio: $e');
+    }
+    return null;
+  }
+
+  static Future<void> saveCachedPaperTrades(List<PaperTrade> trades) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final rawList = trades.map((t) => t.toJson()).toList();
+      await prefs.setString(keyCachedPaperTrades, jsonEncode(rawList));
+    } catch (e) {
+      debugPrint('Error caching paper trades: $e');
+    }
+  }
+
+  static Future<List<PaperTrade>> getCachedPaperTrades() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final str = prefs.getString(keyCachedPaperTrades);
+      if (str != null && str.isNotEmpty) {
+        final List decoded = jsonDecode(str);
+        return decoded.map((item) => PaperTrade.fromJson(item)).toList();
+      }
+    } catch (e) {
+      debugPrint('Error reading cached paper trades: $e');
+    }
+    return [];
+  }
+
+  static Future<void> addLocalPaperTrade(PaperTrade trade) async {
+    try {
+      final trades = await getCachedPaperTrades();
+      // Insert at the front (latest first)
+      trades.insert(0, trade);
+      await saveCachedPaperTrades(trades);
+    } catch (e) {
+      debugPrint('Error adding local paper trade: $e');
+    }
+  }
+
+  static Future<String> getActiveAlgorithm() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(keyActiveAlgorithm) ?? 'Highest Profit Maximizer (Auto Take Money)';
+  }
+
+  static Future<void> setActiveAlgorithm(String algo) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(keyActiveAlgorithm, algo);
+  }
+
+  static Future<bool> getAutoTakeProfit() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(keyAutoTakeProfit) ?? true;
+  }
+
+  static Future<void> setAutoTakeProfit(bool enabled) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(keyAutoTakeProfit, enabled);
   }
 }

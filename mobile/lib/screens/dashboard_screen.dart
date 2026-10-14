@@ -9,6 +9,7 @@ import 'trading_control_screen.dart';
 import 'settings_screen.dart';
 import '../widgets/groww_login_dialog.dart';
 import '../widgets/trade_alert_card.dart';
+import '../widgets/priority_badge.dart';
 import '../models/stock_summary.dart';
 
 class DashboardScreen extends StatelessWidget {
@@ -79,25 +80,71 @@ class DashboardScreen extends StatelessWidget {
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            // Connectivity warning if backend offline
+            // Auto-Sell Notification Banner
+            if (state.lastAutoSellMessage != null)
+              Container(
+                margin: const EdgeInsets.only(bottom: 14),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.teal.shade900.withOpacity(0.4),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: Colors.tealAccent),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.monetization_on, color: Colors.tealAccent, size: 22),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        state.lastAutoSellMessage!,
+                        style: const TextStyle(color: Colors.tealAccent, fontSize: 12, fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close, size: 16, color: Colors.white70),
+                      onPressed: () => state.clearAutoSellMessage(),
+                    ),
+                  ],
+                ),
+              ),
+
+            // Resilient Connectivity Banner
             if (!state.isOnline)
               Container(
                 margin: const EdgeInsets.only(bottom: 16),
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: Colors.red.shade900.withOpacity(0.5),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.redAccent),
+                  color: Colors.amber.shade900.withOpacity(0.25),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: Colors.amberAccent.withOpacity(0.6)),
                 ),
                 child: Row(
                   children: [
-                    const Icon(Icons.warning, color: Colors.redAccent),
-                    const SizedBox(width: 8),
+                    const Icon(Icons.cloud_sync_outlined, color: Colors.amberAccent, size: 22),
+                    const SizedBox(width: 10),
                     Expanded(
-                      child: Text(
-                        state.errorMessage ?? 'Backend offline. Go to Settings to set LAN IP.',
-                        style: const TextStyle(color: Colors.white, fontSize: 12),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Local Simulation Sandbox Active',
+                            style: TextStyle(color: Colors.amberAccent, fontSize: 12, fontWeight: FontWeight.bold),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            'Your paper trades and positions are saved safely on your device. Auto-reconnecting to 24/7 cloud server...',
+                            style: TextStyle(color: Colors.grey.shade300, fontSize: 11),
+                          ),
+                        ],
                       ),
+                    ),
+                    TextButton(
+                      style: TextButton.styleFrom(
+                        visualDensity: VisualDensity.compact,
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                      ),
+                      onPressed: () => state.refreshAll(),
+                      child: const Text('Retry', style: TextStyle(color: Colors.amberAccent, fontSize: 11, fontWeight: FontWeight.bold)),
                     ),
                   ],
                 ),
@@ -338,18 +385,59 @@ class DashboardScreen extends StatelessWidget {
                       ),
                     )
                   else
-                    ...state.latestSignals.take(2).map((sig) {
+                    ...state.latestSignals.take(4).map((sig) {
+                      final isHigh = sig.isHighPriority;
+                      final isMed = sig.isMediumPriority;
+                      // Strict user requirement: Highest Priority = RED, Medium = GREEN
+                      final Color priorityColor = isHigh
+                          ? Colors.redAccent
+                          : (isMed ? Colors.greenAccent : Colors.lightBlueAccent);
+                      final Color priorityBg = isHigh
+                          ? const Color(0xFF2E1218)
+                          : (isMed ? const Color(0xFF10281C) : const Color(0xFF1E222D));
+
                       return Container(
-                        margin: const EdgeInsets.only(bottom: 12),
-                        padding: const EdgeInsets.all(14),
+                        margin: const EdgeInsets.only(bottom: 14),
+                        padding: const EdgeInsets.all(15),
                         decoration: BoxDecoration(
-                          color: const Color(0xFF1E222D),
+                          color: priorityBg,
                           borderRadius: BorderRadius.circular(14),
-                          border: Border.all(color: Colors.blueAccent.withOpacity(0.35)),
+                          border: Border.all(
+                            color: priorityColor.withOpacity(0.85),
+                            width: 1.8,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: priorityColor.withOpacity(0.18),
+                              blurRadius: 10,
+                              offset: const Offset(0, 3),
+                            ),
+                          ],
                         ),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
+                            // 1. Priority Indicator Row (Red for High, Green for Medium)
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                PriorityBadge(priority: sig.priority),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: Colors.blueAccent.withOpacity(0.2),
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                  child: const Text(
+                                    '⚡ Auto Take Money',
+                                    style: TextStyle(color: Colors.lightBlueAccent, fontSize: 10, fontWeight: FontWeight.bold),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 10),
+
+                            // 2. Symbol & Price Row
                             Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
@@ -360,7 +448,7 @@ class DashboardScreen extends StatelessWidget {
                                       style: const TextStyle(
                                         color: Colors.white,
                                         fontWeight: FontWeight.bold,
-                                        fontSize: 16,
+                                        fontSize: 17,
                                       ),
                                     ),
                                     const SizedBox(width: 8),
@@ -372,25 +460,33 @@ class DashboardScreen extends StatelessWidget {
                                   style: const TextStyle(
                                     color: Colors.white,
                                     fontWeight: FontWeight.bold,
-                                    fontSize: 16,
+                                    fontSize: 17,
                                   ),
                                 ),
                               ],
                             ),
-                            const SizedBox(height: 6),
+                            const SizedBox(height: 8),
+
+                            // 3. Narrative Explanation
                             Text(
                               sig.explanation,
-                              style: TextStyle(color: Colors.grey.shade300, fontSize: 12, height: 1.3),
+                              style: TextStyle(color: Colors.grey.shade300, fontSize: 12, height: 1.35),
                               maxLines: 2,
                               overflow: TextOverflow.ellipsis,
                             ),
                             const SizedBox(height: 10),
+
+                            // 4. Target & Stop-loss
                             Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
                                 Text(
                                   'Target: ₹${sig.target?.toStringAsFixed(2) ?? "--"} • SL: ₹${sig.stopLoss?.toStringAsFixed(2) ?? "--"}',
-                                  style: TextStyle(color: Colors.grey.shade400, fontSize: 11),
+                                  style: TextStyle(
+                                    color: sig.target != null ? priorityColor : Colors.grey.shade400,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.bold,
+                                  ),
                                 ),
                                 Text(
                                   '${sig.holdingPeriodHours}h Hold • R:R 1:${sig.riskReward?.toStringAsFixed(1) ?? "2.0"}',
@@ -398,13 +494,15 @@ class DashboardScreen extends StatelessWidget {
                                 ),
                               ],
                             ),
-                            const SizedBox(height: 10),
+                            const SizedBox(height: 12),
+
+                            // 5. Action Button
                             SizedBox(
                               width: double.infinity,
                               height: 38,
                               child: ElevatedButton.icon(
                                 style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.green.shade700,
+                                  backgroundColor: isHigh ? Colors.red.shade800 : Colors.green.shade700,
                                   foregroundColor: Colors.white,
                                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                                 ),
@@ -421,9 +519,9 @@ class DashboardScreen extends StatelessWidget {
                                   );
                                 },
                                 icon: const Icon(Icons.touch_app, size: 16),
-                                label: const Text(
-                                  'Review Opportunity & Enter Amount (₹)',
-                                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                                label: Text(
+                                  'Take Opportunity (Target ₹${sig.target?.toStringAsFixed(0) ?? "--"})',
+                                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
                                 ),
                               ),
                             ),

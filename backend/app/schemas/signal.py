@@ -17,6 +17,7 @@ class SignalRead(BaseModel):
     target: Optional[float] = None
     risk_reward: Optional[float] = None
     strength: float
+    priority: Optional[str] = "MEDIUM"
     company_name: Optional[str] = None
     entry_range_low: Optional[float] = None
     entry_range_high: Optional[float] = None

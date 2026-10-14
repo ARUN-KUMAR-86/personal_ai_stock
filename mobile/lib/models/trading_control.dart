@@ -18,6 +18,8 @@ class TradingControlSummary {
   final DateTime? tokenExpiry;
   final DateTime? lastVerifiedAt;
   final bool isBrokerVerified;
+  final String activeAlgorithm;
+  final bool autoTakeProfit;
 
   TradingControlSummary({
     required this.growwAccountStatus,
@@ -39,6 +41,8 @@ class TradingControlSummary {
     this.tokenExpiry,
     this.lastVerifiedAt,
     required this.isBrokerVerified,
+    this.activeAlgorithm = 'Highest Profit Maximizer (Auto Take Money)',
+    this.autoTakeProfit = true,
   });
 
   factory TradingControlSummary.fromJson(Map<String, dynamic> json) {
@@ -54,7 +58,7 @@ class TradingControlSummary {
       todaysRealizedPnl: (json['todays_realized_pnl'] as num?)?.toDouble() ?? 0.0,
       todaysUnrealizedPnl: (json['todays_unrealized_pnl'] as num?)?.toDouble() ?? 0.0,
       isTradingActive: json['is_trading_active'] ?? true,
-      tradingMode: json['trading_mode'] ?? 'Notification + Approval',
+      tradingMode: json['trading_mode'] ?? 'Option B: Hybrid Guard (Auto Stop-Loss)',
       maxAmountPerTrade: (json['max_amount_per_trade'] as num?)?.toDouble() ?? 100.0,
       dailyLossLimit: (json['daily_loss_limit'] as num?)?.toDouble() ?? 50.0,
       autoWithdrawProfits: json['auto_withdraw_profits'] ?? false,
@@ -62,6 +66,8 @@ class TradingControlSummary {
       tokenExpiry: json['token_expiry'] != null ? DateTime.parse(json['token_expiry']) : null,
       lastVerifiedAt: json['last_verified_at'] != null ? DateTime.parse(json['last_verified_at']) : null,
       isBrokerVerified: json['is_broker_verified'] ?? true,
+      activeAlgorithm: json['active_algorithm'] ?? 'Highest Profit Maximizer (Auto Take Money)',
+      autoTakeProfit: json['auto_take_profit'] ?? true,
     );
   }
 }

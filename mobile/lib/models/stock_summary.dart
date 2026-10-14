@@ -8,6 +8,7 @@ class StockSummary {
   final bool isLive;
   final String latestSignal;
   final double signalStrength;
+  final String? explicitPriority;
 
   StockSummary({
     required this.symbol,
@@ -19,7 +20,20 @@ class StockSummary {
     required this.isLive,
     required this.latestSignal,
     required this.signalStrength,
+    this.explicitPriority,
   });
+
+  String get priority {
+    if (explicitPriority != null && explicitPriority!.isNotEmpty) {
+      return explicitPriority!.toUpperCase();
+    }
+    if (signalStrength >= 75.0) return 'HIGH';
+    if (signalStrength >= 50.0) return 'MEDIUM';
+    return 'LOW';
+  }
+
+  bool get isHighPriority => priority == 'HIGH';
+  bool get isMediumPriority => priority == 'MEDIUM';
 
   factory StockSummary.fromJson(Map<String, dynamic> json) {
     return StockSummary(
@@ -32,6 +46,7 @@ class StockSummary {
       isLive: json['is_live'] ?? false,
       latestSignal: json['latest_signal'] ?? 'NO TRADE',
       signalStrength: json['signal_strength'] != null ? (json['signal_strength'] as num).toDouble() : 0.0,
+      explicitPriority: json['priority'] as String?,
     );
   }
 
@@ -45,5 +60,6 @@ class StockSummary {
         'is_live': isLive,
         'latest_signal': latestSignal,
         'signal_strength': signalStrength,
+        'priority': priority,
       };
 }

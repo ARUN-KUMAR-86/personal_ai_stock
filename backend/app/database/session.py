@@ -52,6 +52,7 @@ def _migrate_sqlite_columns():
                 "risk_factors": "JSON",
                 "score_breakdown": "JSON",
                 "ai_thesis": "JSON",
+                "priority": "VARCHAR(20) DEFAULT 'MEDIUM'",
             }
             for col, col_type in new_sig_cols.items():
                 if col not in sig_cols:
@@ -93,6 +94,8 @@ def _migrate_sqlite_columns():
                 "auto_withdraw_threshold": "FLOAT DEFAULT 100.0",
                 "is_trading_active": "BOOLEAN DEFAULT 1",
                 "trading_mode": "VARCHAR(50) DEFAULT 'Notification + Approval'",
+                "active_algorithm": "VARCHAR(100) DEFAULT 'Highest Profit Maximizer (Auto Take Money)'",
+                "auto_take_profit": "BOOLEAN DEFAULT 1",
             }
             for col, col_type in new_broker_cols.items():
                 if col not in broker_cols:

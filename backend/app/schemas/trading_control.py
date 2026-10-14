@@ -25,6 +25,8 @@ class TradingControlSummary(BaseModel):
     token_expiry: Optional[datetime] = None
     last_verified_at: Optional[datetime] = None
     is_broker_verified: bool = True
+    active_algorithm: Optional[str] = "Highest Profit Maximizer (Auto Take Money)"
+    auto_take_profit: bool = True
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -37,6 +39,8 @@ class TradingControlSettingsUpdate(BaseModel):
     auto_withdraw_threshold: Optional[float] = None
     is_trading_active: Optional[bool] = None
     trading_mode: Optional[str] = None
+    active_algorithm: Optional[str] = None
+    auto_take_profit: Optional[bool] = None
 
 
 class FundTransactionCreate(BaseModel):

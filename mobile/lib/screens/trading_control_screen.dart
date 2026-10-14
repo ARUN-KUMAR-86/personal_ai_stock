@@ -371,6 +371,87 @@ class _TradingControlScreenState extends State<TradingControlScreen> {
                   ),
                   const SizedBox(height: 12),
 
+                  // AI Strategy Algorithm Selection
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('AI Algorithm:', style: TextStyle(color: Colors.grey, fontSize: 12)),
+                      const Spacer(),
+                      InkWell(
+                        onTap: () => _showAlgorithmSelectorDialog(context, state.activeAlgorithm),
+                        borderRadius: BorderRadius.circular(6),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Container(
+                              width: 7,
+                              height: 7,
+                              decoration: const BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: Colors.amberAccent,
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              _getAlgorithmDisplayName(state.activeAlgorithm),
+                              style: const TextStyle(
+                                color: Colors.amberAccent,
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(width: 4),
+                            const Icon(Icons.edit, size: 12, color: Colors.grey),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+
+                  // Auto Take Money & Auto-Sell Toggle
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Icon(Icons.bolt, color: Colors.amberAccent, size: 14),
+                              SizedBox(width: 4),
+                              Text('Auto Take Money & Auto-Sell:', style: TextStyle(color: Colors.grey, fontSize: 12)),
+                            ],
+                          ),
+                          Text(
+                            'Liquidates at Target (+5% to +15%) or Stop-Loss',
+                            style: TextStyle(color: Colors.greenAccent, fontSize: 10),
+                          ),
+                        ],
+                      ),
+                      Row(
+                        children: [
+                          Text(
+                            state.autoTakeProfit ? 'ON' : 'OFF',
+                            style: TextStyle(
+                              color: state.autoTakeProfit ? Colors.greenAccent : Colors.grey,
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          Switch(
+                            value: state.autoTakeProfit,
+                            activeColor: Colors.greenAccent,
+                            onChanged: (val) {
+                              state.setAutoTakeProfit(val);
+                            },
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+
                   // Auto-Withdraw Profits Toggle
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -406,6 +487,43 @@ class _TradingControlScreenState extends State<TradingControlScreen> {
                         ],
                       ),
                     ],
+                  ),
+                  const SizedBox(height: 14),
+
+                  // Run Auto Take Money / Auto-Sell Check Button
+                  SizedBox(
+                    width: double.infinity,
+                    height: 42,
+                    child: OutlinedButton.icon(
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.amberAccent,
+                        side: BorderSide(color: Colors.amberAccent.withOpacity(0.6)),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      ),
+                      onPressed: () async {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Checking open positions for auto-take-money targets...'),
+                            duration: Duration(seconds: 1),
+                          ),
+                        );
+                        final res = await state.triggerAutoSellCheck();
+                        await state.checkAndExecuteAutoSell();
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(res['message'] ?? 'Auto-sell check complete. Target & stop-loss checked.'),
+                              backgroundColor: Colors.teal,
+                            ),
+                          );
+                        }
+                      },
+                      icon: const Icon(Icons.bolt, size: 16),
+                      label: const Text(
+                        'Run Auto Take Money Check Now',
+                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                      ),
+                    ),
                   ),
                   const SizedBox(height: 16),
                   const Divider(color: Colors.white10),
@@ -550,6 +668,178 @@ class _TradingControlScreenState extends State<TradingControlScreen> {
     if (status.startsWith('Connected') && !status.contains('Not')) return Colors.greenAccent;
     if (status.contains('Expired')) return Colors.amberAccent;
     return Colors.grey.shade400;
+  }
+
+  // ──────────────────────────
+  // AI Algorithm Helper & Selector Dialog
+  // ──────────────────────────
+
+  String _getAlgorithmDisplayName(String key) {
+    final clean = key.toLowerCase();
+    if (clean.contains('gain') || clean.contains('maximizer')) {
+      return '⚡ Highest Gain Maximizer';
+    }
+    if (clean.contains('momentum')) {
+      return '🚀 Momentum Breakout';
+    }
+    if (clean.contains('reversion')) {
+      return '🔁 Mean Reversion';
+    }
+    if (clean.contains('macd')) {
+      return '📊 MACD Crossover';
+    }
+    return key.isEmpty ? '⚡ Highest Gain Maximizer' : key;
+  }
+
+  void _showAlgorithmSelectorDialog(BuildContext context, String currentAlgo) {
+    final algorithms = [
+      {
+        'key': 'HighestGainMaximizer',
+        'title': '⚡ Highest Gain Maximizer (Auto Take Money)',
+        'badge': 'RECOMMENDED',
+        'desc': 'Scans for highest percentage upside opportunities (+5% to +15% targets), enforces 1:3+ Risk/Reward, assigns RED for High Priority and GREEN for Medium Priority, and automatically sells at target to lock in maximum gains.',
+        'highlight': true,
+      },
+      {
+        'key': 'MomentumBreakout',
+        'title': '🚀 Momentum Breakout',
+        'badge': 'TREND',
+        'desc': 'Identifies 20-day high breakouts with 2x+ volume expansion for strong continuation momentum.',
+        'highlight': false,
+      },
+      {
+        'key': 'MeanReversion',
+        'title': '🔁 Mean Reversion (RSI Oversold)',
+        'badge': 'SWING',
+        'desc': 'Detects oversold RSI bounces (<30) consolidating near major support levels.',
+        'highlight': false,
+      },
+      {
+        'key': 'MACDCrossover',
+        'title': '📊 MACD Bullish Crossover',
+        'badge': 'MOMENTUM',
+        'desc': 'Trades bullish MACD line crossovers above signal line with positive histogram slope.',
+        'highlight': false,
+      },
+    ];
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: const Color(0xFF1E222D),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        'Select AI Trading Algorithm',
+                        style: TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.bold),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.close, color: Colors.grey),
+                        onPressed: () => Navigator.pop(ctx),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  const Text(
+                    'Choose the algorithm used by the market scanner to detect opportunities, rank priorities (Red = High, Green = Medium), and calculate auto-sell targets.',
+                    style: TextStyle(color: Colors.grey, fontSize: 12),
+                  ),
+                  const SizedBox(height: 16),
+                  ...algorithms.map((algo) {
+                    final key = algo['key'] as String;
+                    final isSelected = currentAlgo.toLowerCase().contains(key.toLowerCase()) ||
+                        (key == 'HighestGainMaximizer' && (currentAlgo.isEmpty || currentAlgo.toLowerCase().contains('gain')));
+                    return InkWell(
+                      onTap: () async {
+                        await context.read<AppState>().setActiveAlgorithm(key);
+                        if (ctx.mounted) Navigator.pop(ctx);
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('Algorithm switched to ${algo['title']}! Scanner will prioritize high gain setups.'),
+                              backgroundColor: Colors.teal,
+                            ),
+                          );
+                        }
+                      },
+                      child: Container(
+                        margin: const EdgeInsets.only(bottom: 12),
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: isSelected ? const Color(0xFF182838) : const Color(0xFF131722),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: isSelected
+                                ? Colors.amberAccent
+                                : (algo['highlight'] as bool ? Colors.amberAccent.withOpacity(0.3) : Colors.white10),
+                            width: isSelected ? 1.5 : 1.0,
+                          ),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    algo['title'] as String,
+                                    style: TextStyle(
+                                      color: isSelected ? Colors.amberAccent : Colors.white,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 14,
+                                    ),
+                                  ),
+                                ),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: (algo['highlight'] as bool)
+                                        ? Colors.amberAccent.withOpacity(0.2)
+                                        : Colors.blueAccent.withOpacity(0.2),
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                  child: Text(
+                                    algo['badge'] as String,
+                                    style: TextStyle(
+                                      color: (algo['highlight'] as bool) ? Colors.amberAccent : Colors.lightBlueAccent,
+                                      fontSize: 9,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              algo['desc'] as String,
+                              style: TextStyle(color: Colors.grey.shade400, fontSize: 11, height: 1.3),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  }),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
   }
 
   // ──────────────────────────

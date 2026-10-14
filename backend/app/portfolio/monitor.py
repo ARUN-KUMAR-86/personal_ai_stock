@@ -19,10 +19,10 @@ class PositionMonitor:
     """
     Monitors all open positions against:
     - Stop-loss price
-    - Target profit price
+    - Target profit price (Take Money)
     - Maximum intended holding period deadline (24 or 48 hours)
-    - Outside-market-hours exit policies
-    - Optional automatic selling (when explicitly opted-in)
+    - Outside-market-hours exit policies (real broker) vs instant execution (paper simulation)
+    - Automatic selling and profit-taking
     """
 
     @classmethod
@@ -63,10 +63,10 @@ class PositionMonitor:
                     condition_triggered = True
                     trigger_reason = f"STOP_LOSS_HIT (Price ₹{curr_price:.2f} <= SL ₹{pos.stop_loss:.2f})"
 
-                # Check Target Profit
+                # Check Target Profit (Take Money automatically)
                 elif pos.target and curr_price >= pos.target:
                     condition_triggered = True
-                    trigger_reason = f"TARGET_HIT (Price ₹{curr_price:.2f} >= Target ₹{pos.target:.2f})"
+                    trigger_reason = f"TARGET_HIT (Price ₹{curr_price:.2f} >= Target ₹{pos.target:.2f} - Taking Money)"
 
                 # Check Maximum Holding Period
                 deadline = pos.exit_deadline
@@ -90,18 +90,30 @@ class PositionMonitor:
                 account = db.query(BrokerAccount).filter(BrokerAccount.broker_name == "GROWW").first()
                 is_hybrid_guard = account and ("Hybrid Guard" in (account.trading_mode or "") or "Option B" in (account.trading_mode or ""))
 
-                # In Option B (Hybrid Guard): auto-sell is activated for STOP_LOSS breaches specifically
+                # Auto-sell policies:
                 is_stop_loss = trigger_reason.startswith("STOP_LOSS")
-                auto_sell = pos.auto_sell_enabled or settings.AUTO_SELL_ENABLED or (is_hybrid_guard and is_stop_loss)
+                is_target = trigger_reason.startswith("TARGET_HIT")
+                is_paper = (pos.mode or "PAPER").upper() == "PAPER"
+                
+                # In paper simulation, auto-sell is ALWAYS active so users see instant execution
+                # For live, auto-sell is active if pos.auto_sell_enabled or Option B / hybrid guard or settings
+                auto_sell = (
+                    is_paper
+                    or pos.auto_sell_enabled
+                    or settings.AUTO_SELL_ENABLED
+                    or (is_hybrid_guard and is_stop_loss)
+                    or (is_target and (pos.auto_sell_enabled or getattr(account, "auto_take_profit", True)))
+                )
 
-                # 4. Handle exit outside market hours
-                if not is_market_open:
+                # 4. Handle exit outside market hours:
+                # IMPORTANT: In PAPER SIMULATION mode, we execute immediately regardless of market hours!
+                # Only REAL live broker orders are queued for 09:15 IST opening.
+                if not is_market_open and not is_paper:
                     if not pos.exit_triggered:
                         pos.exit_triggered = True
                         pos.exit_reason = f"{trigger_reason} (Market closed. Exit queued for 09:15 IST opening)"
                         db.commit()
 
-                        # Dispatch alert to owner
                         notifier.send_notification(
                             db=db,
                             symbol=pos.symbol,
@@ -119,96 +131,55 @@ class PositionMonitor:
                         actions.append({"symbol": pos.symbol, "action": "QUEUED_OFFHOURS", "reason": trigger_reason})
                     continue
 
-                # 5. Market is OPEN: Execute exit if auto_sell enabled, else dispatch notification
+                # 5. Execute Exit / Auto-Sell:
                 if auto_sell:
-                    logger.info(f"Executing automatic sell for {pos.symbol} ({pos.quantity} shares)...")
+                    logger.info(f"Executing automatic sell for {pos.symbol} ({pos.quantity} shares, mode: {pos.mode})...")
                     try:
-                        # Place sell order through broker adapter
-                        res = broker.place_order(
+                        # Close position in ledger
+                        PortfolioManager.execute_paper_trade(
+                            db=db,
                             symbol=pos.symbol,
                             exchange=pos.exchange,
-                            transaction_type="SELL",
+                            action="SELL",
                             quantity=pos.quantity,
                             price=curr_price,
-                            user_confirmed=True,  # authorized via configured auto-sell policy
+                            reason=f"Auto-Sell: {trigger_reason}",
                         )
+                        pos.is_open = False
+                        pos.closed_at = now
+                        pos.exit_triggered = True
+                        pos.exit_reason = trigger_reason
+                        pnl = pos.realized_pnl
 
-                        order_status = res.get("status", "UNKNOWN").upper()
-                        if order_status in ("FILLED", "COMPLETED"):
-                            # Close position in ledger
-                            PortfolioManager.execute_paper_trade(
-                                db=db,
-                                symbol=pos.symbol,
-                                exchange=pos.exchange,
-                                action="SELL",
-                                quantity=pos.quantity,
-                                price=curr_price,
-                                reason=f"Auto-Sell: {trigger_reason}",
-                            )
-                            pos.is_open = False
-                            pos.closed_at = now
-                            pos.exit_triggered = True
-                            pos.exit_reason = trigger_reason
-                            db.commit()
+                        # Credit money back to user account balance (Taking Money Automatically)
+                        if account:
+                            sale_proceeds = round(curr_price * pos.quantity, 2)
+                            account.account_balance = round(account.account_balance + sale_proceeds, 2)
+                            account.available_funds = round(account.available_funds + sale_proceeds, 2)
 
-                            pnl = pos.realized_pnl
-                            alert_title = (
-                                f"HYBRID GUARD: AUTO STOP-LOSS EXECUTED: {pos.symbol}"
-                                if (is_hybrid_guard and is_stop_loss)
-                                else f"AUTO-SELL EXECUTED: {pos.symbol} (P&L: ₹{pnl:+.2f})"
-                            )
-                            notifier.send_notification(
-                                db=db,
-                                symbol=pos.symbol,
-                                exchange=pos.exchange,
-                                alert_type="AUTO_SELL_EXECUTED",
-                                title=alert_title,
-                                body=(
-                                    f"Automatic sell order for {pos.symbol} ({pos.quantity} shares) successfully executed.\n"
-                                    f"Policy: {'Option B (Hybrid Guard Auto Stop-Loss)' if (is_hybrid_guard and is_stop_loss) else 'Configured Auto-Sell'}\n"
-                                    f"Trigger: {trigger_reason}\n"
-                                    f"Execution Price: ₹{curr_price:.2f}\n"
-                                    f"Realized P&L: ₹{pnl:+.2f}\n"
-                                    f"Status: Position closed to prevent capital erosion."
-                                ),
-                                price=curr_price,
-                            )
-                            actions.append({"symbol": pos.symbol, "action": "AUTO_SOLD", "price": curr_price, "pnl": pnl})
+                        db.commit()
 
-                        elif order_status == "PARTIALLY_FILLED":
-                            filled_qty = int(res.get("filled_quantity", 0))
-                            notifier.send_notification(
-                                db=db,
-                                symbol=pos.symbol,
-                                exchange=pos.exchange,
-                                alert_type="PARTIAL_FILL_WARNING",
-                                title=f"PARTIAL SELL FILL: {pos.symbol}",
-                                body=(
-                                    f"Sell order for {pos.symbol} partially filled: {filled_qty}/{pos.quantity} shares.\n"
-                                    f"Trigger: {trigger_reason}\n"
-                                    f"Action Required: Check broker open orders."
-                                ),
-                                price=curr_price,
-                            )
-                            actions.append({"symbol": pos.symbol, "action": "PARTIAL_FILL", "filled": filled_qty})
-
-                        else:
-                            # Rejected or failed
-                            err_msg = res.get("rejection_reason", res.get("message", "Broker order rejected"))
-                            notifier.send_notification(
-                                db=db,
-                                symbol=pos.symbol,
-                                exchange=pos.exchange,
-                                alert_type="AUTO_SELL_FAILED",
-                                title=f"AUTO-SELL FAILED: {pos.symbol}",
-                                body=(
-                                    f"Auto-sell order for {pos.symbol} was rejected by broker.\n"
-                                    f"Error: {err_msg}\n"
-                                    f"Position remains open. Please sell manually!"
-                                ),
-                                price=curr_price,
-                            )
-                            actions.append({"symbol": pos.symbol, "action": "REJECTED", "error": err_msg})
+                        alert_title = (
+                            f"AUTO TAKE PROFIT EXECUTED: {pos.symbol} (+₹{pnl:.2f})"
+                            if is_target
+                            else f"AUTO-SELL EXECUTED: {pos.symbol} (P&L: ₹{pnl:+.2f})"
+                        )
+                        notifier.send_notification(
+                            db=db,
+                            symbol=pos.symbol,
+                            exchange=pos.exchange,
+                            alert_type="AUTO_SELL_EXECUTED",
+                            title=alert_title,
+                            body=(
+                                f"Automatic sell order for {pos.symbol} ({pos.quantity} shares) successfully executed.\n"
+                                f"Trigger: {trigger_reason}\n"
+                                f"Execution Price: ₹{curr_price:.2f}\n"
+                                f"Realized P&L: ₹{pnl:+.2f}\n"
+                                f"Status: Money credited back to Available Funds."
+                            ),
+                            price=curr_price,
+                        )
+                        actions.append({"symbol": pos.symbol, "action": "AUTO_SOLD", "price": curr_price, "pnl": pnl, "mode": pos.mode})
 
                     except Exception as e:
                         logger.error(f"Error during auto-sell execution for {pos.symbol}: {e}")

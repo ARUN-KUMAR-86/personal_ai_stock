@@ -19,6 +19,7 @@ class StockSignal(Base):
     target = Column(Float, nullable=True)
     risk_reward = Column(Float, nullable=True)
     strength = Column(Float, nullable=False, default=50.0)  # 0 to 100 confidence
+    priority = Column(String(20), nullable=True, default="MEDIUM", index=True)  # HIGH, MEDIUM, LOW
     company_name = Column(String(100), nullable=True)
     entry_range_low = Column(Float, nullable=True)
     entry_range_high = Column(Float, nullable=True)
