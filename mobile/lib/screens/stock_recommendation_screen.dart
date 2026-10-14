@@ -908,11 +908,11 @@ class _StockRecommendationScreenState extends State<StockRecommendationScreen> {
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              Row(
+                              const Row(
                                 children: [
-                                  const Icon(Icons.auto_awesome, color: Colors.cyanAccent, size: 18),
-                                  const SizedBox(width: 8),
-                                  const Text(
+                                  Icon(Icons.auto_awesome, color: Colors.cyanAccent, size: 18),
+                                  SizedBox(width: 8),
+                                  Text(
                                     'AI INVESTMENT THESIS',
                                     style: TextStyle(
                                       color: Colors.cyanAccent,

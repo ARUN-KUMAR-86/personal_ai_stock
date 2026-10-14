@@ -50,7 +50,7 @@ class Settings(BaseSettings):
     EMERGENCY_STOP_ENABLED: bool = False  # Emergency control to immediately halt new trades
     MAX_SLIPPAGE_PCT: float = 1.0  # Slippage threshold requiring quote refresh before buy confirmation
     DEFAULT_HOLDING_PERIOD_HOURS: int = 48  # Default intended holding period: 24 or 48 hours
-    POSITION_MONITOR_INTERVAL_SECONDS: int = 60
+    POSITION_MONITOR_INTERVAL_SECONDS: int = 10
     ORDER_EXECUTION_MODE: str = "PAPER"  # "PAPER" or "GROWW_LIVE"
 
     # Groww API (Disabled for real execution by default)

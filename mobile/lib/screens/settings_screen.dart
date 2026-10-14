@@ -71,6 +71,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         isSaving = false;
         connectionStatus = 'Connected to $foundUrl (Online)';
       });
+      if (!mounted) return;
       context.read<AppState>().refreshAll();
     } else {
       setState(() {

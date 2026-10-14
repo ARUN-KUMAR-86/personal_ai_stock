@@ -300,6 +300,59 @@ class ApiService {
     return {};
   }
 
+  /// Ultra-low latency single-roundtrip synchronization endpoint
+  Future<UltraSyncData?> ultraSync({bool runAutoSell = true}) async {
+    final sw = Stopwatch()..start();
+    try {
+      final url = await _getUrl('/portfolio/ultra-sync?run_auto_sell=$runAutoSell');
+      final headers = await _headers();
+      final res = await http.get(Uri.parse(url), headers: headers).timeout(const Duration(seconds: 5));
+      sw.stop();
+      if (res.statusCode == 200) {
+        final Map<String, dynamic> data = jsonDecode(res.body);
+        return UltraSyncData.fromJson(data, sw.elapsedMilliseconds);
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  /// Ultra-low latency direct trade execution (< 50ms)
+  Future<Map<String, dynamic>?> executeUltraTrade({
+    required String symbol,
+    required String action,
+    required int quantity,
+    double? price,
+    double? stopLoss,
+    double? target,
+    int holdingPeriodHours = 48,
+    bool autoSellEnabled = true,
+  }) async {
+    try {
+      final url = await _getUrl('/portfolio/ultra-trade');
+      final headers = await _headers();
+      final res = await http.post(
+        Uri.parse(url),
+        headers: headers,
+        body: jsonEncode({
+          'symbol': symbol,
+          'action': action,
+          'quantity': quantity,
+          if (price != null) 'price': price,
+          'exchange': 'NSE',
+          if (stopLoss != null) 'stop_loss': stopLoss,
+          if (target != null) 'target': target,
+          'holding_period_hours': holdingPeriodHours,
+          'auto_sell_enabled': autoSellEnabled,
+        }),
+      ).timeout(const Duration(seconds: 6));
+      if (res.statusCode == 200) {
+        return jsonDecode(res.body);
+      }
+    } catch (_) {}
+    return null;
+  }
+
+
   Future<BrokerFunds> getFunds() async {
     final url = await _getUrl('/funds');
     final res = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 8));

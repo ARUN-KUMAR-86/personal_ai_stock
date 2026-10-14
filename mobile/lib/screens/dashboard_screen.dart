@@ -80,6 +80,74 @@ class DashboardScreen extends StatelessWidget {
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
+            // UltraSync Low-Latency Live Status Bar
+            Container(
+              margin: const EdgeInsets.only(bottom: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: const Color(0xFF1E222D),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                  color: state.isUltraSyncActive ? Colors.tealAccent.withOpacity(0.3) : Colors.grey.withOpacity(0.3),
+                ),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 8,
+                    height: 8,
+                    decoration: BoxDecoration(
+                      color: state.isUltraSyncActive ? Colors.greenAccent : Colors.grey,
+                      shape: BoxShape.circle,
+                      boxShadow: state.isUltraSyncActive
+                          ? [
+                              BoxShadow(
+                                color: Colors.greenAccent.withOpacity(0.6),
+                                blurRadius: 6,
+                                spreadRadius: 2,
+                              )
+                            ]
+                          : null,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    state.isUltraSyncActive ? 'ULTRASYNC 24/7' : 'SYNC PAUSED',
+                    style: TextStyle(
+                      color: state.isUltraSyncActive ? Colors.tealAccent : Colors.grey,
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 0.8,
+                    ),
+                  ),
+                  const Spacer(),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: (state.syncLatencyMs < 150 ? Colors.green : (state.syncLatencyMs < 400 ? Colors.orange : Colors.blue)).withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(
+                      '⚡ ${state.syncLatencyMs > 0 ? "${state.syncLatencyMs}ms" : "< 50ms"}',
+                      style: TextStyle(
+                        color: state.syncLatencyMs < 150 ? Colors.greenAccent : (state.syncLatencyMs < 400 ? Colors.orangeAccent : Colors.lightBlueAccent),
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  InkWell(
+                    onTap: () => state.executeUltraSync(silent: false),
+                    child: const Tooltip(
+                      message: 'Instant Force Sync',
+                      child: Icon(Icons.flash_on, size: 16, color: Colors.amberAccent),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
             // Auto-Sell Notification Banner
             if (state.lastAutoSellMessage != null)
               Container(

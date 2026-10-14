@@ -1,7 +1,7 @@
 """Portfolio and paper trading schemas."""
 
 from datetime import datetime
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 from pydantic import BaseModel, ConfigDict
 
 
@@ -89,3 +89,26 @@ class PaperTradeSyncItem(BaseModel):
 
 class PaperTradeSyncRequest(BaseModel):
     trades: List[PaperTradeSyncItem]
+
+
+class UltraSyncResponse(BaseModel):
+    timestamp: str
+    latency_benchmark_ms: float
+    market_open: bool
+    portfolio: PortfolioSummary
+    available_funds: float
+    account_balance: float
+    trading_budget: float
+    withdrawable_funds: float
+    is_trading_active: bool
+    trading_mode: str
+    active_algorithm: str
+    auto_take_profit: bool
+    recent_trades: List[PaperTradeRead]
+    auto_sell_actions: List[Dict[str, Any]] = []
+
+
+class UltraTradeResponse(BaseModel):
+    trade: PaperTradeRead
+    portfolio: PortfolioSummary
+    status: str

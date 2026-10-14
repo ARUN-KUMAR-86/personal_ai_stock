@@ -210,3 +210,64 @@ class PortfolioSummary {
         'positions': positions.map((p) => p.toJson()).toList(),
       };
 }
+
+class UltraSyncData {
+  final String timestamp;
+  final double latencyBenchmarkMs;
+  final int clientRoundtripMs;
+  final bool marketOpen;
+  final PortfolioSummary portfolio;
+  final double availableFunds;
+  final double accountBalance;
+  final double tradingBudget;
+  final double withdrawableFunds;
+  final bool isTradingActive;
+  final String tradingMode;
+  final String activeAlgorithm;
+  final bool autoTakeProfit;
+  final List<PaperTrade> recentTrades;
+  final List<dynamic> autoSellActions;
+
+  UltraSyncData({
+    required this.timestamp,
+    required this.latencyBenchmarkMs,
+    required this.clientRoundtripMs,
+    required this.marketOpen,
+    required this.portfolio,
+    required this.availableFunds,
+    required this.accountBalance,
+    required this.tradingBudget,
+    required this.withdrawableFunds,
+    required this.isTradingActive,
+    required this.tradingMode,
+    required this.activeAlgorithm,
+    required this.autoTakeProfit,
+    required this.recentTrades,
+    required this.autoSellActions,
+  });
+
+  factory UltraSyncData.fromJson(Map<String, dynamic> json, int clientRoundtripMs) {
+    final trades = (json['recent_trades'] as List?)
+            ?.map((t) => PaperTrade.fromJson(t))
+            .toList() ??
+        [];
+    return UltraSyncData(
+      timestamp: json['timestamp'] ?? '',
+      latencyBenchmarkMs: (json['latency_benchmark_ms'] as num?)?.toDouble() ?? 0.0,
+      clientRoundtripMs: clientRoundtripMs,
+      marketOpen: json['market_open'] ?? false,
+      portfolio: PortfolioSummary.fromJson(json['portfolio'] ?? {}),
+      availableFunds: (json['available_funds'] as num?)?.toDouble() ?? 1000.0,
+      accountBalance: (json['account_balance'] as num?)?.toDouble() ?? 1000.0,
+      tradingBudget: (json['trading_budget'] as num?)?.toDouble() ?? 300.0,
+      withdrawableFunds: (json['withdrawable_funds'] as num?)?.toDouble() ?? 1000.0,
+      isTradingActive: json['is_trading_active'] ?? true,
+      tradingMode: json['trading_mode'] ?? 'Option B: Hybrid Guard (Auto Stop-Loss)',
+      activeAlgorithm: json['active_algorithm'] ?? 'Breakout Momentum',
+      autoTakeProfit: json['auto_take_profit'] ?? true,
+      recentTrades: trades,
+      autoSellActions: json['auto_sell_actions'] ?? [],
+    );
+  }
+}
+

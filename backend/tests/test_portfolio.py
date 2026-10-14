@@ -54,3 +54,44 @@ def test_paper_trade_buy_and_sell():
     db.refresh(pos)
     assert pos.quantity == 5
     assert pos.is_open == True
+
+
+def test_ultra_sync_endpoint():
+    from fastapi.testclient import TestClient
+    from app.main import app
+    client = TestClient(app)
+    response = client.get("/api/v1/portfolio/ultra-sync?run_auto_sell=true")
+    assert response.status_code == 200
+    data = response.json()
+    assert "timestamp" in data
+    assert "latency_benchmark_ms" in data
+    assert "portfolio" in data
+    assert "available_funds" in data
+    assert "recent_trades" in data
+    assert isinstance(data["recent_trades"], list)
+
+
+def test_ultra_trade_endpoint():
+    from fastapi.testclient import TestClient
+    from app.main import app
+    client = TestClient(app)
+    payload = {
+        "symbol": "INFY",
+        "exchange": "NSE",
+        "action": "BUY",
+        "quantity": 2,
+        "price": 1500.0,
+        "reason": "UltraTrade Unit Test",
+        "stop_loss": 1400.0,
+        "target": 1650.0,
+        "holding_period_hours": 48,
+        "auto_sell_enabled": True,
+    }
+    response = client.post("/api/v1/portfolio/ultra-trade", json=payload)
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "EXECUTED"
+    assert data["trade"]["symbol"] == "INFY"
+    assert data["trade"]["quantity"] == 2
+    assert "portfolio" in data
+

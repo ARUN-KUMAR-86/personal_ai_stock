@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/foundation.dart';
 import '../models/market_status.dart';
 import '../models/stock_summary.dart';
@@ -19,6 +20,13 @@ class AppState extends ChangeNotifier {
   bool isWakingUpServer = false;
   String? errorMessage;
   String? lastAutoSellMessage;
+
+  // UltraSync & Low Latency Engine
+  bool isUltraSyncActive = true;
+  int syncLatencyMs = 0;
+  DateTime? lastUltraSyncTime;
+  Timer? _ultraSyncTimer;
+  bool _isUltraSyncing = false;
 
   MarketStatus? marketStatus;
   List<StockSummary> stocks = [];
@@ -69,6 +77,8 @@ class AppState extends ChangeNotifier {
     await _loadCachedData();
     // 2. Refresh live data from backend
     await refreshAll();
+    // 3. Start ultra-low latency continuous live sync loop (every 3s)
+    startUltraSyncLoop();
   }
 
   Future<void> _loadCachedData() async {
@@ -200,6 +210,71 @@ class AppState extends ChangeNotifier {
     } finally {
       isLoading = false;
       notifyListeners();
+    }
+  }
+
+  /// Starts the ultra-low latency continuous live synchronization loop (every 3 seconds)
+  void startUltraSyncLoop() {
+    _ultraSyncTimer?.cancel();
+    isUltraSyncActive = true;
+    _ultraSyncTimer = Timer.periodic(const Duration(seconds: 3), (_) {
+      executeUltraSync(silent: true);
+    });
+  }
+
+  void stopUltraSyncLoop() {
+    isUltraSyncActive = false;
+    _ultraSyncTimer?.cancel();
+    _ultraSyncTimer = null;
+    notifyListeners();
+  }
+
+  /// Executes an ultra-low latency sync pass (< 50ms) consolidating portfolio, live PnL, trades, and funds
+  Future<void> executeUltraSync({bool silent = true}) async {
+    if (_isUltraSyncing) return;
+    _isUltraSyncing = true;
+    if (!silent) {
+      notifyListeners();
+    }
+
+    try {
+      final syncData = await api.ultraSync(runAutoSell: true);
+      if (syncData != null) {
+        syncLatencyMs = syncData.clientRoundtripMs;
+        lastUltraSyncTime = DateTime.now();
+        isOnline = true;
+
+        portfolio = syncData.portfolio;
+        await StorageService.saveCachedPortfolio(portfolio!);
+
+        funds = BrokerFunds(
+          brokerName: 'GROWW',
+          isConnected: isGrowwConnected,
+          availableFunds: syncData.availableFunds,
+          unsettledFunds: 0.0,
+          withdrawableFunds: syncData.withdrawableFunds,
+          currency: 'INR',
+        );
+
+        if (syncData.recentTrades.isNotEmpty) {
+          paperTrades = syncData.recentTrades;
+          await StorageService.saveCachedPaperTrades(paperTrades);
+        }
+
+        if (syncData.autoSellActions.isNotEmpty) {
+          final first = syncData.autoSellActions.first;
+          lastAutoSellMessage = '⚡ Auto-Sell executed: ${first['symbol']} (${first['reason']})';
+        }
+
+        // Secondary client-side verification
+        await checkAndExecuteAutoSell();
+
+        notifyListeners();
+      }
+    } catch (e) {
+      debugPrint('UltraSync error: $e');
+    } finally {
+      _isUltraSyncing = false;
     }
   }
 
@@ -525,9 +600,9 @@ class AppState extends ChangeNotifier {
     await StorageService.saveCachedPortfolio(portfolio!);
     notifyListeners();
 
-    // 3. Sync with backend if available
+    // 3. Ultra-low latency backend execution & instant sync
     try {
-      final success = await api.executePaperTrade(
+      final ultraRes = await api.executeUltraTrade(
         symbol: symbol,
         action: cleanAction,
         quantity: quantity,
@@ -537,13 +612,23 @@ class AppState extends ChangeNotifier {
         holdingPeriodHours: holdingPeriodHours,
         autoSellEnabled: autoSellEnabled,
       );
-      if (success) {
-        try {
-          final serverPf = await api.getPortfolioSummary();
-          portfolio = serverPf;
-          await StorageService.saveCachedPortfolio(portfolio!);
-        } catch (_) {}
+      if (ultraRes != null && ultraRes['portfolio'] != null) {
+        portfolio = PortfolioSummary.fromJson(ultraRes['portfolio']);
+        await StorageService.saveCachedPortfolio(portfolio!);
+      } else {
+        await api.executePaperTrade(
+          symbol: symbol,
+          action: cleanAction,
+          quantity: quantity,
+          price: effectivePrice,
+          stopLoss: stopLoss,
+          target: target,
+          holdingPeriodHours: holdingPeriodHours,
+          autoSellEnabled: autoSellEnabled,
+        );
       }
+      // Instant synchronization
+      await executeUltraSync(silent: true);
     } catch (_) {}
 
     notifyListeners();
@@ -786,4 +871,11 @@ class AppState extends ChangeNotifier {
   Future<void> logoutGroww() async {
     await disconnectGroww();
   }
+
+  @override
+  void dispose() {
+    _ultraSyncTimer?.cancel();
+    super.dispose();
+  }
 }
+
