@@ -109,10 +109,11 @@ class AINarrativeGenerator:
         financial_news: Optional[List[Dict[str, Any]]],
     ) -> Optional[Dict[str, Any]]:
         """Invokes Google Gemini API to craft a deep, natural-language investment thesis."""
-        # Models to try: default (Pro), fallback to Flash
-        models_to_try = [self.default_model]
-        for fb in ["gemini-1.5-pro", "gemini-2.5-flash", "gemini-1.5-flash"]:
+        # Models to try: latest Google Gemini versions with automatic fallbacks
+        models_to_try = [self.default_model] if self.default_model else []
+        for fb in ["gemini-3.5-flash", "gemini-3.5-flash-lite", "gemini-2.5-flash", "gemini-1.5-pro", "gemini-1.5-flash"]:
             if fb not in models_to_try:
+                models_to_try.append(fb)
                 models_to_try.append(fb)
 
         # Build news context if available
@@ -203,7 +204,7 @@ class AINarrativeGenerator:
             },
         }
 
-        with httpx.Client(timeout=10.0) as client:
+        with httpx.Client(timeout=25.0) as client:
             for model_name in models_to_try:
                 try:
                     url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={api_key}"
