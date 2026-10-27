@@ -25,23 +25,24 @@ class ScannerEngine:
     def __init__(self):
         self.is_scanning = False
 
-    def sync_universe(self, db: Session, exchange: str = "NSE") -> int:
-        """Discovers and synchronizes supported stock universe into the database."""
+    def sync_universe(self, db: Session, exchange: str = "ALL") -> int:
+        """Discovers and synchronizes supported stock universe (NSE + Foreign US) into the database."""
         provider = get_market_data_provider()
         universe_items = provider.get_supported_universe(exchange=exchange)
         added_count = 0
 
         for item in universe_items:
             symbol = item["symbol"]
+            item_exchange = item.get("exchange", "NSE")
             existing = (
                 db.query(Stock)
-                .filter(Stock.symbol == symbol, Stock.exchange == exchange)
+                .filter(Stock.symbol == symbol, Stock.exchange == item_exchange)
                 .first()
             )
             if not existing:
                 stock = Stock(
                     symbol=symbol,
-                    exchange=exchange,
+                    exchange=item_exchange,
                     name=item.get("name", symbol),
                     sector=item.get("sector"),
                     is_active=True,
@@ -49,17 +50,17 @@ class ScannerEngine:
                 db.add(stock)
                 added_count += 1
         db.commit()
-        logger.info(f"Synchronized universe: added {added_count} new stocks for {exchange}.")
+        logger.info(f"Synchronized universe: added {added_count} new stocks ({exchange}).")
         return added_count
 
     def run_scan(
         self,
         db: Session,
         symbols: Optional[List[str]] = None,
-        exchange: str = "NSE",
+        exchange: str = "ALL",
         force: bool = False,
     ) -> ScanJob:
-        """Executes a full scanning pass over active stocks."""
+        """Executes a scanning pass over active stocks (Indian NSE & Global US)."""
         if self.is_scanning:
             logger.warning("Scan pass already in progress. Skipping concurrent run.")
             latest = db.query(ScanJob).order_by(ScanJob.id.desc()).first()
@@ -69,8 +70,8 @@ class ScannerEngine:
         provider = get_market_data_provider()
 
         # Check market status if market-hours only is enabled
-        market_status = provider.get_market_status(exchange=exchange)
-        if settings.SCAN_MARKET_HOURS_ONLY and not force:
+        market_status = provider.get_market_status(exchange="NSE")
+        if settings.SCAN_MARKET_HOURS_ONLY and not force and exchange in ("NSE", "BSE"):
             if not market_status.get("is_open"):
                 logger.info("Market is currently closed. Scanning skipped as configured.")
                 self.is_scanning = False
@@ -103,9 +104,11 @@ class ScannerEngine:
             if symbols:
                 target_stocks = (
                     db.query(Stock)
-                    .filter(Stock.symbol.in_([s.upper() for s in symbols]), Stock.exchange == exchange)
+                    .filter(Stock.symbol.in_([s.upper() for s in symbols]))
                     .all()
                 )
+            elif exchange == "ALL":
+                target_stocks = db.query(Stock).filter(Stock.is_active == True).all()
             else:
                 target_stocks = (
                     db.query(Stock)
@@ -116,11 +119,14 @@ class ScannerEngine:
             # Auto-seed if database is empty
             if not target_stocks:
                 self.sync_universe(db, exchange=exchange)
-                target_stocks = (
-                    db.query(Stock)
-                    .filter(Stock.exchange == exchange, Stock.is_active == True)
-                    .all()
-                )
+                if exchange == "ALL":
+                    target_stocks = db.query(Stock).filter(Stock.is_active == True).all()
+                else:
+                    target_stocks = (
+                        db.query(Stock)
+                        .filter(Stock.exchange == exchange, Stock.is_active == True)
+                        .all()
+                    )
 
             job.total_stocks = len(target_stocks)
             db.commit()
@@ -172,6 +178,29 @@ class ScannerEngine:
                             signals_generated += 1
                             action = "BUY" if "BUY" in signal.signal_type.upper() else "SELL"
 
+                            # Determine Time Horizon (1-DAY Short Term vs 1-MONTH Long Term)
+                            metrics = signal.indicator_summary or {}
+                            rvol = float(metrics.get("rvol") or 1.0)
+                            rsi = float(metrics.get("rsi_14") or 50.0)
+                            ema_21 = float(metrics.get("ema_21") or signal.price)
+                            ema_50 = float(metrics.get("ema_50") or signal.price)
+                            sma_50 = float(metrics.get("sma_50") or signal.price)
+                            atr = float(metrics.get("atr_14") or max(signal.price * 0.02, 1.0))
+
+                            # 1-DAY: High volume surge or strong momentum velocity
+                            # 1-MONTH: Sustained moving average trend consolidation
+                            is_short_surge = (rvol >= 1.25) or (rsi >= 60.0)
+                            time_horizon = "1-DAY" if is_short_surge else "1-MONTH"
+
+                            target_price = signal.target
+                            stop_loss_price = signal.stop_loss
+
+                            # Calibrate levels for 1-MONTH (Long Term) if applicable
+                            if time_horizon == "1-MONTH" and action == "BUY":
+                                # Positional upside: 4.5x ATR (~12-25% gain)
+                                target_price = round(signal.price + max(4.5 * atr, signal.price * 0.12), 2)
+                                stop_loss_price = round(max(signal.price - (2.2 * atr), sma_50 * 0.97, 0.5), 2)
+
                             # Institutional Gemini Pro Deep Research
                             ai_thesis = None
                             try:
@@ -182,11 +211,12 @@ class ScannerEngine:
                                     signal_type="BUY WATCH" if action == "BUY" else "SELL/EXIT WATCH",
                                     strategy_name=signal.strategy_name,
                                     price=signal.price,
-                                    stop_loss=signal.stop_loss,
-                                    target=signal.target,
+                                    stop_loss=stop_loss_price,
+                                    target=target_price,
                                     risk_reward=signal.risk_reward,
-                                    metrics=signal.indicator_summary or {},
+                                    metrics=metrics,
                                     financial_news=signal.financial_news,
+                                    time_horizon=time_horizon,
                                 )
                                 signal.ai_thesis = ai_thesis
                                 db.commit()
@@ -201,12 +231,13 @@ class ScannerEngine:
                                     exchange=stock.exchange,
                                     action=action,
                                     price=signal.price,
-                                    stop_loss=signal.stop_loss,
-                                    target=signal.target,
+                                    stop_loss=stop_loss_price,
+                                    target=target_price,
                                     risk_reward=signal.risk_reward,
                                     reason=f"{signal.strategy_name}: {signal.explanation}",
                                     gemini_research=ai_thesis,
                                     signal_id=signal.id,
+                                    time_horizon=time_horizon,
                                 )
 
                         job.scanned_stocks += 1

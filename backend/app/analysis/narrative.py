@@ -35,11 +35,13 @@ class AINarrativeGenerator:
         metrics: Optional[Dict[str, Any]] = None,
         financial_news: Optional[List[Dict[str, Any]]] = None,
         force_deterministic: bool = False,
+        time_horizon: str = "1-DAY",
     ) -> Dict[str, Any]:
         """
         Produces a structured AI investment thesis.
         Attempts Gemini API synthesis if configured and available;
         falls back seamlessly to the deterministic rules-based engine.
+        Supports 1-DAY (Short Term) and 1-MONTH (Long Term) horizons, and foreign / US stocks.
         """
         metrics = metrics or {}
         comp_name = company_name or symbol
@@ -72,6 +74,7 @@ class AINarrativeGenerator:
                     risk_reward=risk_reward,
                     metrics=metrics,
                     financial_news=financial_news,
+                    time_horizon=time_horizon,
                 )
                 if gemini_result:
                     return gemini_result
@@ -91,6 +94,7 @@ class AINarrativeGenerator:
             risk_reward=risk_reward,
             metrics=metrics,
             financial_news=financial_news,
+            time_horizon=time_horizon,
         )
 
     def _generate_via_gemini(
@@ -107,14 +111,19 @@ class AINarrativeGenerator:
         risk_reward: Optional[float],
         metrics: Dict[str, Any],
         financial_news: Optional[List[Dict[str, Any]]],
+        time_horizon: str = "1-DAY",
     ) -> Optional[Dict[str, Any]]:
         """Invokes Google Gemini API to craft a deep, natural-language investment thesis."""
         # Models to try: latest Google Gemini versions with automatic fallbacks
         models_to_try = [self.default_model] if self.default_model else []
-        for fb in ["gemini-3.5-flash", "gemini-3.5-flash-lite", "gemini-2.5-flash", "gemini-1.5-pro", "gemini-1.5-flash"]:
+        for fb in ["gemini-3.5-flash-lite", "gemini-3.5-flash", "gemini-2.5-flash", "gemini-1.5-pro", "gemini-1.5-flash"]:
             if fb not in models_to_try:
                 models_to_try.append(fb)
-                models_to_try.append(fb)
+
+        is_us = exchange.upper() in ("US", "NASDAQ", "NYSE", "GLOBAL")
+        curr = "$" if is_us else "₹"
+        horizon_label = "1-DAY (Short Term / Swing 24-48 Hours)" if time_horizon == "1-DAY" else "1-MONTH (Long Term / Positional 30 Days)"
+        market_label = "US Equities (NASDAQ/NYSE)" if is_us else "Indian Equities (NSE/BSE)"
 
         # Build news context if available
         news_context = ""
@@ -123,24 +132,26 @@ class AINarrativeGenerator:
             news_context = "\nRecent Company Announcements / News:\n" + "\n".join(news_items)
 
         prompt = (
-            f"You are a Senior Quantitative Equity Analyst and Portfolio Manager for Indian Equities (NSE/BSE).\n"
-            f"Generate an institutional-grade, transparent, explainable research report and investment recommendation for {company_name} ({symbol}) on {exchange}.\n\n"
+            f"You are a Senior Quantitative Equity Analyst and Institutional Research Specialist for {market_label}.\n"
+            f"Generate an institutional-grade, transparent, explainable research report and investment recommendation for {company_name} ({symbol}) on {exchange}.\n"
+            f"Recommended Investment Time Horizon: {horizon_label}.\n\n"
             f"1. Verified Technical Analysis:\n"
-            f"- Current Price: ₹{price:.2f}\n"
+            f"- Current Price: {curr}{price:.2f}\n"
             f"- Signal Type: {signal_type}\n"
             f"- Quantitative Strategy: {strategy_name}\n"
-            f"- Stop-Loss: ₹{stop_loss}\n"
-            f"- Target Price: ₹{target}\n"
+            f"- Recommended Time Horizon: {horizon_label}\n"
+            f"- Stop-Loss: {curr}{stop_loss}\n"
+            f"- Target Price: {curr}{target}\n"
             f"- Risk/Reward Ratio: {risk_reward}\n"
             f"- RSI (14): {metrics.get('rsi_14', 'N/A')}\n"
             f"- Relative Volume (RVOL): {metrics.get('rvol', 'N/A')}x\n"
-            f"- 21-Day EMA: ₹{metrics.get('ema_21', 'N/A')}\n"
-            f"- 50-Day SMA: ₹{metrics.get('sma_50', 'N/A')}\n"
-            f"- 200-Day SMA: ₹{metrics.get('sma_200', 'N/A')}\n"
-            f"- 14-Day ATR: ₹{metrics.get('atr_14', 'N/A')}\n"
-            f"- 20-Day Swing High: ₹{metrics.get('swing_high_20', 'N/A')}\n"
-            f"- 20-Day Swing Low: ₹{metrics.get('swing_low_20', 'N/A')}\n"
-            f"- Pivot Levels: Pivot=₹{metrics.get('pivot')}, R1=₹{metrics.get('r1')}, S1=₹{metrics.get('s1')}\n"
+            f"- 21-Day EMA: {curr}{metrics.get('ema_21', 'N/A')}\n"
+            f"- 50-Day SMA: {curr}{metrics.get('sma_50', 'N/A')}\n"
+            f"- 200-Day SMA: {curr}{metrics.get('sma_200', 'N/A')}\n"
+            f"- 14-Day ATR: {curr}{metrics.get('atr_14', 'N/A')}\n"
+            f"- 20-Day Swing High: {curr}{metrics.get('swing_high_20', 'N/A')}\n"
+            f"- 20-Day Swing Low: {curr}{metrics.get('swing_low_20', 'N/A')}\n"
+            f"- Pivot Levels: Pivot={curr}{metrics.get('pivot')}, R1={curr}{metrics.get('r1')}, S1={curr}{metrics.get('s1')}\n"
             f"{news_context}\n\n"
             f"Guidelines:\n"
             f"1. Examine ALL 5 institutional dimensions:\n"
@@ -235,8 +246,14 @@ class AINarrativeGenerator:
         risk_reward: Optional[float],
         metrics: Dict[str, Any],
         financial_news: Optional[List[Dict[str, Any]]],
+        time_horizon: str = "1-DAY",
     ) -> Dict[str, Any]:
         """High-conviction deterministic prompt synthesis engine."""
+        is_us = exchange.upper() in ("US", "NASDAQ", "NYSE", "GLOBAL")
+        curr = "$" if is_us else "₹"
+        horizon_label = "1-DAY (Short Term / Swing 24-48 Hours)" if time_horizon == "1-DAY" else "1-MONTH (Long Term / Positional 30 Days)"
+        holding_desc = "24 to 48 hours" if time_horizon == "1-DAY" else "30 days (1-Month Positional)"
+
         rsi = float(metrics.get("rsi_14") or 55.0)
         rvol = float(metrics.get("rvol") or 1.2)
         ema_21 = float(metrics.get("ema_21") or price)
@@ -259,24 +276,24 @@ class AINarrativeGenerator:
 
         if signal_type == "BUY WATCH":
             if strategy_name == "MomentumBreakout":
-                headline = f"{symbol}: Bullish Momentum Breakout Above 20-Day Range with {rvol:.1f}x Volume"
+                headline = f"{time_horizon} {symbol}: Bullish Momentum Breakout with {rvol:.1f}x Volume"
                 thesis = (
-                    f"Institutional accumulation is detected on {company_name} ({symbol}) on the {exchange}. "
-                    f"Price is trading at ₹{price:.2f}, successfully consolidating above its 21-day EMA (₹{ema_21:.2f}) "
-                    f"and 50-day SMA (₹{sma_50:.2f}), confirming an established intermediate uptrend. "
+                    f"Institutional accumulation is detected on {company_name} ({symbol}) on {exchange}. "
+                    f"Price is trading at {curr}{price:.2f}, successfully consolidating above its 21-day EMA ({curr}{ema_21:.2f}) "
+                    f"and 50-day SMA ({curr}{sma_50:.2f}), confirming an established intermediate uptrend. "
                     f"Relative volume has expanded to {rvol:.2f}x its 20-period baseline, confirming genuine institutional "
                     f"sponsorship over retail churn. RSI stands at {rsi:.1f}, reflecting healthy upward momentum with "
                     f"ample headroom before reaching overbought territory (>75). With an asymmetric risk-to-reward ratio "
-                    f"of 1:{rr:.2f}, this setup offers an optimal risk-adjusted swing entry over the next 24 to 48 hours."
+                    f"of 1:{rr:.2f}, this setup offers an optimal risk-adjusted swing entry over {holding_desc}."
                 )
                 catalysts = [
                     f"Volume confirmation: RVOL surged to {rvol:.2f}x, confirming institutional participation and accumulation.",
-                    f"Moving average confluence: Price (₹{price:.2f}) is firmly above 21 EMA (₹{ema_21:.2f}) and 50 SMA (₹{sma_50:.2f}).",
+                    f"Moving average confluence: Price ({curr}{price:.2f}) is firmly above 21 EMA ({curr}{ema_21:.2f}) and 50 SMA ({curr}{sma_50:.2f}).",
                     f"Healthy momentum profile: RSI 14 stands at {rsi:.1f}, indicating strong directional acceleration without overextension.",
-                    f"Proximity to breakout level: Stock is challenging its 20-day swing high of ₹{swing_high:.2f} with strong absorption.",
+                    f"Proximity to breakout level: Stock is challenging its 20-day swing high of {curr}{swing_high:.2f} with strong absorption.",
                 ]
                 risks = [
-                    f"Immediate overhead supply: Resistance at ₹{swing_high:.2f} may trigger brief consolidative pullbacks.",
+                    f"Immediate overhead supply: Resistance at {curr}{swing_high:.2f} may trigger brief consolidative pullbacks.",
                     f"Volatility exposure: ATR of ₹{atr:.2f} ({atr_pct}%) suggests normal daily fluctuations of ±₹{atr:.2f}.",
                     f"Technical invalidation: A daily close below the 21 EMA (₹{ema_21:.2f}) or stop-loss ₹{sl:.2f} invalidates the setup.",
                     "Broader market sentiment: Nifty index pullbacks or sudden sector rotation could mute upside velocity.",

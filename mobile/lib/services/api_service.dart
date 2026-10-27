@@ -175,16 +175,18 @@ class ApiService {
     );
   }
 
-  Future<bool> sendTestPushAlert() async {
+  Future<bool> sendTestPushAlert({String action = 'BUY'}) async {
     final url = await _getUrl('/alerts/test-push');
     final headers = await _headers();
+    final isBuy = action.toUpperCase() == 'BUY';
     final res = await http.post(
       Uri.parse(url),
       headers: headers,
       body: jsonEncode({
-        'title': 'PERSONAL AI STOCK ALERT [TEST]',
-        'body': 'Test alert dispatched to Android device from Personal AI Stock System.',
+        'title': '${isBuy ? "🟢" : "🔴"} $action ALERT: RELIANCE @ ₹1,196.20 [TEST]',
+        'body': 'Test $action alert dispatched to Android device with Gemini Pro Deep Research.',
         'symbol': 'RELIANCE',
+        'action': action,
       }),
     );
     return res.statusCode == 200;

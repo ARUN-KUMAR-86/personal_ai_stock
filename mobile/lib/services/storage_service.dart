@@ -179,6 +179,19 @@ class StorageService {
     return prefs.getBool(keyAutoTakeProfit) ?? true;
   }
 
+  static const String keyDarkMode = 'user_is_dark_mode';
+
+  static Future<bool> getIsDarkMode() async {
+    final prefs = await SharedPreferences.getInstance();
+    // Default is false (White & Blue theme)
+    return prefs.getBool(keyDarkMode) ?? false;
+  }
+
+  static Future<void> setIsDarkMode(bool enabled) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(keyDarkMode, enabled);
+  }
+
   static Future<void> setAutoTakeProfit(bool enabled) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(keyAutoTakeProfit, enabled);

@@ -1,4 +1,49 @@
+/* ==========================================================================
+   White & Blue Theme (Default) + Seamless Dark Mode Support
+   ========================================================================== */
 :root {
+  --theme-mode: 'light';
+  --bg-primary: #f0f4f9;
+  --bg-secondary: #ffffff;
+  --bg-tertiary: #f8fafc;
+  --bg-card: #ffffff;
+  --bg-card-hover: #f1f5f9;
+  --border-color: #e2e8f0;
+  --border-color-light: #cbd5e1;
+  --text-main: #0f172a;
+  --text-muted: #334155;
+  --text-dim: #64748b;
+  
+  --primary-blue: #2563eb;
+  --primary-blue-hover: #1d4ed8;
+  --primary-blue-bg: #eff6ff;
+  --primary-blue-border: #bfdbfe;
+
+  --buy-green: #15803d;
+  --buy-bg: #f0fdf4;
+  --buy-border: #bbf7d0;
+  --buy-glow: rgba(21, 128, 61, 0.12);
+  
+  --sell-red: #b91c1c;
+  --sell-bg: #fef2f2;
+  --sell-border: #fecaca;
+  --sell-glow: rgba(185, 28, 28, 0.12);
+
+  --cyan-accent: #0284c7;
+  --cyan-bg: #e0f2fe;
+  --purple-accent: #7c3aed;
+
+  --card-shadow: 0 2px 10px rgba(15, 23, 42, 0.05);
+  --card-shadow-hover: 0 8px 24px rgba(37, 99, 235, 0.12);
+  --modal-backdrop: rgba(15, 23, 42, 0.65);
+
+  --font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+}
+
+/* Dark Mode Overrides */
+[data-theme="dark"] {
+  --theme-mode: 'dark';
   --bg-primary: #0a0d14;
   --bg-secondary: #101522;
   --bg-tertiary: #161c2e;
@@ -10,6 +55,11 @@
   --text-muted: #8b9bb4;
   --text-dim: #5c6b82;
   
+  --primary-blue: #3b82f6;
+  --primary-blue-hover: #60a5fa;
+  --primary-blue-bg: rgba(59, 130, 246, 0.12);
+  --primary-blue-border: rgba(59, 130, 246, 0.35);
+
   --buy-green: #00e676;
   --buy-bg: rgba(0, 230, 118, 0.08);
   --buy-border: rgba(0, 230, 118, 0.35);
@@ -24,8 +74,9 @@
   --cyan-bg: rgba(0, 210, 255, 0.1);
   --purple-accent: #a855f7;
 
-  --font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
-  --font-mono: 'JetBrains Mono', monospace;
+  --card-shadow: 0 4px 14px rgba(0, 0, 0, 0.3);
+  --card-shadow-hover: 0 8px 24px rgba(0, 0, 0, 0.5);
+  --modal-backdrop: rgba(0, 0, 0, 0.8);
 }
 
 * {
@@ -81,7 +132,13 @@ body {
   font-size: 18px;
   font-weight: 800;
   letter-spacing: 0.5px;
-  background: linear-gradient(90deg, #ffffff, #c7d2fe);
+  background: linear-gradient(90deg, #1e3a8a, #2563eb);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+[data-theme="dark"] .logo-title {
+  background: linear-gradient(90deg, #ffffff, #93c5fd);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
 }
@@ -289,11 +346,86 @@ body {
   align-items: center;
   border-bottom: 1px solid var(--border-color);
   background: var(--bg-primary);
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.controls-left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
 }
 
 .filter-tabs {
   display: flex;
-  gap: 8px;
+  gap: 6px;
+  align-items: center;
+}
+
+.filter-pill {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  color: var(--text-muted);
+  padding: 6px 14px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  user-select: none;
+}
+
+.filter-pill:hover {
+  background: var(--bg-tertiary);
+  color: var(--text-main);
+  border-color: var(--border-color-light);
+}
+
+.filter-pill.active {
+  background: var(--cyan-accent);
+  color: #0d1117;
+  border-color: var(--cyan-accent);
+  font-weight: 700;
+  box-shadow: 0 2px 10px rgba(0, 210, 255, 0.25);
+}
+
+.filter-pill.pill-short.active {
+  background: #ffab00;
+  color: #1a1000;
+  border-color: #ffab00;
+  box-shadow: 0 2px 10px rgba(255, 171, 0, 0.3);
+}
+
+.filter-pill.pill-long.active {
+  background: #7c4dff;
+  color: #ffffff;
+  border-color: #7c4dff;
+  box-shadow: 0 2px 10px rgba(124, 77, 255, 0.3);
+}
+
+/* Time Horizon Badges */
+.badge-horizon {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  padding: 2px 8px;
+  border-radius: 12px;
+  display: inline-flex;
+  align-items: center;
+  font-family: var(--font-mono);
+}
+
+.badge-short {
+  background: rgba(255, 171, 0, 0.15);
+  color: #ffab00;
+  border: 1px solid rgba(255, 171, 0, 0.4);
+}
+
+.badge-long {
+  background: rgba(124, 77, 255, 0.15);
+  color: #b388ff;
+  border: 1px solid rgba(124, 77, 255, 0.4);
 }
 
 .tab-btn {
@@ -371,11 +503,13 @@ body {
   transition: all 0.25s ease;
   position: relative;
   overflow: hidden;
+  box-shadow: var(--card-shadow);
 }
 
 .alert-card:hover {
   transform: translateY(-2px);
   background: var(--bg-card-hover);
+  box-shadow: var(--card-shadow-hover);
 }
 
 .alert-card.is-buy {
@@ -614,8 +748,8 @@ body {
 .modal-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.75);
-  backdrop-filter: blur(4px);
+  background: var(--modal-backdrop);
+  backdrop-filter: blur(5px);
   z-index: 999;
   display: flex;
   align-items: center;
@@ -625,14 +759,14 @@ body {
 
 .modal-dialog {
   background: var(--bg-secondary);
-  border: 1px solid var(--border-color-light);
+  border: 1px solid var(--border-color);
   border-radius: 16px;
   width: 100%;
   max-width: 580px;
   max-height: 90vh;
   display: flex;
   flex-direction: column;
-  box-shadow: 0 20px 40px rgba(0,0,0,0.6);
+  box-shadow: 0 20px 45px rgba(15, 23, 42, 0.2);
   animation: modalEnter 0.2s ease-out;
 }
 

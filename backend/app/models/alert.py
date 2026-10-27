@@ -31,6 +31,7 @@ class AlertHistory(Base):
     stop_loss = Column(Float, nullable=True)
     target = Column(Float, nullable=True)
     gemini_research = Column(JSON, nullable=True)
+    time_horizon = Column(String(20), default="1-DAY", index=True)  # 1-DAY (Short Term) or 1-MONTH (Long Term)
     status = Column(String(30), default="PENDING_APPROVAL", index=True)  # PENDING_APPROVAL, APPROVED, REJECTED, EXECUTED, EXPIRED
     responded_at = Column(DateTime, nullable=True)
     order_id = Column(String(64), nullable=True, index=True)

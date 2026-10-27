@@ -63,6 +63,20 @@ NIFTY_50_UNIVERSE = [
     {"symbol": "TRENT", "name": "Trent Ltd", "exchange": "NSE", "sector": "Consumer Services"},
 ]
 
+# Foreign / US Mega-Cap Stock Universe (Global Leaders)
+GLOBAL_US_UNIVERSE = [
+    {"symbol": "NVDA", "name": "NVIDIA Corporation", "exchange": "US", "sector": "Semiconductors"},
+    {"symbol": "AAPL", "name": "Apple Inc.", "exchange": "US", "sector": "Consumer Electronics"},
+    {"symbol": "MSFT", "name": "Microsoft Corporation", "exchange": "US", "sector": "Cloud & Software"},
+    {"symbol": "TSLA", "name": "Tesla Inc.", "exchange": "US", "sector": "Automobile & Clean Energy"},
+    {"symbol": "AMZN", "name": "Amazon.com Inc.", "exchange": "US", "sector": "E-Commerce & Cloud"},
+    {"symbol": "GOOGL", "name": "Alphabet Inc.", "exchange": "US", "sector": "Internet & AI"},
+    {"symbol": "META", "name": "Meta Platforms Inc.", "exchange": "US", "sector": "Social Media & AI"},
+    {"symbol": "AMD", "name": "Advanced Micro Devices", "exchange": "US", "sector": "Semiconductors"},
+    {"symbol": "NFLX", "name": "Netflix Inc.", "exchange": "US", "sector": "Streaming Media"},
+    {"symbol": "PLTR", "name": "Palantir Technologies", "exchange": "US", "sector": "Enterprise AI"},
+]
+
 
 class YahooMarketDataProvider(BaseMarketDataProvider):
     """Fetches real market quotes and candles using Yahoo Finance."""
@@ -77,12 +91,20 @@ class YahooMarketDataProvider(BaseMarketDataProvider):
         sym = symbol.strip().upper()
         if sym.endswith(".NS") or sym.endswith(".BO"):
             return sym
+        if exchange.upper() in ("US", "NASDAQ", "NYSE", "GLOBAL"):
+            return sym
         if exchange.upper() == "BSE":
             return f"{sym}.BO"
         return f"{sym}.NS"
 
-    def get_supported_universe(self, exchange: str = "NSE") -> List[Dict[str, Any]]:
-        return [dict(s, exchange=exchange) for s in NIFTY_50_UNIVERSE]
+    def get_supported_universe(self, exchange: str = "ALL") -> List[Dict[str, Any]]:
+        ex = exchange.upper()
+        if ex in ("US", "NASDAQ", "NYSE", "GLOBAL"):
+            return [dict(s, exchange="US") for s in GLOBAL_US_UNIVERSE]
+        elif ex in ("NSE", "BSE", "INDIA"):
+            return [dict(s, exchange="NSE") for s in NIFTY_50_UNIVERSE]
+        else:
+            return [dict(s, exchange="NSE") for s in NIFTY_50_UNIVERSE] + [dict(s, exchange="US") for s in GLOBAL_US_UNIVERSE]
 
     def get_quote(self, symbol: str, exchange: str = "NSE") -> QuoteRead:
         cache_key = f"{symbol}:{exchange}"

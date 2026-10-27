@@ -193,14 +193,17 @@ class FCMNotifier:
         reason: Optional[str] = None,
         gemini_research: Optional[Dict[str, Any]] = None,
         signal_id: Optional[int] = None,
+        time_horizon: str = "1-DAY",  # "1-DAY" (Short Term) or "1-MONTH" (Long Term)
     ) -> AlertHistory:
         """
         Creates, logs, and dispatches a dedicated realtime BUY or SELL notification.
-        Enforces strictly 2 alert types: BUY and SELL.
-        Supports Firebase Cloud Messaging (FCM) and Realtime Server-Sent Events (SSE).
+        Supports 1-DAY (Short Term) and 1-MONTH (Long Term) horizons, and foreign / US stocks.
         """
         norm_action = "BUY" if "BUY" in action.upper() else "SELL"
         icon = "🟢" if norm_action == "BUY" else "🔴"
+        horizon_tag = "⚡ 1-DAY" if time_horizon == "1-DAY" else "📅 1-MONTH"
+        is_us = exchange.upper() in ("US", "NASDAQ", "NYSE")
+        curr = "$" if is_us else "₹"
 
         thesis_headline = ""
         thesis_summary = ""
@@ -210,21 +213,23 @@ class FCMNotifier:
             thesis_summary = gemini_research.get("investment_thesis", "")
             catalysts = gemini_research.get("catalysts", [])
 
-        title = f"{icon} {norm_action} ALERT: {symbol.upper()} @ ₹{price:,.2f}"
+        title = f"{horizon_tag} {icon} {norm_action} ALERT: {symbol.upper()} @ {curr}{price:,.2f}"
 
+        horizon_desc = "1-DAY (Short Term / 24-48 Hours)" if time_horizon == "1-DAY" else "1-MONTH (Long Term / Positional 30 Days)"
         body_lines = [
             f"Action: {norm_action}",
+            f"Horizon: {horizon_desc}",
             f"Stock: {symbol.upper()} ({exchange.upper()})",
-            f"Price: ₹{price:,.2f}",
+            f"Price: {curr}{price:,.2f}",
         ]
         if target:
-            body_lines.append(f"Target: ₹{target:,.2f}")
+            body_lines.append(f"Target: {curr}{target:,.2f}")
         if stop_loss:
-            body_lines.append(f"Stop-Loss: ₹{stop_loss:,.2f}")
+            body_lines.append(f"Stop-Loss: {curr}{stop_loss:,.2f}")
         if risk_reward:
             body_lines.append(f"Risk/Reward: 1:{risk_reward:.2f}")
         if thesis_headline:
-            body_lines.append(f"\nGemini Pro Thesis: {thesis_headline}")
+            body_lines.append(f"\nGemini Research: {thesis_headline}")
         elif reason:
             body_lines.append(f"\nReason: {reason}")
         if catalysts:
@@ -247,6 +252,7 @@ class FCMNotifier:
                             "exchange": exchange.upper(),
                             "action": norm_action,
                             "alert_type": norm_action,
+                            "time_horizon": time_horizon,
                             "price": str(price),
                             "click_action": "FLUTTER_NOTIFICATION_CLICK",
                         },
@@ -263,6 +269,7 @@ class FCMNotifier:
             exchange=exchange.upper(),
             alert_type=norm_action,
             action=norm_action,
+            time_horizon=time_horizon,
             title=title,
             message=body,
             signal_id=signal_id,
@@ -289,6 +296,7 @@ class FCMNotifier:
                 "exchange": alert.exchange,
                 "action": alert.action,
                 "alert_type": alert.alert_type,
+                "time_horizon": alert.time_horizon,
                 "title": alert.title,
                 "message": alert.message,
                 "price": alert.price,
@@ -317,6 +325,7 @@ class FCMNotifier:
         target: Optional[float] = None,
         signal_id: Optional[int] = None,
         gemini_research: Optional[Dict[str, Any]] = None,
+        time_horizon: str = "1-DAY",
     ) -> AlertHistory:
         """Compatibility wrapper that routes directly to send_buy_sell_alert."""
         return self.send_buy_sell_alert(
@@ -330,6 +339,7 @@ class FCMNotifier:
             reason=reason,
             gemini_research=gemini_research,
             signal_id=signal_id,
+            time_horizon=time_horizon,
         )
 
 

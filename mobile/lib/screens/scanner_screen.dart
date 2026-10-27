@@ -77,27 +77,36 @@ class _ScannerScreenState extends State<ScannerScreen> {
       filtered.sort((a, b) => a.symbol.compareTo(b.symbol));
     }
 
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
     return Scaffold(
-      backgroundColor: const Color(0xFF131722),
+      backgroundColor: theme.scaffoldBackgroundColor,
       appBar: AppBar(
-        backgroundColor: const Color(0xFF1E222D),
-        elevation: 0,
-        title: const Text('STOCK SCANNER', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+        title: Text(
+          'STOCK SCANNER',
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            fontSize: 17,
+            letterSpacing: 0.5,
+            color: theme.colorScheme.onSurface,
+          ),
+        ),
         actions: [
           IconButton(
             tooltip: 'Trigger Market Scan',
             icon: state.isScanning
-                ? const SizedBox(
+                ? SizedBox(
                     width: 16,
                     height: 16,
-                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.blueAccent),
+                    child: CircularProgressIndicator(strokeWidth: 2, color: theme.primaryColor),
                   )
-                : const Icon(Icons.radar, color: Colors.blueAccent),
+                : Icon(Icons.radar, color: theme.primaryColor),
             onPressed: state.isScanning ? null : () => state.triggerScan(),
           ),
           IconButton(
             tooltip: 'Refresh Universe',
-            icon: const Icon(Icons.refresh),
+            icon: Icon(Icons.refresh, color: theme.primaryColor),
             onPressed: () => state.refreshAll(),
           ),
         ],
@@ -107,18 +116,21 @@ class _ScannerScreenState extends State<ScannerScreen> {
           // Search & Filter Bar
           Container(
             padding: const EdgeInsets.all(12),
-            color: const Color(0xFF1E222D),
+            decoration: BoxDecoration(
+              color: isDark ? const Color(0xFF111827) : Colors.white,
+              border: Border(bottom: BorderSide(color: theme.dividerColor)),
+            ),
             child: Column(
               children: [
                 // Search Input
                 TextField(
-                  style: const TextStyle(color: Colors.white, fontSize: 14),
+                  style: TextStyle(color: theme.colorScheme.onSurface, fontSize: 14),
                   decoration: InputDecoration(
                     hintText: 'Search stock symbol or company name...',
-                    hintStyle: TextStyle(color: Colors.grey.shade500),
-                    prefixIcon: const Icon(Icons.search, color: Colors.grey),
+                    hintStyle: TextStyle(color: isDark ? Colors.grey.shade500 : const Color(0xFF94A3B8)),
+                    prefixIcon: Icon(Icons.search, color: isDark ? Colors.grey : const Color(0xFF64748B)),
                     filled: true,
-                    fillColor: const Color(0xFF131722),
+                    fillColor: isDark ? const Color(0xFF0B0F19) : const Color(0xFFF1F5F9),
                     contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(8),
@@ -208,13 +220,16 @@ class _ScannerScreenState extends State<ScannerScreen> {
                       final stock = filtered[idx];
                       final isHigh = stock.isHighPriority;
                       final isMed = stock.isMediumPriority;
+                      final isUs = ['US', 'NASDAQ', 'NYSE', 'GLOBAL'].contains(stock.exchange.toUpperCase());
+                      final curr = isUs ? '\$' : '₹';
 
-                      final bgColor = isHigh
-                          ? const Color(0xFF241317)
-                          : (isMed ? const Color(0xFF122318) : const Color(0xFF1E222D));
+                      final bgColor = isDark
+                          ? (isHigh ? const Color(0xFF241317) : (isMed ? const Color(0xFF122318) : const Color(0xFF111827)))
+                          : (isHigh ? const Color(0xFFFEF2F2) : (isMed ? const Color(0xFFF0FDF4) : Colors.white));
+
                       final borderColor = isHigh
-                          ? Colors.redAccent.withOpacity(0.85)
-                          : (isMed ? Colors.greenAccent.withOpacity(0.75) : Colors.white.withOpacity(0.04));
+                          ? (isDark ? Colors.redAccent.withOpacity(0.85) : const Color(0xFFFCA5A5))
+                          : (isMed ? (isDark ? Colors.greenAccent.withOpacity(0.75) : const Color(0xFF86EFAC)) : theme.dividerColor);
 
                       return Container(
                         margin: const EdgeInsets.only(bottom: 8),
@@ -225,15 +240,13 @@ class _ScannerScreenState extends State<ScannerScreen> {
                             color: borderColor,
                             width: (isHigh || isMed) ? 1.4 : 1.0,
                           ),
-                          boxShadow: (isHigh || isMed)
-                              ? [
-                                  BoxShadow(
-                                    color: (isHigh ? Colors.redAccent : Colors.greenAccent).withOpacity(0.12),
-                                    blurRadius: 6,
-                                    offset: const Offset(0, 2),
-                                  )
-                                ]
-                              : null,
+                          boxShadow: [
+                            BoxShadow(
+                              color: isDark ? Colors.black.withOpacity(0.2) : const Color(0x080F172A),
+                              blurRadius: 6,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
                         ),
                         child: ListTile(
                           contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
@@ -249,17 +262,33 @@ class _ScannerScreenState extends State<ScannerScreen> {
                                       padding: const EdgeInsets.only(right: 8),
                                       child: Icon(
                                         state.isWatchlisted(stock.symbol) ? Icons.star : Icons.star_border,
-                                        color: state.isWatchlisted(stock.symbol) ? Colors.amberAccent : Colors.grey.shade500,
+                                        color: state.isWatchlisted(stock.symbol) ? Colors.amber : (isDark ? Colors.grey.shade500 : const Color(0xFF94A3B8)),
                                         size: 18,
                                       ),
                                     ),
                                   ),
                                   Text(
                                     stock.symbol,
-                                    style: const TextStyle(
-                                      color: Colors.white,
+                                    style: TextStyle(
+                                      color: theme.colorScheme.onSurface,
                                       fontWeight: FontWeight.bold,
                                       fontSize: 15,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                                    decoration: BoxDecoration(
+                                      color: isDark ? const Color(0xFF1F2937) : const Color(0xFFF1F5F9),
+                                      borderRadius: BorderRadius.circular(4),
+                                    ),
+                                    child: Text(
+                                      stock.exchange,
+                                      style: TextStyle(
+                                        color: isDark ? Colors.grey.shade400 : const Color(0xFF64748B),
+                                        fontSize: 9,
+                                        fontWeight: FontWeight.bold,
+                                      ),
                                     ),
                                   ),
                                   if (stock.priority.isNotEmpty && stock.priority.toUpperCase() != 'NORMAL') ...[
@@ -270,10 +299,10 @@ class _ScannerScreenState extends State<ScannerScreen> {
                               ),
                               Text(
                                 stock.latestPrice != null
-                                    ? '₹${stock.latestPrice!.toStringAsFixed(2)}'
+                                    ? '$curr${stock.latestPrice!.toStringAsFixed(2)}'
                                     : '---',
-                                style: const TextStyle(
-                                  color: Colors.white,
+                                style: TextStyle(
+                                  color: theme.colorScheme.onSurface,
                                   fontWeight: FontWeight.bold,
                                   fontSize: 15,
                                 ),
@@ -287,7 +316,10 @@ class _ScannerScreenState extends State<ScannerScreen> {
                                 stock.name,
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
-                                style: TextStyle(color: Colors.grey.shade400, fontSize: 11),
+                                style: TextStyle(
+                                  color: isDark ? Colors.grey.shade400 : const Color(0xFF64748B),
+                                  fontSize: 11,
+                                ),
                               ),
                               const SizedBox(height: 6),
                               Row(

@@ -22,6 +22,8 @@ class StockAlert {
   String status;
   final String? orderId;
   final bool brokerVerified;
+  final String timeHorizon;
+  final Map<String, dynamic>? geminiResearch;
 
   StockAlert({
     required this.id,
@@ -45,6 +47,8 @@ class StockAlert {
     this.status = 'PENDING_APPROVAL',
     this.orderId,
     this.brokerVerified = false,
+    this.timeHorizon = '1-DAY',
+    this.geminiResearch,
   });
 
   bool get isTradeAlert => alertType == 'TRADE_ALERT';
@@ -73,6 +77,8 @@ class StockAlert {
       status: json['status'] ?? 'PENDING_APPROVAL',
       orderId: json['order_id'],
       brokerVerified: json['broker_verified'] ?? false,
+      timeHorizon: json['time_horizon'] ?? '1-DAY',
+      geminiResearch: json['gemini_research'] is Map<String, dynamic> ? json['gemini_research'] : null,
     );
   }
 }

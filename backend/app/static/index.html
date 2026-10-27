@@ -35,7 +35,10 @@
         <span class="btn-icon">🔍</span> Search All Stocks Daily
       </button>
       <button class="btn btn-secondary" id="btn-audio-toggle" onclick="toggleAudio()" title="Toggle Alert Chime">
-        <span id="audio-icon">🔔</span> Audio Chimes: <span id="audio-status">ON</span>
+        <span id="audio-icon">🔔</span> Audio: <span id="audio-status">ON</span>
+      </button>
+      <button class="btn btn-outline" id="btn-theme-toggle" onclick="toggleTheme()" title="Switch between White/Blue and Dark Theme">
+        <span id="theme-icon">🌙</span> <span id="theme-text">Dark</span>
       </button>
       <button class="btn btn-outline" onclick="openSettingsModal()" title="System Configuration">
         <span>⚙️</span> Settings
@@ -80,16 +83,45 @@
 
   <!-- Notification Feed Control Bar -->
   <section class="feed-controls">
-    <div class="filter-tabs">
-      <button class="tab-btn active" data-filter="ALL" onclick="setFilter('ALL')">
-        All Notifications (<span id="tab-all-count">0</span>)
-      </button>
-      <button class="tab-btn tab-buy" data-filter="BUY" onclick="setFilter('BUY')">
-        🟢 BUY Only (<span id="tab-buy-count">0</span>)
-      </button>
-      <button class="tab-btn tab-sell" data-filter="SELL" onclick="setFilter('SELL')">
-        🔴 SELL Only (<span id="tab-sell-count">0</span>)
-      </button>
+    <div class="controls-left">
+      <!-- Action Filters -->
+      <div class="filter-tabs action-tabs">
+        <button class="tab-btn active" data-filter-action="ALL" onclick="setActionFilter('ALL')">
+          All (<span id="tab-all-count">0</span>)
+        </button>
+        <button class="tab-btn tab-buy" data-filter-action="BUY" onclick="setActionFilter('BUY')">
+          🟢 BUY (<span id="tab-buy-count">0</span>)
+        </button>
+        <button class="tab-btn tab-sell" data-filter-action="SELL" onclick="setActionFilter('SELL')">
+          🔴 SELL (<span id="tab-sell-count">0</span>)
+        </button>
+      </div>
+
+      <!-- Time Horizon Filters -->
+      <div class="filter-tabs horizon-tabs">
+        <button class="filter-pill active" data-filter-horizon="ALL" onclick="setHorizonFilter('ALL')">
+          All Horizons
+        </button>
+        <button class="filter-pill pill-short" data-filter-horizon="1-DAY" onclick="setHorizonFilter('1-DAY')">
+          ⚡ 1-DAY (Short Term)
+        </button>
+        <button class="filter-pill pill-long" data-filter-horizon="1-MONTH" onclick="setHorizonFilter('1-MONTH')">
+          📅 1-MONTH (Long Term)
+        </button>
+      </div>
+
+      <!-- Market Universe Filters -->
+      <div class="filter-tabs market-tabs">
+        <button class="filter-pill active" data-filter-market="ALL" onclick="setMarketFilter('ALL')">
+          All Markets
+        </button>
+        <button class="filter-pill" data-filter-market="NSE" onclick="setMarketFilter('NSE')">
+          🇮🇳 NSE (India)
+        </button>
+        <button class="filter-pill" data-filter-market="US" onclick="setMarketFilter('US')">
+          🌐 US (Global)
+        </button>
+      </div>
     </div>
 
     <div class="controls-right">
@@ -145,17 +177,38 @@
 
       <div class="modal-body">
         <div class="form-group">
-          <label for="gemini-key-input">Gemini API Key (Google AI Studio)</label>
-          <input type="password" id="gemini-key-input" placeholder="AIzaSy..." class="form-input">
-          <span class="form-hint">Used for deep equity research, catalysts discovery, and risk analysis.</span>
+          <label for="pref-horizon-select">Default Time Horizon Preference</label>
+          <select id="pref-horizon-select" class="form-input">
+            <option value="ALL">All Horizons (Both 1-Day Short Term & 1-Month Long Term)</option>
+            <option value="1-DAY">⚡ 1-DAY Preferred (Short Term / Swing 24-48 Hours)</option>
+            <option value="1-MONTH">📅 1-MONTH Preferred (Long Term / Positional 30 Days)</option>
+          </select>
+          <span class="form-hint">Prioritizes short-term quick gain setups or long-term multi-week trend holdings.</span>
         </div>
 
         <div class="form-group">
-          <label for="gemini-model-select">Gemini Model</label>
+          <label for="pref-market-select">Market Universe</label>
+          <select id="pref-market-select" class="form-input">
+            <option value="ALL">All Markets (Indian NSE + US Global Mega-Caps)</option>
+            <option value="NSE">🇮🇳 Indian NSE Stocks Only (Nifty 50 Leaders)</option>
+            <option value="US">🌐 US Global Stocks Only (Nvidia, Apple, Microsoft, Tesla...)</option>
+          </select>
+          <span class="form-hint">Determines which internet universe is monitored during daily scans.</span>
+        </div>
+
+        <div class="form-group">
+          <label for="gemini-key-input">Gemini API Key (Google AI Studio)</label>
+          <input type="password" id="gemini-key-input" placeholder="Enter key (leave blank to keep current)..." class="form-input">
+          <span class="form-hint" id="gemini-key-status">Status: Checking configured key...</span>
+        </div>
+
+        <div class="form-group">
+          <label for="gemini-model-select">Gemini AI Model</label>
           <select id="gemini-model-select" class="form-input">
-            <option value="gemini-1.5-pro">Gemini 1.5 Pro (Recommended - Deep Institutional Research)</option>
-            <option value="gemini-2.5-flash">Gemini 2.5 Flash (Ultra-Fast)</option>
-            <option value="gemini-1.5-flash">Gemini 1.5 Flash (Standard)</option>
+            <option value="gemini-3.5-flash-lite">Gemini 3.5 Flash-Lite (Active & Verified - Ultra Fast 5-Dimension Research)</option>
+            <option value="gemini-3.5-flash">Gemini 3.5 Flash (Deep Research)</option>
+            <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
+            <option value="gemini-1.5-pro">Gemini 1.5 Pro</option>
           </select>
         </div>
 
@@ -168,8 +221,10 @@
         </div>
 
         <div class="form-group">
-          <label>Android FCM Push Notification Status</label>
-          <div class="fcm-box" id="fcm-status-box">Checking Firebase FCM setup...</div>
+          <label>24/7 Cloud Backend (Render)</label>
+          <div class="fcm-box" id="cloud-status-box">
+            Connected to <code>https://personal-ai-stock-backend.onrender.com</code> (Online 24/7)
+          </div>
         </div>
       </div>
 

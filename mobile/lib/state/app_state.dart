@@ -43,6 +43,7 @@ class AppState extends ChangeNotifier {
 
   String activeAlgorithm = 'Highest Profit Maximizer (Auto Take Money)';
   bool autoTakeProfit = true;
+  bool isDarkMode = false; // Default: White & Blue theme
 
   // Watchlist state
   List<WatchlistItem> watchlistItems = [];
@@ -90,12 +91,19 @@ class AppState extends ChangeNotifier {
       paperTrades = await StorageService.getCachedPaperTrades();
       activeAlgorithm = await StorageService.getActiveAlgorithm();
       autoTakeProfit = await StorageService.getAutoTakeProfit();
+      isDarkMode = await StorageService.getIsDarkMode();
       final cachedWatch = await StorageService.getWatchlist();
       watchlistSymbols = cachedWatch.map((s) => s.toUpperCase()).toSet();
       notifyListeners();
     } catch (e) {
       debugPrint('Error loading cached data: $e');
     }
+  }
+
+  Future<void> toggleDarkMode(bool enabled) async {
+    isDarkMode = enabled;
+    await StorageService.setIsDarkMode(enabled);
+    notifyListeners();
   }
 
   Future<void> refreshAll() async {

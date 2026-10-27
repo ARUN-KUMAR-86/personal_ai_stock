@@ -35,23 +35,71 @@ class PersonalStockApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final state = context.watch<AppState>();
+
+    // White & Blue Theme (Default)
+    final lightTheme = ThemeData(
+      brightness: Brightness.light,
+      scaffoldBackgroundColor: const Color(0xFFF1F5F9), // Clean soft slate
+      primaryColor: const Color(0xFF2563EB),           // Royal Blue
+      cardColor: Colors.white,
+      canvasColor: const Color(0xFFF1F5F9),
+      dividerColor: const Color(0xFFE2E8F0),
+      colorScheme: const ColorScheme.light(
+        primary: Color(0xFF2563EB),
+        secondary: Color(0xFF0284C7),
+        surface: Colors.white,
+        onSurface: Color(0xFF0F172A),
+      ),
+      appBarTheme: const AppBarTheme(
+        backgroundColor: Colors.white,
+        foregroundColor: Color(0xFF0F172A),
+        elevation: 0.5,
+        iconTheme: IconThemeData(color: Color(0xFF0F172A)),
+      ),
+      bottomNavigationBarTheme: const BottomNavigationBarThemeData(
+        backgroundColor: Colors.white,
+        selectedItemColor: Color(0xFF2563EB),
+        unselectedItemColor: Color(0xFF64748B),
+        elevation: 8,
+      ),
+    );
+
+    // Dark Mode Theme
+    final darkTheme = ThemeData(
+      brightness: Brightness.dark,
+      scaffoldBackgroundColor: const Color(0xFF0B0F19), // Deep dark navy
+      primaryColor: const Color(0xFF3B82F6),           // Bright blue
+      cardColor: const Color(0xFF111827),
+      canvasColor: const Color(0xFF0B0F19),
+      dividerColor: const Color(0xFF1F2937),
+      colorScheme: const ColorScheme.dark(
+        primary: Color(0xFF3B82F6),
+        secondary: Color(0xFF38BDF8),
+        surface: Color(0xFF111827),
+        onSurface: Color(0xFFF8FAFC),
+      ),
+      appBarTheme: const AppBarTheme(
+        backgroundColor: Color(0xFF111827),
+        foregroundColor: Color(0xFFF8FAFC),
+        elevation: 0,
+        iconTheme: IconThemeData(color: Color(0xFFF8FAFC)),
+      ),
+      bottomNavigationBarTheme: const BottomNavigationBarThemeData(
+        backgroundColor: Color(0xFF111827),
+        selectedItemColor: Color(0xFF3B82F6),
+        unselectedItemColor: Color(0xFF94A3B8),
+        elevation: 0,
+      ),
+    );
+
     return MaterialApp(
       navigatorKey: NotificationService.navigatorKey,
       title: 'AI Stock Intelligence',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData.dark().copyWith(
-        scaffoldBackgroundColor: const Color(0xFF131722),
-        primaryColor: Colors.blueAccent,
-        colorScheme: const ColorScheme.dark(
-          primary: Colors.blueAccent,
-          secondary: Colors.lightBlueAccent,
-          surface: Color(0xFF1E222D),
-        ),
-        appBarTheme: const AppBarTheme(
-          backgroundColor: Color(0xFF1E222D),
-          elevation: 0,
-        ),
-      ),
+      theme: lightTheme,
+      darkTheme: darkTheme,
+      themeMode: state.isDarkMode ? ThemeMode.dark : ThemeMode.light,
       home: const MainNavigationShell(),
     );
   }
@@ -77,6 +125,7 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
   Widget build(BuildContext context) {
     final state = context.watch<AppState>();
     final unreadCount = state.alerts.where((a) => !a.isRead).length;
+    final isDark = state.isDarkMode;
 
     return Scaffold(
       body: IndexedStack(
@@ -89,9 +138,9 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
           setState(() => _currentIndex = index);
         },
         type: BottomNavigationBarType.fixed,
-        backgroundColor: const Color(0xFF1E222D),
-        selectedItemColor: Colors.blueAccent,
-        unselectedItemColor: Colors.grey.shade500,
+        backgroundColor: isDark ? const Color(0xFF111827) : Colors.white,
+        selectedItemColor: isDark ? const Color(0xFF3B82F6) : const Color(0xFF2563EB),
+        unselectedItemColor: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
         selectedFontSize: 12,
         unselectedFontSize: 12,
         items: [

@@ -25,6 +25,7 @@ class AlertRead(BaseModel):
     risk_level: Optional[str] = "Medium"
     stop_loss: Optional[float] = None
     target: Optional[float] = None
+    time_horizon: Optional[str] = "1-DAY"
     gemini_research: Optional[Dict[str, Any]] = None
     status: Optional[str] = "PENDING_APPROVAL"
     responded_at: Optional[datetime] = None

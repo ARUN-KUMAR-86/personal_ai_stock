@@ -3,14 +3,18 @@
  */
 
 let alertsState = [];
-let currentFilter = 'ALL';
+let filterAction = 'ALL';   // 'ALL', 'BUY', 'SELL'
+let filterHorizon = 'ALL';  // 'ALL', '1-DAY', '1-MONTH'
+let filterMarket = 'ALL';   // 'ALL', 'NSE', 'US'
 let unreadOnly = false;
 let audioEnabled = true;
 let eventSource = null;
 let audioCtx = null;
+let currentTheme = 'light'; // Default: White & Blue Theme
 
 // Initialize on DOM load
 document.addEventListener('DOMContentLoaded', () => {
+  initTheme();
   initAudio();
   fetchMarketStatus();
   loadAlerts();
@@ -21,6 +25,32 @@ document.addEventListener('DOMContentLoaded', () => {
   // Periodic market status refresh
   setInterval(fetchMarketStatus, 60000);
 });
+
+// Theme Management: White & Blue (Default) vs Dark Mode
+function initTheme() {
+  const saved = localStorage.getItem('ai_stock_theme') || 'light';
+  applyTheme(saved);
+}
+
+function applyTheme(theme) {
+  currentTheme = theme;
+  if (theme === 'dark') {
+    document.documentElement.setAttribute('data-theme', 'dark');
+    document.getElementById('theme-icon').textContent = '☀️';
+    document.getElementById('theme-text').textContent = 'White/Blue';
+  } else {
+    document.documentElement.removeAttribute('data-theme');
+    document.getElementById('theme-icon').textContent = '🌙';
+    document.getElementById('theme-text').textContent = 'Dark';
+  }
+}
+
+function toggleTheme() {
+  const next = currentTheme === 'dark' ? 'light' : 'dark';
+  applyTheme(next);
+  localStorage.setItem('ai_stock_theme', next);
+  showToast(`Theme switched to ${next === 'dark' ? 'Dark Mode' : 'White & Blue'}`);
+}
 
 // Web Audio API chime synthesizer
 function initAudio() {
@@ -183,12 +213,26 @@ function renderAlerts() {
   const feed = document.getElementById('alerts-feed');
   let filtered = alertsState;
 
-  if (currentFilter === 'BUY') {
+  // 1. Action Filter (ALL / BUY / SELL)
+  if (filterAction === 'BUY') {
     filtered = filtered.filter(a => (a.action === 'BUY' || a.alert_type === 'BUY'));
-  } else if (currentFilter === 'SELL') {
+  } else if (filterAction === 'SELL') {
     filtered = filtered.filter(a => (a.action === 'SELL' || a.alert_type === 'SELL'));
   }
 
+  // 2. Horizon Filter (ALL / 1-DAY / 1-MONTH)
+  if (filterHorizon !== 'ALL') {
+    filtered = filtered.filter(a => (a.time_horizon || '1-DAY').toUpperCase() === filterHorizon);
+  }
+
+  // 3. Market Universe Filter (ALL / NSE / US)
+  if (filterMarket === 'NSE') {
+    filtered = filtered.filter(a => ['NSE', 'BSE', 'INDIA'].includes((a.exchange || 'NSE').toUpperCase()));
+  } else if (filterMarket === 'US') {
+    filtered = filtered.filter(a => ['US', 'NASDAQ', 'NYSE', 'GLOBAL'].includes((a.exchange || '').toUpperCase()));
+  }
+
+  // 4. Unread filter
   if (unreadOnly) {
     filtered = filtered.filter(a => !a.is_read);
   }
@@ -197,9 +241,10 @@ function renderAlerts() {
     feed.innerHTML = `
       <div class="empty-state">
         <div style="font-size: 38px;">📡</div>
-        <p>No ${currentFilter === 'ALL' ? '' : currentFilter} notifications found.</p>
+        <p>No matching notifications found.</p>
         <span style="font-size: 13px; color: var(--text-dim);">
-          Click <strong>"Search All Stocks Daily"</strong> above to scan across the internet with Gemini Pro.
+          Action: <strong>${filterAction}</strong> | Horizon: <strong>${filterHorizon}</strong> | Market: <strong>${filterMarket}</strong><br>
+          Click <strong>"Search All Stocks Daily"</strong> above to scan across internet universe with Gemini Pro.
         </span>
       </div>
     `;
@@ -216,9 +261,14 @@ function createAlertCardHtml(alert) {
   const pillClass = isBuy ? 'pill-buy' : 'pill-sell';
   const icon = isBuy ? '🟢' : '🔴';
 
-  const price = alert.price ? `₹${Number(alert.price).toLocaleString('en-IN', { minimumFractionDigits: 2 })}` : 'N/A';
-  const sl = alert.stop_loss ? `₹${Number(alert.stop_loss).toLocaleString('en-IN', { minimumFractionDigits: 2 })}` : 'None';
-  const target = alert.target ? `₹${Number(alert.target).toLocaleString('en-IN', { minimumFractionDigits: 2 })}` : 'None';
+  const exchange = (alert.exchange || 'NSE').toUpperCase();
+  const isUs = ['US', 'NASDAQ', 'NYSE', 'GLOBAL'].includes(exchange);
+  const curr = isUs ? '$' : '₹';
+  const locale = isUs ? 'en-US' : 'en-IN';
+
+  const price = alert.price ? `${curr}${Number(alert.price).toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : 'N/A';
+  const sl = alert.stop_loss ? `${curr}${Number(alert.stop_loss).toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : 'None';
+  const target = alert.target ? `${curr}${Number(alert.target).toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : 'None';
 
   let rr = 'N/A';
   if (alert.price && alert.target && alert.stop_loss) {
@@ -226,6 +276,12 @@ function createAlertCardHtml(alert) {
     const reward = Math.abs(alert.target - alert.price);
     if (risk > 0) rr = `1:${(reward / risk).toFixed(1)}`;
   }
+
+  const horizon = (alert.time_horizon || '1-DAY').toUpperCase();
+  const isMonth = horizon === '1-MONTH';
+  const horizonBadge = isMonth
+    ? '<span class="badge-horizon badge-long">📅 1-MONTH (Long Term)</span>'
+    : '<span class="badge-horizon badge-short">⚡ 1-DAY (Short Term)</span>';
 
   // Thesis extraction
   const research = alert.gemini_research || {};
@@ -241,7 +297,8 @@ function createAlertCardHtml(alert) {
         <div class="card-stock-info">
           <div class="symbol-row">
             <span class="stock-symbol">${escapeHtml(alert.symbol)}</span>
-            <span class="exchange-tag">${escapeHtml(alert.exchange || 'NSE')}</span>
+            <span class="exchange-tag">${escapeHtml(exchange)}</span>
+            ${horizonBadge}
             ${!alert.is_read ? '<span style="font-size: 8px; color: var(--cyan-accent); font-weight:800;">● NEW</span>' : ''}
           </div>
           <div class="company-name">${escapeHtml(research.company_name || alert.symbol)}</div>
@@ -316,11 +373,29 @@ function updateCounts() {
   document.getElementById('tab-sell-count').textContent = sellCount;
 }
 
-// Filter Tabs
-function setFilter(filter) {
-  currentFilter = filter;
-  document.querySelectorAll('.tab-btn').forEach(btn => {
-    btn.classList.toggle('active', btn.dataset.filter === filter);
+// Filter Tabs: Action
+function setActionFilter(action) {
+  filterAction = action;
+  document.querySelectorAll('[data-filter-action]').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.filterAction === action);
+  });
+  renderAlerts();
+}
+
+// Filter Tabs: Horizon
+function setHorizonFilter(horizon) {
+  filterHorizon = horizon;
+  document.querySelectorAll('[data-filter-horizon]').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.filterHorizon === horizon);
+  });
+  renderAlerts();
+}
+
+// Filter Tabs: Market
+function setMarketFilter(market) {
+  filterMarket = market;
+  document.querySelectorAll('[data-filter-market]').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.filterMarket === market);
   });
   renderAlerts();
 }
@@ -382,14 +457,16 @@ async function triggerDailyScan() {
   progressBox.style.display = 'block';
   progressFill.style.width = '15%';
 
-  showToast('🔍 Initiating daily stock search across internet with Gemini Pro...');
+  const targetMarket = document.getElementById('pref-market-select')?.value || (filterMarket !== 'ALL' ? filterMarket : 'ALL');
+  const marketLabel = targetMarket === 'ALL' ? 'Indian NSE & US Global stocks' : (targetMarket === 'US' ? 'US Mega-Cap stocks' : 'Indian NSE stocks');
+  showToast(`🔍 Scanning ${marketLabel} with Gemini Pro...`);
 
   try {
     progressFill.style.width = '45%';
     const res = await fetch('/api/v1/scanner/scan', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ force: true, exchange: 'NSE' })
+      body: JSON.stringify({ force: true, exchange: targetMarket })
     });
     progressFill.style.width = '85%';
     const job = await res.json();
@@ -421,8 +498,16 @@ function openResearchModal(alertId) {
   badge.textContent = `${isBuy ? '🟢' : '🔴'} ${action} ALERT`;
   badge.className = `badge ${isBuy ? 'pill-buy' : 'pill-sell'}`;
 
-  document.getElementById('modal-stock-title').textContent = `${alert.symbol} (${alert.exchange || 'NSE'})`;
-  document.getElementById('modal-stock-price').textContent = alert.price ? `₹${Number(alert.price).toFixed(2)}` : 'N/A';
+  const exchange = (alert.exchange || 'NSE').toUpperCase();
+  const isUs = ['US', 'NASDAQ', 'NYSE', 'GLOBAL'].includes(exchange);
+  const curr = isUs ? '$' : '₹';
+  const locale = isUs ? 'en-US' : 'en-IN';
+
+  const horizon = (alert.time_horizon || '1-DAY').toUpperCase();
+  const horizonLabel = horizon === '1-MONTH' ? '📅 1-MONTH (Long Term)' : '⚡ 1-DAY (Short Term)';
+
+  document.getElementById('modal-stock-title').textContent = `${alert.symbol} (${exchange}) — ${horizonLabel}`;
+  document.getElementById('modal-stock-price').textContent = alert.price ? `${curr}${Number(alert.price).toLocaleString(locale, { minimumFractionDigits: 2 })}` : 'N/A';
 
   const research = alert.gemini_research || {};
   const catalysts = research.catalysts || [];
@@ -490,23 +575,23 @@ function openResearchModal(alertId) {
       <div class="indicators-grid">
         <div class="indicator-item">
           <div class="ind-name">Entry Zone</div>
-          <div class="ind-val">${escapeHtml(tactical.entry_zone || `₹${alert.price || 0}`)}</div>
+          <div class="ind-val">${escapeHtml(tactical.entry_zone || `${curr}${alert.price || 0}`)}</div>
         </div>
         <div class="indicator-item">
           <div class="ind-name">Stop Loss</div>
-          <div class="ind-val text-sell">${escapeHtml(tactical.stop_loss || `₹${alert.stop_loss || 0}`)}</div>
+          <div class="ind-val text-sell">${escapeHtml(tactical.stop_loss || `${curr}${alert.stop_loss || 0}`)}</div>
         </div>
         <div class="indicator-item">
-          <div class="ind-name">Target 1</div>
-          <div class="ind-val text-buy">${escapeHtml(tactical.target_1 || `₹${alert.target || 0}`)}</div>
+          <div class="ind-name">Target</div>
+          <div class="ind-val text-buy">${escapeHtml(tactical.target_1 || tactical.target_price || `${curr}${alert.target || 0}`)}</div>
         </div>
         <div class="indicator-item">
           <div class="ind-name">Holding Horizon</div>
-          <div class="ind-val">${escapeHtml(tactical.time_horizon || '24 to 48 Hours')}</div>
+          <div class="ind-val">${escapeHtml(tactical.time_horizon || (horizon === '1-MONTH' ? '30 Days Positional' : '24 to 48 Hours'))}</div>
         </div>
         <div class="indicator-item">
           <div class="ind-name">Model Engine</div>
-          <div class="ind-val text-cyan">${escapeHtml(research.model_used || 'Gemini 1.5 Pro')}</div>
+          <div class="ind-val text-cyan">${escapeHtml(research.model_used || 'Gemini 3.5 Flash-Lite')}</div>
         </div>
       </div>
     </div>
@@ -532,52 +617,76 @@ function closeModalOnBackdrop(event, modalId) {
 // Settings handlers
 async function loadSettings() {
   try {
-    const gRes = await fetch('/api/v1/settings/GEMINI_API_KEY');
-    if (gRes.ok) {
-      const gData = await gRes.json();
-      if (gData.value) {
-        document.getElementById('gemini-key-input').value = gData.value;
-      }
-    }
-  } catch (_) {}
-
-  try {
-    const res = await fetch('/api/v1/alerts/test-push', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ symbol: 'TEST', title: 'CHECK', body: 'CHECK' })
-    });
+    const res = await fetch('/api/v1/settings');
     if (res.ok) {
       const data = await res.json();
-      document.getElementById('fcm-status-box').textContent = data.fcm_available 
-        ? '✅ Firebase FCM Cloud Messaging is Active' 
-        : '⚠️ FCM Not Configured (Operating in Local / Real-time Web Mode)';
+      const statusEl = document.getElementById('gemini-key-status');
+      if (data.GEMINI_CONFIGURED) {
+        statusEl.textContent = `✅ Gemini API Key Active (${data.GEMINI_API_KEY_MASKED || 'Configured'})`;
+        statusEl.style.color = 'var(--buy-green)';
+      } else {
+        statusEl.textContent = '⚠️ No Gemini API key saved. Enter your Google AI Studio key below.';
+        statusEl.style.color = '#ffab00';
+      }
+
+      if (data.GEMINI_MODEL && document.getElementById('gemini-model-select')) {
+        document.getElementById('gemini-model-select').value = data.GEMINI_MODEL;
+        document.getElementById('ai-model-tag').textContent = data.GEMINI_MODEL.replace('gemini-', 'Gemini ');
+      }
+      if (data.PREFERRED_HORIZON && document.getElementById('pref-horizon-select')) {
+        document.getElementById('pref-horizon-select').value = data.PREFERRED_HORIZON;
+      }
+      if (data.PREFERRED_MARKET && document.getElementById('pref-market-select')) {
+        document.getElementById('pref-market-select').value = data.PREFERRED_MARKET;
+      }
     }
-  } catch (e) {
-    console.debug('FCM test check note:', e);
+  } catch (err) {
+    console.debug('Error loading settings:', err);
   }
 }
 
 async function saveSettings() {
   const key = document.getElementById('gemini-key-input').value.trim();
   const model = document.getElementById('gemini-model-select').value;
+  const horizon = document.getElementById('pref-horizon-select').value;
+  const market = document.getElementById('pref-market-select').value;
 
-  if (key) {
-    try {
+  try {
+    if (key) {
       await fetch('/api/v1/settings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ key: 'GEMINI_API_KEY', value: key })
       });
-      showToast('Gemini API Key saved successfully.');
-    } catch (e) {
-      console.warn('Settings save endpoint note:', e);
     }
+
+    await fetch('/api/v1/settings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ key: 'GEMINI_MODEL', value: model })
+    });
+
+    await fetch('/api/v1/settings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ key: 'PREFERRED_HORIZON', value: horizon })
+    });
+
+    await fetch('/api/v1/settings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ key: 'PREFERRED_MARKET', value: market })
+    });
+
+    document.getElementById('ai-model-tag').textContent = model.replace('gemini-', 'Gemini ');
+    showToast('Configuration saved successfully.');
+    loadSettings();
+  } catch (e) {
+    console.warn('Settings save note:', e);
+    showToast('Settings saved.');
   }
 
-  document.getElementById('ai-model-tag').textContent = model.replace('gemini-', 'Gemini ');
   closeModal('settings-modal');
-  showToast('Configuration applied.');
 }
 
 async function sendTestSignal(action) {

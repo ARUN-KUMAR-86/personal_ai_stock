@@ -14,14 +14,24 @@ class TradeAlertCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
     final isBuy = alert.action.toUpperCase() == 'BUY' || alert.alertType.contains('BUY');
     final action = isBuy ? 'BUY' : 'SELL';
-    final actionColor = isBuy ? const Color(0xFF00E676) : const Color(0xFFFF1744);
-    final actionBg = isBuy ? const Color(0x1A00E676) : const Color(0x1AFF1744);
+    final actionColor = isBuy
+        ? (isDark ? const Color(0xFF00E676) : const Color(0xFF15803D))
+        : (isDark ? const Color(0xFFFF1744) : const Color(0xFFDC2626));
+    final actionBg = isBuy
+        ? (isDark ? const Color(0x1A00E676) : const Color(0xFFECFDF5))
+        : (isDark ? const Color(0x1AFF1744) : const Color(0xFFFEF2F2));
 
-    final priceStr = alert.price != null ? '₹${alert.price!.toStringAsFixed(2)}' : 'N/A';
-    final targetStr = alert.target != null ? '₹${alert.target!.toStringAsFixed(2)}' : 'None';
-    final stopLossStr = alert.stopLoss != null ? '₹${alert.stopLoss!.toStringAsFixed(2)}' : 'None';
+    final isUs = ['US', 'NASDAQ', 'NYSE', 'GLOBAL'].contains(alert.exchange.toUpperCase());
+    final curr = isUs ? '\$' : '₹';
+
+    final priceStr = alert.price != null ? '$curr${alert.price!.toStringAsFixed(2)}' : 'N/A';
+    final targetStr = alert.target != null ? '$curr${alert.target!.toStringAsFixed(2)}' : 'None';
+    final stopLossStr = alert.stopLoss != null ? '$curr${alert.stopLoss!.toStringAsFixed(2)}' : 'None';
 
     String rrStr = 'N/A';
     if (alert.price != null && alert.target != null && alert.stopLoss != null) {
@@ -32,21 +42,27 @@ class TradeAlertCard extends StatelessWidget {
       }
     }
 
+    final isMonth = alert.timeHorizon.toUpperCase() == '1-MONTH';
+    final horizonColor = isMonth ? const Color(0xFF7C3AED) : const Color(0xFFD97706);
+    final horizonBg = isMonth
+        ? (isDark ? const Color(0x267C3AED) : const Color(0xFFEDE9FE))
+        : (isDark ? const Color(0x26D97706) : const Color(0xFFFEF3C7));
+
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 8),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0xFF1E222D),
+        color: theme.cardColor,
         borderRadius: BorderRadius.circular(14),
         border: Border(
           left: BorderSide(color: actionColor, width: 4),
-          top: BorderSide(color: alert.isRead ? Colors.white.withOpacity(0.04) : actionColor.withOpacity(0.3)),
-          right: BorderSide(color: alert.isRead ? Colors.white.withOpacity(0.04) : actionColor.withOpacity(0.3)),
-          bottom: BorderSide(color: alert.isRead ? Colors.white.withOpacity(0.04) : actionColor.withOpacity(0.3)),
+          top: BorderSide(color: alert.isRead ? theme.dividerColor : actionColor.withOpacity(0.35)),
+          right: BorderSide(color: alert.isRead ? theme.dividerColor : actionColor.withOpacity(0.35)),
+          bottom: BorderSide(color: alert.isRead ? theme.dividerColor : actionColor.withOpacity(0.35)),
         ),
         boxShadow: [
           BoxShadow(
-            color: alert.isRead ? Colors.black.withOpacity(0.2) : actionColor.withOpacity(0.08),
+            color: isDark ? Colors.black.withOpacity(0.3) : const Color(0x0D0F172A),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -55,7 +71,7 @@ class TradeAlertCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Header: Symbol + Action Pill
+          // Header: Symbol + Exchange + Horizon + Action Pill
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -63,33 +79,55 @@ class TradeAlertCard extends StatelessWidget {
                 children: [
                   Text(
                     alert.symbol,
-                    style: const TextStyle(
-                      color: Colors.white,
+                    style: TextStyle(
+                      color: theme.colorScheme.onSurface,
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
                       letterSpacing: 0.5,
                     ),
                   ),
-                  const SizedBox(width: 8),
+                  const SizedBox(width: 6),
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF131722),
+                      color: isDark ? const Color(0xFF1E222D) : const Color(0xFFF1F5F9),
                       borderRadius: BorderRadius.circular(4),
-                      border: Border.all(color: Colors.white12),
+                      border: Border.all(color: theme.dividerColor),
                     ),
                     child: Text(
                       alert.exchange,
-                      style: const TextStyle(color: Colors.grey, fontSize: 10, fontWeight: FontWeight.bold),
+                      style: TextStyle(
+                        color: isDark ? Colors.grey.shade400 : const Color(0xFF475569),
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  // Horizon Badge
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: horizonBg,
+                      borderRadius: BorderRadius.circular(4),
+                      border: Border.all(color: horizonColor.withOpacity(0.5)),
+                    ),
+                    child: Text(
+                      isMonth ? '📅 1-MO' : '⚡ 1-DAY',
+                      style: TextStyle(
+                        color: horizonColor,
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   ),
                   if (!alert.isRead) ...[
-                    const SizedBox(width: 8),
+                    const SizedBox(width: 6),
                     Container(
                       width: 6,
                       height: 6,
-                      decoration: const BoxDecoration(
-                        color: Colors.lightBlueAccent,
+                      decoration: BoxDecoration(
+                        color: theme.primaryColor,
                         shape: BoxShape.circle,
                       ),
                     ),
@@ -130,16 +168,17 @@ class TradeAlertCard extends StatelessWidget {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             decoration: BoxDecoration(
-              color: const Color(0xFF131722),
+              color: isDark ? const Color(0xFF0B0F19) : const Color(0xFFF8FAFC),
               borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: theme.dividerColor),
             ),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                _buildMetricCol('PRICE', priceStr, Colors.white),
-                _buildMetricCol('TARGET', targetStr, isBuy ? actionColor : Colors.lightBlueAccent),
-                _buildMetricCol('STOP LOSS', stopLossStr, const Color(0xFFFF1744)),
-                _buildMetricCol('R:R', rrStr, Colors.cyanAccent),
+                _buildMetricCol(context, 'PRICE', priceStr, theme.colorScheme.onSurface),
+                _buildMetricCol(context, 'TARGET', targetStr, isBuy ? actionColor : theme.primaryColor),
+                _buildMetricCol(context, 'STOP LOSS', stopLossStr, isDark ? const Color(0xFFFF1744) : const Color(0xFFDC2626)),
+                _buildMetricCol(context, 'R:R', rrStr, theme.primaryColor),
               ],
             ),
           ),
@@ -150,17 +189,21 @@ class TradeAlertCard extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: const Color(0xFF131722).withOpacity(0.6),
+                color: isDark ? const Color(0xFF161C2E) : const Color(0xFFEFF6FF),
                 borderRadius: BorderRadius.circular(8),
-                border: const Border(
-                  left: BorderSide(color: Colors.cyanAccent, width: 2),
+                border: Border(
+                  left: BorderSide(color: theme.primaryColor, width: 3),
                 ),
               ),
               child: Text(
                 alert.reason!,
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(color: Colors.white70, fontSize: 12, height: 1.4),
+                style: TextStyle(
+                  color: isDark ? Colors.white70 : const Color(0xFF1E293B),
+                  fontSize: 12,
+                  height: 1.4,
+                ),
               ),
             ),
           const SizedBox(height: 12),
@@ -171,12 +214,15 @@ class TradeAlertCard extends StatelessWidget {
             children: [
               Text(
                 alert.createdAt.toLocal().toString().substring(0, 16),
-                style: TextStyle(color: Colors.grey.shade500, fontSize: 11),
+                style: TextStyle(
+                  color: isDark ? Colors.grey.shade500 : const Color(0xFF64748B),
+                  fontSize: 11,
+                ),
               ),
               OutlinedButton.icon(
                 style: OutlinedButton.styleFrom(
-                  foregroundColor: Colors.cyanAccent,
-                  side: const BorderSide(color: Colors.cyanAccent, width: 0.8),
+                  foregroundColor: theme.primaryColor,
+                  side: BorderSide(color: theme.primaryColor, width: 1.0),
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                 ),
@@ -201,13 +247,18 @@ class TradeAlertCard extends StatelessWidget {
     );
   }
 
-  Widget _buildMetricCol(String label, String value, Color color) {
+  Widget _buildMetricCol(BuildContext context, String label, String value, Color color) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           label,
-          style: TextStyle(color: Colors.grey.shade500, fontSize: 9, fontWeight: FontWeight.bold),
+          style: TextStyle(
+            color: isDark ? Colors.grey.shade500 : const Color(0xFF64748B),
+            fontSize: 9,
+            fontWeight: FontWeight.bold,
+          ),
         ),
         const SizedBox(height: 2),
         Text(

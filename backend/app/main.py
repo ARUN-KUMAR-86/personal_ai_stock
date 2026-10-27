@@ -93,6 +93,28 @@ class SettingItem(BaseModel):
     value: str
 
 
+@app.get(f"{settings.API_V1_STR}/settings")
+def list_settings(db: Session = Depends(get_db)):
+    """Retrieves all runtime configuration settings."""
+    from app.models.setting import AppSetting
+    records = db.query(AppSetting).all()
+    res = {r.key: r.value for r in records}
+    if "PREFERRED_HORIZON" not in res:
+        res["PREFERRED_HORIZON"] = "ALL"
+    if "PREFERRED_MARKET" not in res:
+        res["PREFERRED_MARKET"] = "ALL"
+    if "GEMINI_MODEL" not in res:
+        res["GEMINI_MODEL"] = "gemini-3.5-flash-lite"
+
+    raw_key = res.get("GEMINI_API_KEY")
+    res["GEMINI_CONFIGURED"] = bool(raw_key)
+    if raw_key and len(raw_key) > 8:
+        res["GEMINI_API_KEY_MASKED"] = f"{raw_key[:4]}...{raw_key[-4:]}"
+    else:
+        res["GEMINI_API_KEY_MASKED"] = None
+    return res
+
+
 @app.post(f"{settings.API_V1_STR}/settings")
 def update_setting(item: SettingItem, db: Session = Depends(get_db)):
     """Updates runtime configuration settings (e.g. GEMINI_API_KEY)."""
