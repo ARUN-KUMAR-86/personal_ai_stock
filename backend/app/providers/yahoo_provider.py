@@ -9,7 +9,7 @@ from app.core.exceptions import MarketDataProviderError
 from app.providers.base import BaseMarketDataProvider
 from app.schemas.candle import QuoteRead
 
-# High-liquidity universe of top NSE stocks
+# Comprehensive High-Liquidity Universe of Top NSE Indian Stocks (Internet Daily Search Universe)
 NIFTY_50_UNIVERSE = [
     {"symbol": "RELIANCE", "name": "Reliance Industries Ltd", "exchange": "NSE", "sector": "Energy"},
     {"symbol": "TCS", "name": "Tata Consultancy Services Ltd", "exchange": "NSE", "sector": "Technology"},
@@ -31,6 +31,36 @@ NIFTY_50_UNIVERSE = [
     {"symbol": "ONGC", "name": "Oil & Natural Gas Corp Ltd", "exchange": "NSE", "sector": "Energy"},
     {"symbol": "KOTAKBANK", "name": "Kotak Mahindra Bank Ltd", "exchange": "NSE", "sector": "Financials"},
     {"symbol": "TITAN", "name": "Titan Company Ltd", "exchange": "NSE", "sector": "Consumer Goods"},
+    {"symbol": "ADANIENT", "name": "Adani Enterprises Ltd", "exchange": "NSE", "sector": "Metals & Mining"},
+    {"symbol": "ADANIPORTS", "name": "Adani Ports & SEZ Ltd", "exchange": "NSE", "sector": "Infrastructure"},
+    {"symbol": "AXISBANK", "name": "Axis Bank Ltd", "exchange": "NSE", "sector": "Financials"},
+    {"symbol": "BAJAJFINSV", "name": "Bajaj Finserv Ltd", "exchange": "NSE", "sector": "Financials"},
+    {"symbol": "BAJAJ-AUTO", "name": "Bajaj Auto Ltd", "exchange": "NSE", "sector": "Automobile"},
+    {"symbol": "COALINDIA", "name": "Coal India Ltd", "exchange": "NSE", "sector": "Energy"},
+    {"symbol": "WIPRO", "name": "Wipro Ltd", "exchange": "NSE", "sector": "Technology"},
+    {"symbol": "POWERGRID", "name": "Power Grid Corp of India", "exchange": "NSE", "sector": "Utilities"},
+    {"symbol": "ULTRACEMCO", "name": "UltraTech Cement Ltd", "exchange": "NSE", "sector": "Materials"},
+    {"symbol": "TATASTEEL", "name": "Tata Steel Ltd", "exchange": "NSE", "sector": "Metals & Mining"},
+    {"symbol": "JSWSTEEL", "name": "JSW Steel Ltd", "exchange": "NSE", "sector": "Metals & Mining"},
+    {"symbol": "ASIANPAINT", "name": "Asian Paints Ltd", "exchange": "NSE", "sector": "Consumer Goods"},
+    {"symbol": "TECHM", "name": "Tech Mahindra Ltd", "exchange": "NSE", "sector": "Technology"},
+    {"symbol": "INDUSINDBK", "name": "IndusInd Bank Ltd", "exchange": "NSE", "sector": "Financials"},
+    {"symbol": "HINDALCO", "name": "Hindalco Industries Ltd", "exchange": "NSE", "sector": "Metals & Mining"},
+    {"symbol": "GRASIM", "name": "Grasim Industries Ltd", "exchange": "NSE", "sector": "Materials"},
+    {"symbol": "CIPLA", "name": "Cipla Ltd", "exchange": "NSE", "sector": "Healthcare"},
+    {"symbol": "DRREDDY", "name": "Dr. Reddy's Laboratories", "exchange": "NSE", "sector": "Healthcare"},
+    {"symbol": "APOLLOHOSP", "name": "Apollo Hospitals Enterprise", "exchange": "NSE", "sector": "Healthcare"},
+    {"symbol": "EICHERMOT", "name": "Eicher Motors Ltd", "exchange": "NSE", "sector": "Automobile"},
+    {"symbol": "HEROMOTOCO", "name": "Hero MotoCorp Ltd", "exchange": "NSE", "sector": "Automobile"},
+    {"symbol": "BPCL", "name": "Bharat Petroleum Corp Ltd", "exchange": "NSE", "sector": "Energy"},
+    {"symbol": "DIVISLAB", "name": "Divi's Laboratories Ltd", "exchange": "NSE", "sector": "Healthcare"},
+    {"symbol": "BRITANNIA", "name": "Britannia Industries Ltd", "exchange": "NSE", "sector": "Consumer Goods"},
+    {"symbol": "NESTLEIND", "name": "Nestle India Ltd", "exchange": "NSE", "sector": "Consumer Goods"},
+    {"symbol": "SBILIFE", "name": "SBI Life Insurance Co Ltd", "exchange": "NSE", "sector": "Financials"},
+    {"symbol": "HDFCLIFE", "name": "HDFC Life Insurance Co Ltd", "exchange": "NSE", "sector": "Financials"},
+    {"symbol": "SHRIRAMFIN", "name": "Shriram Finance Ltd", "exchange": "NSE", "sector": "Financials"},
+    {"symbol": "BEL", "name": "Bharat Electronics Ltd", "exchange": "NSE", "sector": "Capital Goods"},
+    {"symbol": "TRENT", "name": "Trent Ltd", "exchange": "NSE", "sector": "Consumer Services"},
 ]
 
 

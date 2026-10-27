@@ -180,40 +180,57 @@ class FCMNotifier:
         db.refresh(alert_record)
         return alert_record
 
-    def send_trade_alert(
+    def send_buy_sell_alert(
         self,
         db: Session,
         symbol: str,
         exchange: str,
-        action: str,  # "BUY" or "SELL"
+        action: str,  # strictly "BUY" or "SELL"
         price: float,
-        suggested_investment: float = 100.0,
-        estimated_quantity: int = 1,
-        reason: str = "AI analysis and market signals",
-        risk_level: str = "Medium",
         stop_loss: Optional[float] = None,
         target: Optional[float] = None,
+        risk_reward: Optional[float] = None,
+        reason: Optional[str] = None,
+        gemini_research: Optional[Dict[str, Any]] = None,
         signal_id: Optional[int] = None,
     ) -> AlertHistory:
         """
-        Creates and dispatches a dedicated PERSONAL AI STOCK — TRADE ALERT.
-        Awaits explicit user approval: no order is placed until approved.
+        Creates, logs, and dispatches a dedicated realtime BUY or SELL notification.
+        Enforces strictly 2 alert types: BUY and SELL.
+        Supports Firebase Cloud Messaging (FCM) and Realtime Server-Sent Events (SSE).
         """
-        order_val = round(price * max(1, estimated_quantity), 2)
-        title = f"PERSONAL AI STOCK — TRADE ALERT: {action.upper()} {symbol.upper()}"
-        body = (
-            f"Stock: {symbol.upper()}\n"
-            f"Action: {action.upper()}\n"
-            f"Suggested investment: ₹{suggested_investment:,.2f}\n"
-            f"Estimated quantity: {estimated_quantity} shares\n"
-            f"Estimated order value: ₹{order_val:,.2f}\n"
-            f"Reason: {reason}\n"
-            f"Risk: {risk_level}\n"
-            f"Stop-loss: ₹{stop_loss:.2f if stop_loss else 'N/A'}\n"
-            f"Target: ₹{target:.2f if target else 'N/A'}\n\n"
-            f"[ APPROVE {action.upper()} ]  [ REJECT ]\n\n"
-            f"No order is placed until you approve it."
-        )
+        norm_action = "BUY" if "BUY" in action.upper() else "SELL"
+        icon = "🟢" if norm_action == "BUY" else "🔴"
+
+        thesis_headline = ""
+        thesis_summary = ""
+        catalysts = []
+        if gemini_research:
+            thesis_headline = gemini_research.get("headline", "")
+            thesis_summary = gemini_research.get("investment_thesis", "")
+            catalysts = gemini_research.get("catalysts", [])
+
+        title = f"{icon} {norm_action} ALERT: {symbol.upper()} @ ₹{price:,.2f}"
+
+        body_lines = [
+            f"Action: {norm_action}",
+            f"Stock: {symbol.upper()} ({exchange.upper()})",
+            f"Price: ₹{price:,.2f}",
+        ]
+        if target:
+            body_lines.append(f"Target: ₹{target:,.2f}")
+        if stop_loss:
+            body_lines.append(f"Stop-Loss: ₹{stop_loss:,.2f}")
+        if risk_reward:
+            body_lines.append(f"Risk/Reward: 1:{risk_reward:.2f}")
+        if thesis_headline:
+            body_lines.append(f"\nGemini Pro Thesis: {thesis_headline}")
+        elif reason:
+            body_lines.append(f"\nReason: {reason}")
+        if catalysts:
+            body_lines.append("Catalysts:\n" + "\n".join(f"• {c}" for c in catalysts[:2]))
+
+        body = "\n".join(body_lines)
 
         sent_to_fcm = False
         message_id = None
@@ -228,8 +245,8 @@ class FCMNotifier:
                         data={
                             "symbol": symbol.upper(),
                             "exchange": exchange.upper(),
-                            "action": action.upper(),
-                            "alert_type": "TRADE_ALERT",
+                            "action": norm_action,
+                            "alert_type": norm_action,
                             "price": str(price),
                             "click_action": "FLUTTER_NOTIFICATION_CLICK",
                         },
@@ -239,25 +256,22 @@ class FCMNotifier:
                     message_id = mid
                     sent_to_fcm = True
         except Exception as e:
-            logger.warning(f"FCM push error for trade alert: {e}")
+            logger.warning(f"FCM push notification error: {e}")
 
         alert = AlertHistory(
             symbol=symbol.upper(),
             exchange=exchange.upper(),
-            alert_type="TRADE_ALERT",
+            alert_type=norm_action,
+            action=norm_action,
             title=title,
             message=body,
             signal_id=signal_id,
             price=price,
-            action=action.upper(),
-            suggested_investment=suggested_investment,
-            estimated_quantity=estimated_quantity,
-            estimated_order_value=order_val,
-            reason=reason,
-            risk_level=risk_level,
             stop_loss=stop_loss,
             target=target,
-            status="PENDING_APPROVAL",
+            reason=reason or thesis_headline,
+            risk_level="High Conviction" if norm_action == "BUY" else "Capital Protection",
+            gemini_research=gemini_research,
             sent_to_fcm=sent_to_fcm,
             fcm_message_id=message_id,
             created_at=datetime.now(timezone.utc),
@@ -265,7 +279,58 @@ class FCMNotifier:
         db.add(alert)
         db.commit()
         db.refresh(alert)
+
+        # Broadcast via Real-time SSE
+        try:
+            from app.notifications.broadcaster import broadcaster
+            broadcaster.broadcast({
+                "id": alert.id,
+                "symbol": alert.symbol,
+                "exchange": alert.exchange,
+                "action": alert.action,
+                "alert_type": alert.alert_type,
+                "title": alert.title,
+                "message": alert.message,
+                "price": alert.price,
+                "stop_loss": alert.stop_loss,
+                "target": alert.target,
+                "gemini_research": alert.gemini_research,
+                "created_at": alert.created_at.isoformat() if alert.created_at else None,
+            })
+        except Exception as be:
+            logger.warning(f"Failed to broadcast real-time alert: {be}")
+
         return alert
+
+    def send_trade_alert(
+        self,
+        db: Session,
+        symbol: str,
+        exchange: str,
+        action: str,  # "BUY" or "SELL"
+        price: float,
+        suggested_investment: float = 100.0,
+        estimated_quantity: int = 1,
+        reason: str = "AI analysis and market signals",
+        risk_level: str = "Medium",
+        stop_loss: Optional[float] = None,
+        target: Optional[float] = None,
+        signal_id: Optional[int] = None,
+        gemini_research: Optional[Dict[str, Any]] = None,
+    ) -> AlertHistory:
+        """Compatibility wrapper that routes directly to send_buy_sell_alert."""
+        return self.send_buy_sell_alert(
+            db=db,
+            symbol=symbol,
+            exchange=exchange,
+            action=action,
+            price=price,
+            stop_loss=stop_loss,
+            target=target,
+            reason=reason,
+            gemini_research=gemini_research,
+            signal_id=signal_id,
+        )
 
 
 notifier = FCMNotifier()

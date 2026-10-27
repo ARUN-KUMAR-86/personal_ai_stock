@@ -835,6 +835,17 @@ class AppState extends ChangeNotifier {
     } catch (_) {}
   }
 
+  Future<void> markAlertsRead(List<int> alertIds) async {
+    try {
+      await api.markAlertsRead(alertIds);
+      final idSet = alertIds.toSet();
+      for (final a in alerts) {
+        if (idSet.contains(a.id)) a.isRead = true;
+      }
+      notifyListeners();
+    } catch (_) {}
+  }
+
   Future<void> toggleEmergencyStop(bool enabled) async {
     try {
       await api.toggleEmergencyStop(enabled);

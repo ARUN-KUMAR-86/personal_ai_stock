@@ -46,6 +46,17 @@ class AINarrativeGenerator:
 
         # 1. Attempt Gemini Generative synthesis if API key is provided and not forced deterministic
         api_key = settings.GEMINI_API_KEY or os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
+        if not api_key:
+            try:
+                from app.database.session import SessionLocal
+                from app.models.setting import AppSetting
+                db_s = SessionLocal()
+                rec = db_s.query(AppSetting).filter(AppSetting.key == "GEMINI_API_KEY").first()
+                if rec and rec.value:
+                    api_key = rec.value.strip()
+                db_s.close()
+            except Exception:
+                pass
         if api_key and settings.AI_ANALYSIS_ENABLED and not force_deterministic:
             try:
                 gemini_result = self._generate_via_gemini(

@@ -1,12 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'state/app_state.dart';
-import 'screens/dashboard_screen.dart';
-import 'screens/trading_control_screen.dart';
-import 'screens/scanner_screen.dart';
 import 'screens/notifications_screen.dart';
-import 'screens/portfolio_screen.dart';
-import 'screens/funds_screen.dart';
+import 'screens/scanner_screen.dart';
 import 'screens/settings_screen.dart';
 
 import 'services/notification_service.dart';
@@ -72,19 +68,15 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
   int _currentIndex = 0;
 
   final List<Widget> _screens = const [
-    DashboardScreen(),
-    TradingControlScreen(),
-    ScannerScreen(),
     NotificationsScreen(),
-    PortfolioScreen(),
-    FundsScreen(),
+    ScannerScreen(),
     SettingsScreen(),
   ];
 
   @override
   Widget build(BuildContext context) {
     final state = context.watch<AppState>();
-    final pendingCount = state.pendingTradeAlerts.length;
+    final unreadCount = state.alerts.where((a) => !a.isRead).length;
 
     return Scaffold(
       body: IndexedStack(
@@ -92,7 +84,7 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
         children: _screens,
       ),
       bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _currentIndex > 4 ? 0 : _currentIndex,
+        currentIndex: _currentIndex,
         onTap: (index) {
           setState(() => _currentIndex = index);
         },
@@ -100,42 +92,33 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
         backgroundColor: const Color(0xFF1E222D),
         selectedItemColor: Colors.blueAccent,
         unselectedItemColor: Colors.grey.shade500,
-        selectedFontSize: 11,
-        unselectedFontSize: 11,
+        selectedFontSize: 12,
+        unselectedFontSize: 12,
         items: [
-          const BottomNavigationBarItem(
-            icon: Icon(Icons.dashboard_outlined),
-            activeIcon: Icon(Icons.dashboard),
-            label: 'Dashboard',
-          ),
-          const BottomNavigationBarItem(
-            icon: Icon(Icons.tune_outlined),
-            activeIcon: Icon(Icons.tune),
-            label: 'Trading',
-          ),
-          const BottomNavigationBarItem(
-            icon: Icon(Icons.radar),
-            label: 'Scanner',
-          ),
           BottomNavigationBarItem(
-            icon: pendingCount > 0
+            icon: unreadCount > 0
                 ? Badge(
-                    label: Text('$pendingCount'),
+                    label: Text('$unreadCount'),
                     child: const Icon(Icons.notifications_none),
                   )
                 : const Icon(Icons.notifications_none),
-            activeIcon: pendingCount > 0
+            activeIcon: unreadCount > 0
                 ? Badge(
-                    label: Text('$pendingCount'),
+                    label: Text('$unreadCount'),
                     child: const Icon(Icons.notifications),
                   )
                 : const Icon(Icons.notifications),
-            label: 'Alerts',
+            label: 'Notifications',
           ),
           const BottomNavigationBarItem(
-            icon: Icon(Icons.pie_chart_outline),
-            activeIcon: Icon(Icons.pie_chart),
-            label: 'Portfolio',
+            icon: Icon(Icons.radar),
+            activeIcon: Icon(Icons.radar, color: Colors.blueAccent),
+            label: 'Internet Scanner',
+          ),
+          const BottomNavigationBarItem(
+            icon: Icon(Icons.settings_outlined),
+            activeIcon: Icon(Icons.settings),
+            label: 'Settings',
           ),
         ],
       ),

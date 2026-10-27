@@ -3,7 +3,6 @@ import 'package:provider/provider.dart';
 import '../state/app_state.dart';
 import '../models/alert.dart';
 import '../widgets/trade_alert_card.dart';
-import 'stock_recommendation_screen.dart';
 
 class NotificationsScreen extends StatefulWidget {
   const NotificationsScreen({super.key});
@@ -13,182 +12,163 @@ class NotificationsScreen extends StatefulWidget {
 }
 
 class _NotificationsScreenState extends State<NotificationsScreen> {
+  String selectedFilter = 'ALL'; // 'ALL', 'BUY', 'SELL'
   bool unreadOnly = false;
-
-  void _openRecommendation(StockAlert alert) {
-    if (!alert.isRead) {
-      context.read<AppState>().markAlertRead(alert.id);
-    }
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => StockRecommendationScreen(
-          symbol: alert.symbol,
-          exchange: alert.exchange,
-        ),
-      ),
-    );
-  }
 
   @override
   Widget build(BuildContext context) {
     final state = context.watch<AppState>();
-    final alertsList = unreadOnly ? state.alerts.where((a) => !a.isRead).toList() : state.alerts;
+
+    // Filter alerts
+    List<StockAlert> alertsList = state.alerts;
+    if (selectedFilter == 'BUY') {
+      alertsList = alertsList.where((a) => a.action.toUpperCase() == 'BUY' || a.alertType.contains('BUY')).toList();
+    } else if (selectedFilter == 'SELL') {
+      alertsList = alertsList.where((a) => a.action.toUpperCase() == 'SELL' || a.alertType.contains('SELL')).toList();
+    }
+
+    if (unreadOnly) {
+      alertsList = alertsList.where((a) => !a.isRead).toList();
+    }
+
+    final buyCount = state.alerts.where((a) => a.action.toUpperCase() == 'BUY' || a.alertType.contains('BUY')).length;
+    final sellCount = state.alerts.where((a) => a.action.toUpperCase() == 'SELL' || a.alertType.contains('SELL')).length;
 
     return Scaffold(
       backgroundColor: const Color(0xFF131722),
       appBar: AppBar(
         backgroundColor: const Color(0xFF1E222D),
         elevation: 0,
-        title: const Text('ALERTS & NOTIFICATIONS', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+        title: const Row(
+          children: [
+            Text('⚡ ', style: TextStyle(fontSize: 18)),
+            Text('STOCK NOTIFICATIONS', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 17, letterSpacing: 0.5)),
+          ],
+        ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.send_to_mobile),
-            tooltip: 'Send Test Push Alert',
-            onPressed: () async {
-              final ok = await state.api.sendTestPushAlert();
-              await state.refreshAll();
-              if (!context.mounted) return;
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(ok
-                      ? 'Test notification dispatched to Android phone.'
-                      : 'Notification queued in database (FCM service account pending).'),
-                  backgroundColor: ok ? Colors.green : Colors.amber.shade900,
-                ),
-              );
+            icon: const Icon(Icons.refresh, color: Colors.cyanAccent),
+            tooltip: 'Refresh Notifications',
+            onPressed: () => state.refreshAll(),
+          ),
+          IconButton(
+            icon: const Icon(Icons.done_all, color: Colors.grey),
+            tooltip: 'Mark All Read',
+            onPressed: () {
+              final unread = state.alerts.where((a) => !a.isRead).map((a) => a.id).toList();
+              if (unread.isNotEmpty) {
+                state.markAlertsRead(unread);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('All alerts marked as read.')),
+                );
+              }
             },
           ),
         ],
       ),
       body: Column(
         children: [
-          // Filter Header
+          // Filter Tabs Bar
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
             color: const Color(0xFF1E222D),
             child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
-                  '${alertsList.length} ALERTS',
-                  style: const TextStyle(color: Colors.grey, fontSize: 12, fontWeight: FontWeight.bold),
-                ),
-                Row(
-                  children: [
-                    const Text('Unread Only', style: TextStyle(color: Colors.white70, fontSize: 12)),
-                    Switch(
-                      value: unreadOnly,
-                      activeColor: Colors.blueAccent,
-                      onChanged: (val) => setState(() => unreadOnly = val),
+                _buildFilterChip('ALL', 'All (${state.alerts.length})', null),
+                const SizedBox(width: 8),
+                _buildFilterChip('BUY', '🟢 BUY ($buyCount)', const Color(0xFF00E676)),
+                const SizedBox(width: 8),
+                _buildFilterChip('SELL', '🔴 SELL ($sellCount)', const Color(0xFFFF1744)),
+                const Spacer(),
+                InkWell(
+                  onTap: () => setState(() => unreadOnly = !unreadOnly),
+                  borderRadius: BorderRadius.circular(20),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: unreadOnly ? Colors.blueAccent.withOpacity(0.2) : Colors.transparent,
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: unreadOnly ? Colors.blueAccent : Colors.white24),
                     ),
-                  ],
+                    child: Text(
+                      'Unread',
+                      style: TextStyle(
+                        color: unreadOnly ? Colors.blueAccent : Colors.grey,
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
                 ),
               ],
             ),
           ),
 
-          // Alerts List
+          // Alerts List Feed
           Expanded(
             child: alertsList.isEmpty
                 ? Center(
-                    child: Text(
-                      'No notifications recorded.',
-                      style: TextStyle(color: Colors.grey.shade500),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(Icons.radar, size: 54, color: Colors.white24),
+                        const SizedBox(height: 12),
+                        Text(
+                          'No $selectedFilter notifications yet.',
+                          style: TextStyle(color: Colors.grey.shade400, fontSize: 15),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          'Run Internet Scanner to discover setups.',
+                          style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+                        ),
+                      ],
                     ),
                   )
-                : ListView.builder(
-                    itemCount: alertsList.length,
-                    padding: const EdgeInsets.all(16),
-                    itemBuilder: (context, idx) {
-                      final alert = alertsList[idx];
-                      if (alert.isTradeAlert) {
+                : RefreshIndicator(
+                    onRefresh: () => state.refreshAll(),
+                    child: ListView.builder(
+                      itemCount: alertsList.length,
+                      padding: const EdgeInsets.all(16),
+                      itemBuilder: (context, idx) {
+                        final alert = alertsList[idx];
                         return TradeAlertCard(
                           alert: alert,
                           onResponded: () => state.refreshAll(),
                         );
-                      }
-                      return Container(
-                        margin: const EdgeInsets.only(bottom: 10),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF1E222D),
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(
-                            color: alert.isRead ? Colors.white.withOpacity(0.04) : Colors.blueAccent.withOpacity(0.4),
-                          ),
-                        ),
-                        child: ListTile(
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-                          leading: Container(
-                            padding: const EdgeInsets.all(8),
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: alert.alertType.contains('BUY')
-                                  ? Colors.green.withOpacity(0.2)
-                                  : (alert.alertType.contains('SELL') || alert.alertType.contains('EXIT')
-                                      ? Colors.red.withOpacity(0.2)
-                                      : Colors.blue.withOpacity(0.2)),
-                            ),
-                            child: Icon(
-                              alert.alertType.contains('BUY')
-                                  ? Icons.trending_up
-                                  : (alert.alertType.contains('SELL') || alert.alertType.contains('EXIT')
-                                      ? Icons.trending_down
-                                      : Icons.notifications),
-                              size: 20,
-                              color: alert.alertType.contains('BUY')
-                                  ? Colors.greenAccent
-                                  : (alert.alertType.contains('SELL') || alert.alertType.contains('EXIT')
-                                      ? Colors.redAccent
-                                      : Colors.lightBlueAccent),
-                            ),
-                          ),
-                          title: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Text(
-                                alert.symbol,
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontWeight: alert.isRead ? FontWeight.normal : FontWeight.bold,
-                                  fontSize: 15,
-                                ),
-                              ),
-                              if (!alert.isRead)
-                                Container(
-                                  width: 8,
-                                  height: 8,
-                                  decoration: const BoxDecoration(
-                                    color: Colors.blueAccent,
-                                    shape: BoxShape.circle,
-                                  ),
-                                ),
-                            ],
-                          ),
-                          subtitle: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const SizedBox(height: 4),
-                              Text(
-                                alert.title,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(color: Colors.white70, fontSize: 12),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                alert.createdAt.toLocal().toString().substring(0, 16),
-                                style: TextStyle(color: Colors.grey.shade500, fontSize: 10),
-                              ),
-                            ],
-                          ),
-                          onTap: () => _openRecommendation(alert),
-                        ),
-                      );
-                    },
+                      },
+                    ),
                   ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildFilterChip(String filterKey, String label, Color? activeColor) {
+    final isSelected = selectedFilter == filterKey;
+    final color = activeColor ?? Colors.blueAccent;
+
+    return GestureDetector(
+      onTap: () => setState(() => selectedFilter = filterKey),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: isSelected ? color.withOpacity(0.15) : const Color(0xFF131722),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: isSelected ? color : Colors.white12,
+            width: isSelected ? 1.5 : 1.0,
+          ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: isSelected ? color : Colors.grey.shade400,
+            fontSize: 12,
+            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+          ),
+        ),
       ),
     );
   }

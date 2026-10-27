@@ -1,7 +1,10 @@
 """Alert history and push notification test endpoints."""
 
+import json
+import asyncio
 from typing import List, Optional
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
 from app.database.session import get_db
@@ -14,21 +17,79 @@ from app.schemas.alert import (
     DeviceTokenRead,
 )
 from app.notifications.notifier import notifier
+from app.notifications.broadcaster import broadcaster
 
 router = APIRouter(prefix="/alerts", tags=["Alerts & Notifications"])
 
 
+@router.get("/stream")
+async def stream_realtime_alerts(request: Request):
+    """
+    Real-time Server-Sent Events (SSE) notification stream.
+    Instantly pushes new BUY and SELL alerts to web dashboard and connected clients.
+    """
+    async def event_generator():
+        queue = broadcaster.subscribe()
+        try:
+            # Initial connection confirmation
+            yield "event: connected\ndata: {\"status\": \"connected\", \"message\": \"Live SSE feed active\"}\n\n"
+            while True:
+                if await request.is_disconnected():
+                    break
+                try:
+                    alert_payload = await asyncio.wait_for(queue.get(), timeout=15.0)
+                    yield f"event: alert\ndata: {json.dumps(alert_payload)}\n\n"
+                except asyncio.TimeoutError:
+                    # Keepalive heartbeat ping
+                    yield ": heartbeat\n\n"
+        finally:
+            broadcaster.unsubscribe(queue)
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
 @router.get("/history", response_model=List[AlertRead])
 def get_alert_history(
+    action: Optional[str] = None,  # Filter by BUY or SELL
     unread_only: bool = False,
     limit: int = 50,
     db: Session = Depends(get_db),
 ):
-    """Retrieves notification history and alert events."""
+    """Retrieves real-time notification history (filtered by BUY or SELL)."""
     query = db.query(AlertHistory)
+    if action:
+        norm = action.upper().strip()
+        query = query.filter((AlertHistory.action == norm) | (AlertHistory.alert_type == norm))
     if unread_only:
         query = query.filter(AlertHistory.is_read == False)
     return query.order_by(AlertHistory.created_at.desc()).limit(limit).all()
+
+
+@router.post("/clear")
+def clear_alert_history(db: Session = Depends(get_db)):
+    """Clears all historical notifications."""
+    deleted_count = db.query(AlertHistory).delete()
+    db.commit()
+    return {"status": "SUCCESS", "deleted_count": deleted_count}
+
+
+@router.post("/{alert_id}/read")
+def mark_single_alert_read(alert_id: int, db: Session = Depends(get_db)):
+    """Marks a single alert as read."""
+    alert = db.query(AlertHistory).filter(AlertHistory.id == alert_id).first()
+    if not alert:
+        raise HTTPException(status_code=404, detail="Alert not found.")
+    alert.is_read = True
+    db.commit()
+    return {"status": "SUCCESS", "alert_id": alert_id}
 
 
 @router.post("/mark-read")

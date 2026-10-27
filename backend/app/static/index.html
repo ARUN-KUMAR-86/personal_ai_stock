@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Personal AI Stock — Realtime Notification & Gemini Pro Research</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <!-- Top Navigation Bar -->
+  <header class="app-header">
+    <div class="header-left">
+      <div class="logo-badge">
+        <span class="logo-icon">⚡</span>
+        <div>
+          <h1 class="logo-title">AI STOCK INTEL</h1>
+          <span class="logo-subtitle">Realtime Buy & Sell Notifications</span>
+        </div>
+      </div>
+      <div class="status-chip live-pulse" id="sse-status">
+        <span class="pulse-dot"></span>
+        <span id="sse-status-text">CONNECTING LIVE SSE...</span>
+      </div>
+      <div class="status-chip" id="market-status-chip">
+        <span class="market-dot"></span>
+        <span id="market-status-text">NSE: CHECKING...</span>
+      </div>
+    </div>
+
+    <div class="header-right">
+      <button class="btn btn-primary" id="btn-scan-now" onclick="triggerDailyScan()">
+        <span class="btn-icon">🔍</span> Search All Stocks Daily
+      </button>
+      <button class="btn btn-secondary" id="btn-audio-toggle" onclick="toggleAudio()" title="Toggle Alert Chime">
+        <span id="audio-icon">🔔</span> Audio Chimes: <span id="audio-status">ON</span>
+      </button>
+      <button class="btn btn-outline" onclick="openSettingsModal()" title="System Configuration">
+        <span>⚙️</span> Settings
+      </button>
+    </div>
+  </header>
+
+  <!-- Metric Summary Banner -->
+  <section class="metrics-bar">
+    <div class="metric-card">
+      <div class="metric-label">TOTAL NOTIFICATIONS</div>
+      <div class="metric-val" id="count-total">0</div>
+      <div class="metric-desc">Dispatched signals</div>
+    </div>
+    <div class="metric-card metric-buy">
+      <div class="metric-label">🟢 BUY NOTIFICATIONS</div>
+      <div class="metric-val text-buy" id="count-buy">0</div>
+      <div class="metric-desc">High confluence entries</div>
+    </div>
+    <div class="metric-card metric-sell">
+      <div class="metric-label">🔴 SELL NOTIFICATIONS</div>
+      <div class="metric-val text-sell" id="count-sell">0</div>
+      <div class="metric-desc">Take profit & stop exits</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">AI RESEARCH ENGINE</div>
+      <div class="metric-val text-cyan" id="ai-model-tag">Gemini Pro</div>
+      <div class="metric-desc">Deep web & market thesis</div>
+    </div>
+  </section>
+
+  <!-- Scanner Live Progress (Hidden when idle) -->
+  <div class="scan-progress-container" id="scan-progress-bar" style="display: none;">
+    <div class="scan-progress-info">
+      <span class="spinner-sm"></span>
+      <span id="scan-progress-text">Scanning all Indian stocks across internet & running Gemini Pro deep research...</span>
+    </div>
+    <div class="progress-track">
+      <div class="progress-bar-fill" id="progress-fill"></div>
+    </div>
+  </div>
+
+  <!-- Notification Feed Control Bar -->
+  <section class="feed-controls">
+    <div class="filter-tabs">
+      <button class="tab-btn active" data-filter="ALL" onclick="setFilter('ALL')">
+        All Notifications (<span id="tab-all-count">0</span>)
+      </button>
+      <button class="tab-btn tab-buy" data-filter="BUY" onclick="setFilter('BUY')">
+        🟢 BUY Only (<span id="tab-buy-count">0</span>)
+      </button>
+      <button class="tab-btn tab-sell" data-filter="SELL" onclick="setFilter('SELL')">
+        🔴 SELL Only (<span id="tab-sell-count">0</span>)
+      </button>
+    </div>
+
+    <div class="controls-right">
+      <label class="unread-toggle">
+        <input type="checkbox" id="unread-only-check" onchange="toggleUnreadOnly()">
+        <span>Unread Only</span>
+      </label>
+      <button class="btn btn-sm btn-outline" onclick="markAllAsRead()">Mark All Read</button>
+      <button class="btn btn-sm btn-ghost" onclick="clearAllNotifications()">Clear Feed</button>
+    </div>
+  </section>
+
+  <!-- Realtime Notification Stream Feed -->
+  <main class="notifications-container">
+    <div id="alerts-feed" class="alerts-grid">
+      <!-- Alert Cards injected dynamically via JS -->
+      <div class="empty-state" id="feed-loading">
+        <div class="spinner"></div>
+        <p>Loading real-time notifications...</p>
+      </div>
+    </div>
+  </main>
+
+  <!-- Deep Gemini Pro Research Modal -->
+  <div class="modal-backdrop" id="research-modal" style="display: none;" onclick="closeModalOnBackdrop(event, 'research-modal')">
+    <div class="modal-dialog research-dialog">
+      <div class="modal-header">
+        <div class="modal-title-wrap">
+          <span class="badge" id="modal-action-badge">BUY</span>
+          <h2 id="modal-stock-title">RELIANCE (NSE)</h2>
+          <span class="modal-price" id="modal-stock-price">₹1,196.20</span>
+        </div>
+        <button class="modal-close" onclick="closeModal('research-modal')">&times;</button>
+      </div>
+
+      <div class="modal-body" id="modal-research-content">
+        <!-- Injected dynamically -->
+      </div>
+      
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeModal('research-modal')">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Settings Modal -->
+  <div class="modal-backdrop" id="settings-modal" style="display: none;" onclick="closeModalOnBackdrop(event, 'settings-modal')">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h2>⚙️ Personal AI Stock Configuration</h2>
+        <button class="modal-close" onclick="closeModal('settings-modal')">&times;</button>
+      </div>
+
+      <div class="modal-body">
+        <div class="form-group">
+          <label for="gemini-key-input">Gemini API Key (Google AI Studio)</label>
+          <input type="password" id="gemini-key-input" placeholder="AIzaSy..." class="form-input">
+          <span class="form-hint">Used for deep equity research, catalysts discovery, and risk analysis.</span>
+        </div>
+
+        <div class="form-group">
+          <label for="gemini-model-select">Gemini Model</label>
+          <select id="gemini-model-select" class="form-input">
+            <option value="gemini-1.5-pro">Gemini 1.5 Pro (Recommended - Deep Institutional Research)</option>
+            <option value="gemini-2.5-flash">Gemini 2.5 Flash (Ultra-Fast)</option>
+            <option value="gemini-1.5-flash">Gemini 1.5 Flash (Standard)</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label>Test Real-time Notifications</label>
+          <div style="display: flex; gap: 8px;">
+            <button class="btn btn-buy-outline" onclick="sendTestSignal('BUY')">🟢 Test BUY Alert</button>
+            <button class="btn btn-sell-outline" onclick="sendTestSignal('SELL')">🔴 Test SELL Alert</button>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Android FCM Push Notification Status</label>
+          <div class="fcm-box" id="fcm-status-box">Checking Firebase FCM setup...</div>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeModal('settings-modal')">Cancel</button>
+        <button class="btn btn-primary" onclick="saveSettings()">Save Configuration</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Audio Chime Synthesizer Elements -->
+  <div id="toast-container" class="toast-container"></div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

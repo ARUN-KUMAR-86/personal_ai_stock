@@ -14,6 +14,9 @@ from app.models.signal import StockSignal
 from app.providers.factory import get_market_data_provider
 from app.strategies.registry import strategy_registry
 from app.notifications.notifier import notifier
+from app.analysis.narrative import AINarrativeGenerator
+
+narrative_generator = AINarrativeGenerator()
 
 
 class ScannerEngine:
@@ -164,31 +167,45 @@ class ScannerEngine:
                         db.commit()
                         db.refresh(signal)
 
-                        # 3. Notification dispatch for actionable signals
-                        if signal.signal_type in ("BUY WATCH", "SELL/EXIT WATCH"):
+                        # 3. Conduct Gemini Pro deep research & dispatch real-time BUY / SELL notification
+                        if signal.signal_type in ("BUY WATCH", "SELL/EXIT WATCH", "BUY", "SELL"):
                             signals_generated += 1
-                            account = db.query(BrokerAccount).filter(BrokerAccount.broker_name == "GROWW").first()
-                            
-                            is_active = account.is_trading_active if account else True
-                            if not is_active:
-                                logger.info(f"Market monitoring stopped in Trading Controls. Suppressing trade alert for {stock.symbol}.")
-                            elif not notifier.should_suppress_duplicate(db, stock.symbol, signal.signal_type):
-                                max_trade_val = account.max_amount_per_trade if account else 100.0
-                                qty = max(1, int(max_trade_val // signal.price)) if signal.price <= max_trade_val else 1
-                                action = "BUY" if "BUY" in signal.signal_type else "SELL"
-                                
-                                notifier.send_trade_alert(
+                            action = "BUY" if "BUY" in signal.signal_type.upper() else "SELL"
+
+                            # Institutional Gemini Pro Deep Research
+                            ai_thesis = None
+                            try:
+                                ai_thesis = narrative_generator.generate_thesis(
+                                    symbol=stock.symbol,
+                                    company_name=stock.name or stock.symbol,
+                                    exchange=stock.exchange,
+                                    signal_type="BUY WATCH" if action == "BUY" else "SELL/EXIT WATCH",
+                                    strategy_name=signal.strategy_name,
+                                    price=signal.price,
+                                    stop_loss=signal.stop_loss,
+                                    target=signal.target,
+                                    risk_reward=signal.risk_reward,
+                                    metrics=signal.indicator_summary or {},
+                                    financial_news=signal.financial_news,
+                                )
+                                signal.ai_thesis = ai_thesis
+                                db.commit()
+                            except Exception as ai_err:
+                                logger.warning(f"Gemini Pro research note for {stock.symbol}: {ai_err}")
+
+                            # Real-time notification dispatch (Strictly BUY or SELL only)
+                            if not notifier.should_suppress_duplicate(db, stock.symbol, action):
+                                notifier.send_buy_sell_alert(
                                     db=db,
                                     symbol=stock.symbol,
                                     exchange=stock.exchange,
                                     action=action,
                                     price=signal.price,
-                                    suggested_investment=max_trade_val,
-                                    estimated_quantity=qty,
-                                    reason=f"{signal.strategy_name}: {signal.explanation}",
-                                    risk_level=signal.priority or "Medium",
                                     stop_loss=signal.stop_loss,
                                     target=signal.target,
+                                    risk_reward=signal.risk_reward,
+                                    reason=f"{signal.strategy_name}: {signal.explanation}",
+                                    gemini_research=ai_thesis,
                                     signal_id=signal.id,
                                 )
 

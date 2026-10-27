@@ -1,12 +1,17 @@
 """Main FastAPI application entrypoint."""
 
+import os
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from fastapi import FastAPI, Request, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse, HTMLResponse
+from pydantic import BaseModel
+from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.logging import logger
-from app.database.session import init_db
+from app.database.session import init_db, get_db
 from app.scanner.scheduler import start_scheduler, shutdown_scheduler
 
 # Routers
@@ -77,15 +82,62 @@ app.include_router(watchlist_router, prefix=settings.API_V1_STR)
 app.include_router(trading_control_router, prefix=settings.API_V1_STR)
 
 
-@app.get("/")
-def root():
+# Mount Static Files & Web Dashboard
+static_dir = os.path.join(os.path.dirname(__file__), "static")
+if os.path.exists(static_dir):
+    app.mount("/static", StaticFiles(directory=static_dir), name="static")
+
+
+class SettingItem(BaseModel):
+    key: str
+    value: str
+
+
+@app.post(f"{settings.API_V1_STR}/settings")
+def update_setting(item: SettingItem, db: Session = Depends(get_db)):
+    """Updates runtime configuration settings (e.g. GEMINI_API_KEY)."""
+    from app.models.setting import AppSetting
+    record = db.query(AppSetting).filter(AppSetting.key == item.key).first()
+    if record:
+        record.value = item.value
+    else:
+        record = AppSetting(key=item.key, value=item.value)
+        db.add(record)
+    db.commit()
+    return {"status": "SUCCESS", "key": item.key}
+
+
+@app.get(f"{settings.API_V1_STR}/settings/{{key}}")
+def get_setting(key: str, db: Session = Depends(get_db)):
+    """Retrieves runtime configuration setting."""
+    from app.models.setting import AppSetting
+    record = db.query(AppSetting).filter(AppSetting.key == key).first()
+    if not record:
+        return {"key": key, "value": None}
+    return {"key": key, "value": record.value}
+
+
+@app.get("/", response_class=HTMLResponse)
+def root(request: Request):
+    accept = request.headers.get("accept", "")
+    index_file = os.path.join(static_dir, "index.html")
+    if "text/html" in accept and os.path.exists(index_file):
+        return FileResponse(index_file)
     return {
         "app": settings.APP_NAME,
         "version": "1.0.0",
         "docs_url": "/docs",
         "health_check": f"{settings.API_V1_STR}/health",
-        "market_status": f"{settings.API_V1_STR}/market-status",
+        "alerts_stream": f"{settings.API_V1_STR}/alerts/stream",
     }
+
+
+@app.get("/dashboard", response_class=HTMLResponse)
+def dashboard():
+    index_file = os.path.join(static_dir, "index.html")
+    if os.path.exists(index_file):
+        return FileResponse(index_file)
+    return HTMLResponse("<h1>AI Stock Intelligence Dashboard</h1>")
 
 
 @app.get("/health")

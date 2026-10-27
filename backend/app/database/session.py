@@ -114,6 +114,7 @@ def _migrate_sqlite_columns():
                 "risk_level": "VARCHAR(20) DEFAULT 'Medium'",
                 "stop_loss": "FLOAT",
                 "target": "FLOAT",
+                "gemini_research": "JSON",
                 "status": "VARCHAR(30) DEFAULT 'PENDING_APPROVAL'",
                 "responded_at": "DATETIME",
                 "order_id": "VARCHAR(64)",

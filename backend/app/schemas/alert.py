@@ -1,7 +1,7 @@
 """Alert schemas."""
 
 from datetime import datetime
-from typing import Optional
+from typing import Optional, Dict, Any
 from pydantic import BaseModel, ConfigDict
 
 
@@ -25,6 +25,7 @@ class AlertRead(BaseModel):
     risk_level: Optional[str] = "Medium"
     stop_loss: Optional[float] = None
     target: Optional[float] = None
+    gemini_research: Optional[Dict[str, Any]] = None
     status: Optional[str] = "PENDING_APPROVAL"
     responded_at: Optional[datetime] = None
     order_id: Optional[str] = None
