@@ -532,6 +532,16 @@ function closeModalOnBackdrop(event, modalId) {
 // Settings handlers
 async function loadSettings() {
   try {
+    const gRes = await fetch('/api/v1/settings/GEMINI_API_KEY');
+    if (gRes.ok) {
+      const gData = await gRes.json();
+      if (gData.value) {
+        document.getElementById('gemini-key-input').value = gData.value;
+      }
+    }
+  } catch (_) {}
+
+  try {
     const res = await fetch('/api/v1/alerts/test-push', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
