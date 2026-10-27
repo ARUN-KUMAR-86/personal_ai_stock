@@ -21,6 +21,7 @@ def _background_scan_task(symbols: list, exchange: str, force: bool):
 
 
 @router.post("/scan")
+@router.post("/run")
 def trigger_scan(
     request: ScanTriggerRequest,
     background_tasks: BackgroundTasks,

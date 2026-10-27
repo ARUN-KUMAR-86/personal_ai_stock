@@ -386,7 +386,7 @@ async function triggerDailyScan() {
 
   try {
     progressFill.style.width = '45%';
-    const res = await fetch('/api/v1/scanner/run', {
+    const res = await fetch('/api/v1/scanner/scan', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ force: true, exchange: 'NSE' })
