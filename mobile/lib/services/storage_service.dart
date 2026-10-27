@@ -30,16 +30,16 @@ class StorageService {
   static Future<String> getBaseUrl() async {
     final prefs = await SharedPreferences.getInstance();
     final saved = prefs.getString(keyBaseUrl);
-    // If the saved URL is empty or points to stale emulator or local IP,
-    // automatically default to the live cloud URL!
+    // Always prioritize the live cloud URL
     if (saved != null &&
         saved.trim().isNotEmpty &&
         !saved.contains('10.0.2.2') &&
-        !saved.contains('10.246.109.77') &&
-        !saved.contains('192.168.1.77')) {
+        !saved.contains('192.168.') &&
+        !saved.contains('localhost') &&
+        !saved.contains('127.0.0.1')) {
       return saved.trim();
     }
-    return defaultBaseUrl;
+    return cloudProductionUrl;
   }
 
   static Future<void> setBaseUrl(String url) async {
