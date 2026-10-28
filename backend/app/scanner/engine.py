@@ -152,7 +152,7 @@ class ScannerEngine:
                             timeframe="1d",
                             period="6mo",
                         )
-                        if df.empty or len(df) < 20:
+                        if df.empty or len(df) < 10:
                             failed_symbols.append({"symbol": stock.symbol, "error": "Insufficient bars"})
                             job.failed_stocks += 1
                             continue

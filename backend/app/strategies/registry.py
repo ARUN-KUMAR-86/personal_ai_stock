@@ -6,6 +6,7 @@ from app.strategies.highest_gain_maximizer import HighestGainMaximizerStrategy
 from app.strategies.momentum_breakout import MomentumBreakoutStrategy
 from app.strategies.mean_reversion import MeanReversionStrategy
 from app.strategies.macd_crossover import MacdCrossStrategy
+from app.strategies.predictive_ai_confluence import GeminiPredictiveAIStrategy
 
 
 class StrategyRegistry:
@@ -13,7 +14,8 @@ class StrategyRegistry:
 
     def __init__(self):
         self._strategies: Dict[str, BaseStrategy] = {}
-        # Register Highest Gain Maximizer as primary default algorithm
+        # Register Gemini Predictive AI and Highest Gain Maximizer as primary algorithms
+        self.register(GeminiPredictiveAIStrategy())
         self.register(HighestGainMaximizerStrategy())
         self.register(MomentumBreakoutStrategy())
         self.register(MeanReversionStrategy())

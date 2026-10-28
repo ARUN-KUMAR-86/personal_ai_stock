@@ -22,6 +22,8 @@ class BaseStrategy(ABC):
         exchange: str = "NSE",
         is_live: bool = False,
         is_delayed: bool = False,
+        skip_ai: bool = False,
+        **kwargs,
     ) -> StockSignal:
         """
         Evaluates the enriched OHLCV DataFrame and produces a StockSignal model.

@@ -56,6 +56,32 @@ def _scheduled_scan_job():
         db.close()
 
 
+def _scheduled_realtime_market_monitor_job():
+    """Worker function executed every 60 seconds for full-time 24/7 real-time market monitoring."""
+    logger.debug("Executing 24/7 real-time market monitoring tick...")
+    db = SessionLocal()
+    try:
+        from app.models.stock import Stock
+        from app.models.watchlist import WatchlistItem
+        from app.providers.factory import get_market_data_provider
+
+        provider = get_market_data_provider()
+        # Fetch symbols for watchlist & priority stocks
+        watch_symbols = [w.symbol for w in db.query(WatchlistItem).all()]
+        active_symbols = [s.symbol for s in db.query(Stock).filter(Stock.is_active == True).limit(20).all()]
+        all_syms = list(set(watch_symbols + active_symbols + ["JPL", "JIOFIN", "RELIANCE"]))
+
+        # Fast parallel bulk quotes refresh
+        provider.get_bulk_quotes(all_syms, exchange="NSE")
+
+        # Also trigger position monitor
+        PositionMonitor.check_and_update_positions(db=db)
+    except Exception as e:
+        logger.warning(f"Real-time monitoring tick note: {e}")
+    finally:
+        db.close()
+
+
 def _scheduled_position_monitor_job():
     """Worker function executed by APScheduler to monitor open positions against SL/TP/deadline."""
     db = SessionLocal()
@@ -174,6 +200,16 @@ def start_scheduler():
             replace_existing=True,
         )
         logger.info(f"Position monitor scheduled every {settings.POSITION_MONITOR_INTERVAL_SECONDS} seconds.")
+
+        # Full-time 24/7 real-time market monitor job
+        scheduler.add_job(
+            _scheduled_realtime_market_monitor_job,
+            trigger=IntervalTrigger(seconds=60),
+            id="realtime_fulltime_monitor",
+            name="24/7 Real-Time Market Monitor",
+            replace_existing=True,
+        )
+        logger.info("24/7 Real-Time Market Monitor scheduled every 60 seconds.")
 
         scheduler.start()
 

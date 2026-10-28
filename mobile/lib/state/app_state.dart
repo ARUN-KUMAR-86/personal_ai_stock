@@ -9,6 +9,7 @@ import '../models/funds.dart';
 import '../models/order.dart';
 import '../models/watchlist.dart';
 import '../models/trading_control.dart';
+import '../models/prediction.dart';
 import '../services/api_service.dart';
 import '../services/storage_service.dart';
 
@@ -67,6 +68,12 @@ class AppState extends ChangeNotifier {
   int scheduleIntervalMinutes = 15;
   bool isTogglingSchedule = false;
   bool isTradingToggling = false;
+
+  // Real-Time Gemini AI Predictions & Live Market Feed
+  List<StockPrediction> topPredictions = [];
+  Map<String, dynamic> liveQuotes = {};
+  bool isPredicting = false;
+  String? lastPredictedSymbol;
 
   AppState() {
     _initData();
@@ -210,6 +217,13 @@ class AppState extends ChangeNotifier {
       // Fetch Dedicated Trading Controls summary
       await refreshTradingControl();
 
+      // Fetch Gemini AI Top Predictions & Live Quotes
+      try {
+        topPredictions = await api.getTopPredictions(limit: 12);
+        final quotes = await api.getLiveQuotes();
+        if (quotes.isNotEmpty) liveQuotes = quotes;
+      } catch (_) {}
+
       // Check auto-selling on open positions!
       await checkAndExecuteAutoSell();
 
@@ -341,6 +355,80 @@ class AppState extends ChangeNotifier {
       growwStatus = await api.getGrowwStatus();
       notifyListeners();
     } catch (_) {}
+  }
+
+  // Gemini AI Stock Prediction & Dynamic Search Methods
+  Future<StockPrediction?> runGeminiPrediction(String symbol, {String timeframe = '1-DAY', String exchange = 'NSE'}) async {
+    isPredicting = true;
+    lastPredictedSymbol = symbol;
+    notifyListeners();
+    try {
+      final pred = await api.predictStock(symbol, timeframe: timeframe, exchange: exchange);
+      topPredictions.removeWhere((p) => p.symbol.toUpperCase() == symbol.toUpperCase());
+      topPredictions.insert(0, pred);
+      for (int i = 0; i < stocks.length; i++) {
+        if (stocks[i].symbol.toUpperCase() == symbol.toUpperCase()) {
+          final s = stocks[i];
+          stocks[i] = StockSummary(
+            symbol: s.symbol,
+            exchange: s.exchange,
+            name: s.name,
+            sector: s.sector,
+            latestPrice: pred.priceAtPrediction > 0 ? pred.priceAtPrediction : s.latestPrice,
+            latestTimestamp: DateTime.now(),
+            isLive: s.isLive,
+            latestSignal: pred.isBullish ? 'BUY WATCH' : (pred.isBearish ? 'SELL/EXIT WATCH' : 'HOLD'),
+            signalStrength: pred.confidenceScore,
+            explicitPriority: pred.isHighConfidence ? 'HIGH' : 'MEDIUM',
+            change: s.change,
+            percentChange: s.percentChange,
+            dayHigh: s.dayHigh,
+            dayLow: s.dayLow,
+            volume: s.volume,
+            predictedDirection: pred.predictedDirection,
+            predictedTarget: pred.targetPrice,
+            predictedConfidence: pred.confidenceScore,
+          );
+        }
+      }
+      return pred;
+    } catch (e) {
+      errorMessage = 'Prediction error: $e';
+      return null;
+    } finally {
+      isPredicting = false;
+      notifyListeners();
+    }
+  }
+
+  Future<StockPrediction?> getOrFetchPrediction(String symbol, {String timeframe = '1-DAY', String exchange = 'NSE'}) async {
+    final existing = topPredictions.where((p) => p.symbol.toUpperCase() == symbol.toUpperCase()).firstOrNull;
+    if (existing != null) return existing;
+    return await api.getStockPrediction(symbol, timeframe: timeframe, exchange: exchange);
+  }
+
+  Future<List<Map<String, dynamic>>> searchOnlineStocks(String query, {String exchange = 'NSE'}) async {
+    try {
+      return await api.searchStocks(query, exchange: exchange);
+    } catch (e) {
+      debugPrint('Search error: $e');
+      return [];
+    }
+  }
+
+  Future<bool> addStockToUniverse(String symbol, {String exchange = 'NSE', String? name, String? sector}) async {
+    try {
+      final added = await api.addStockToUniverse(symbol, exchange: exchange, name: name, sector: sector);
+      stocks.removeWhere((s) => s.symbol.toUpperCase() == symbol.toUpperCase());
+      stocks.insert(0, added);
+      runGeminiPrediction(symbol, exchange: exchange);
+      notifyListeners();
+      return true;
+    } catch (e) {
+      errorMessage = 'Could not add stock $symbol: $e';
+      notifyListeners();
+      return false;
+    }
   }
 
   Future<void> refreshTradingControl() async {

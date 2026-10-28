@@ -11,6 +11,7 @@ from app.models.user import User
 from app.models.order import Order
 from app.models.watchlist import WatchlistItem
 from app.models.setting import AppSetting
+from app.models.prediction import StockPrediction
 
 __all__ = [
     "Stock",
@@ -27,4 +28,5 @@ __all__ = [
     "Order",
     "WatchlistItem",
     "AppSetting",
+    "StockPrediction",
 ]

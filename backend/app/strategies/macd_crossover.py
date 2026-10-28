@@ -29,6 +29,8 @@ class MacdCrossStrategy(BaseStrategy):
         exchange: str = "NSE",
         is_live: bool = False,
         is_delayed: bool = False,
+        skip_ai: bool = False,
+        **kwargs,
     ) -> StockSignal:
         if len(df) < 35:
             return StockSignal(
@@ -110,6 +112,7 @@ class MacdCrossStrategy(BaseStrategy):
             target=target,
             risk_reward=rr_ratio,
             metrics=metrics,
+            force_deterministic=skip_ai,
         )
 
         final_explanation = thesis_data.get("investment_thesis") or explanation

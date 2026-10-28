@@ -115,7 +115,7 @@ class BacktestEngine:
 
                     # Strategy Exit signal
                     else:
-                        eval_signal = strategy.evaluate(window_df, symbol, request.exchange)
+                        eval_signal = strategy.evaluate(window_df, symbol, request.exchange, skip_ai=True)
                         if eval_signal.signal_type == "SELL/EXIT WATCH":
                             exit_price = round(current_price * (1.0 - request.slippage_pct / 100.0), 2)
                             pnl = round((exit_price - entry_price) * qty - request.brokerage_per_order * 2, 2)
@@ -141,7 +141,7 @@ class BacktestEngine:
 
                 else:
                     # Look for buy signals
-                    eval_signal = strategy.evaluate(window_df, symbol, request.exchange)
+                    eval_signal = strategy.evaluate(window_df, symbol, request.exchange, skip_ai=True)
                     if eval_signal.signal_type == "BUY WATCH" and cash > 5000:
                         entry_price = round(current_price * (1.0 + request.slippage_pct / 100.0), 2)
                         stop_loss = eval_signal.stop_loss or (entry_price * 0.98)

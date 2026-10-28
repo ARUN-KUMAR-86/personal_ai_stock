@@ -31,6 +31,8 @@ class HighestGainMaximizerStrategy(BaseStrategy):
         exchange: str = "NSE",
         is_live: bool = False,
         is_delayed: bool = False,
+        skip_ai: bool = False,
+        **kwargs,
     ) -> StockSignal:
         if len(df) < 30:
             return StockSignal(

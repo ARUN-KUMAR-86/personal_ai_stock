@@ -12,6 +12,9 @@ from app.schemas.candle import QuoteRead
 # Comprehensive High-Liquidity Universe of Top NSE Indian Stocks (Internet Daily Search Universe)
 NIFTY_50_UNIVERSE = [
     {"symbol": "RELIANCE", "name": "Reliance Industries Ltd", "exchange": "NSE", "sector": "Energy"},
+    {"symbol": "JPL", "name": "Jio Platforms Ltd", "exchange": "NSE", "sector": "Telecom & Digital Services"},
+    {"symbol": "JIOFIN", "name": "Jio Financial Services Ltd", "exchange": "NSE", "sector": "Financials"},
+    {"symbol": "ZOMATO", "name": "Zomato Ltd", "exchange": "NSE", "sector": "Consumer Services"},
     {"symbol": "TCS", "name": "Tata Consultancy Services Ltd", "exchange": "NSE", "sector": "Technology"},
     {"symbol": "HDFCBANK", "name": "HDFC Bank Ltd", "exchange": "NSE", "sector": "Financials"},
     {"symbol": "INFY", "name": "Infosys Ltd", "exchange": "NSE", "sector": "Technology"},
@@ -89,6 +92,8 @@ class YahooMarketDataProvider(BaseMarketDataProvider):
     def _format_ticker(self, symbol: str, exchange: str) -> str:
         """Appends appropriate exchange suffix for Yahoo Finance."""
         sym = symbol.strip().upper()
+        if sym == "JIO":
+            return "JPL.NS"
         if sym.endswith(".NS") or sym.endswith(".BO"):
             return sym
         if exchange.upper() in ("US", "NASDAQ", "NYSE", "GLOBAL"):
@@ -165,6 +170,80 @@ class YahooMarketDataProvider(BaseMarketDataProvider):
             logger.error(f"Error fetching quote for {ticker_sym}: {e}")
             raise MarketDataProviderError(f"Failed to fetch market quote for {symbol}: {str(e)}")
 
+    def get_bulk_quotes(self, symbols: List[str], exchange: str = "NSE") -> Dict[str, QuoteRead]:
+        """Fetches quotes for multiple symbols in parallel with caching."""
+        results: Dict[str, QuoteRead] = {}
+        now = datetime.now(timezone.utc)
+        to_fetch = []
+        for s in symbols:
+            ck = f"{s.upper()}:{exchange.upper()}"
+            if ck in self._quote_cache:
+                q, t = self._quote_cache[ck]
+                if now - t < timedelta(seconds=60):
+                    results[s.upper()] = q
+                    continue
+            to_fetch.append(s)
+
+        if to_fetch:
+            from concurrent.futures import ThreadPoolExecutor
+
+            def _fetch_one(sym: str):
+                try:
+                    return sym.upper(), self.get_quote(sym, exchange)
+                except Exception:
+                    return sym.upper(), None
+
+            with ThreadPoolExecutor(max_workers=min(12, max(len(to_fetch), 1))) as pool:
+                fetched = list(pool.map(_fetch_one, to_fetch))
+                for sym, q in fetched:
+                    if q:
+                        results[sym] = q
+
+        return results
+
+    def search_stocks(self, query: str, exchange: str = "NSE") -> List[Dict[str, Any]]:
+        """Dynamically searches predefined universe and internet/Yahoo Finance for stocks."""
+        q = query.strip().upper()
+        if not q:
+            return []
+        results = []
+        # 1. Match local predefined universe
+        universe = self.get_supported_universe(exchange)
+        for u in universe:
+            if q in u["symbol"].upper() or q in u["name"].upper():
+                results.append(dict(u))
+
+        # 2. Dynamic live search via Yahoo Finance (covers newly listed IPOs like JPL / Jio)
+        try:
+            search_obj = yf.Search(query, max_results=8)
+            for item in getattr(search_obj, "quotes", []):
+                sym = item.get("symbol", "")
+                if not sym:
+                    continue
+                name = item.get("longname") or item.get("shortname") or sym
+                if ".NS" in sym:
+                    exch = "NSE"
+                elif ".BO" in sym:
+                    exch = "BSE"
+                elif item.get("quoteType") == "EQUITY":
+                    exch = "US"
+                else:
+                    continue
+
+                clean_sym = sym.replace(".NS", "").replace(".BO", "")
+                sector = item.get("sector") or item.get("industry") or "General"
+                if not any(r["symbol"] == clean_sym and r["exchange"] == exch for r in results):
+                    results.append({
+                        "symbol": clean_sym,
+                        "name": name,
+                        "exchange": exch,
+                        "sector": sector,
+                    })
+        except Exception as e:
+            logger.warning(f"Yahoo dynamic search error for '{query}': {e}")
+
+        return results
+
     def get_historical_ohlcv(
         self,
         symbol: str,
@@ -181,6 +260,19 @@ class YahooMarketDataProvider(BaseMarketDataProvider):
                 hist = ticker.history(start=start.strftime("%Y-%m-%d"), end=end.strftime("%Y-%m-%d"), interval=timeframe)
             else:
                 hist = ticker.history(period=period, interval=timeframe)
+
+            # Robust Fallback for Newly Listed IPOs (like JPL / Jio) with < 20 daily bars
+            if (hist.empty or len(hist) < 20) and not (start and end):
+                try:
+                    hist_intra = ticker.history(period="5d", interval="15m")
+                    if not hist_intra.empty and len(hist_intra) >= len(hist):
+                        hist = hist_intra
+                    elif hist.empty:
+                        hist_5m = ticker.history(period="1d", interval="5m")
+                        if not hist_5m.empty:
+                            hist = hist_5m
+                except Exception as intra_e:
+                    logger.debug(f"Intraday fallback note for {ticker_sym}: {intra_e}")
 
             if hist.empty:
                 raise MarketDataProviderError(f"Historical data for {ticker_sym} is empty")

@@ -9,6 +9,7 @@ import '../models/funds.dart';
 import '../models/order.dart';
 import '../models/watchlist.dart';
 import '../models/trading_control.dart';
+import '../models/prediction.dart';
 import 'storage_service.dart';
 
 class ApiService {
@@ -871,5 +872,99 @@ class ApiService {
       return jsonDecode(res.body);
     }
     throw Exception('Failed to switch Groww account: ${res.body}');
+  }
+
+  // Gemini AI Stock Prediction & Dynamic Search Endpoints
+  Future<StockPrediction> predictStock(
+    String symbol, {
+    String timeframe = '1-DAY',
+    String exchange = 'NSE',
+  }) async {
+    final url = await _getUrl('/stocks/$symbol/predict?exchange=$exchange');
+    final headers = await _headers();
+    final res = await http.post(
+      Uri.parse(url),
+      headers: headers,
+      body: jsonEncode({
+        'symbol': symbol,
+        'exchange': exchange,
+        'time_horizon': timeframe,
+      }),
+    ).timeout(const Duration(seconds: 25));
+
+    if (res.statusCode == 200) {
+      return StockPrediction.fromJson(jsonDecode(res.body));
+    }
+    throw Exception('Prediction failed (${res.statusCode}): ${res.body}');
+  }
+
+  Future<StockPrediction?> getStockPrediction(
+    String symbol, {
+    String exchange = 'NSE',
+    String timeframe = '1-DAY',
+  }) async {
+    final url = await _getUrl('/stocks/$symbol/prediction?exchange=$exchange&time_horizon=$timeframe');
+    final res = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 20));
+    if (res.statusCode == 200) {
+      return StockPrediction.fromJson(jsonDecode(res.body));
+    }
+    return null;
+  }
+
+  Future<List<StockPrediction>> getTopPredictions({int limit = 10}) async {
+    final url = await _getUrl('/stocks/predictions/top?limit=$limit');
+    final res = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 8));
+    if (res.statusCode == 200) {
+      final List raw = jsonDecode(res.body);
+      return raw.map((item) => StockPrediction.fromJson(item)).toList();
+    }
+    return [];
+  }
+
+  Future<List<Map<String, dynamic>>> searchStocks(
+    String query, {
+    String exchange = 'NSE',
+  }) async {
+    final url = await _getUrl('/stocks/search?q=${Uri.encodeComponent(query)}&exchange=$exchange');
+    final res = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 10));
+    if (res.statusCode == 200) {
+      final List raw = jsonDecode(res.body);
+      return raw.cast<Map<String, dynamic>>();
+    }
+    return [];
+  }
+
+  Future<StockSummary> addStockToUniverse(
+    String symbol, {
+    String exchange = 'NSE',
+    String? name,
+    String? sector,
+  }) async {
+    final url = await _getUrl('/stocks/add');
+    final headers = await _headers();
+    final res = await http.post(
+      Uri.parse(url),
+      headers: headers,
+      body: jsonEncode({
+        'symbol': symbol,
+        'exchange': exchange,
+        'name': name,
+        'sector': sector,
+      }),
+    ).timeout(const Duration(seconds: 12));
+
+    if (res.statusCode == 200) {
+      return StockSummary.fromJson(jsonDecode(res.body));
+    }
+    throw Exception('Failed to add stock $symbol: ${res.body}');
+  }
+
+  Future<Map<String, dynamic>> getLiveQuotes({String exchange = 'NSE'}) async {
+    final url = await _getUrl('/stocks/live-quotes?exchange=$exchange');
+    final res = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 8));
+    if (res.statusCode == 200) {
+      return jsonDecode(res.body) as Map<String, dynamic>;
+    }
+    return {};
   }
 }

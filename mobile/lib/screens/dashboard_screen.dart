@@ -383,6 +383,9 @@ class DashboardScreen extends StatelessWidget {
             // Dedicated Trading Controls Card (Section 3)
             _buildTradingControlSummaryCard(context, state),
 
+            // Gemini Live AI Predictions Carousel & Real-Time Monitoring
+            _buildGeminiPredictionsSection(context, state),
+
             // 1. TOP PRIORITY: AI OPPORTUNITIES (Notification-First Hero)
             Container(
               margin: const EdgeInsets.only(bottom: 12),
@@ -1234,6 +1237,174 @@ class DashboardScreen extends StatelessWidget {
               ),
             ],
           ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildGeminiPredictionsSection(BuildContext context, AppState state) {
+    final preds = state.topPredictions;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFF161B26),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.purpleAccent.withOpacity(0.4), width: 1.2),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.purpleAccent.withOpacity(0.08),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(5),
+                    decoration: BoxDecoration(
+                      color: Colors.purpleAccent.withOpacity(0.2),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.auto_awesome, color: Colors.purpleAccent, size: 14),
+                  ),
+                  const SizedBox(width: 8),
+                  const Text(
+                    'GEMINI AI PREDICTIONS',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                ],
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: Colors.teal.withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: const Text(
+                  '⚡ 24/7 Full-Time Monitoring',
+                  style: TextStyle(color: Colors.tealAccent, fontSize: 10, fontWeight: FontWeight.bold),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          if (preds.isEmpty)
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: const Color(0xFF1E222D),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.smart_toy_outlined, color: Colors.purpleAccent, size: 20),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      'AI Predictive Engine is monitoring markets. Open any stock or Scanner to trigger Gemini predictions.',
+                      style: TextStyle(color: Colors.grey.shade400, fontSize: 11),
+                    ),
+                  ),
+                ],
+              ),
+            )
+          else
+            SizedBox(
+              height: 115,
+              child: ListView.builder(
+                scrollDirection: Axis.horizontal,
+                itemCount: preds.length,
+                itemBuilder: (ctx, i) {
+                  final p = preds[i];
+                  final isBull = p.isBullish;
+                  final color = isBull ? Colors.greenAccent : Colors.redAccent;
+                  final bg = isBull ? const Color(0xFF0F261B) : const Color(0xFF261016);
+
+                  return InkWell(
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => StockRecommendationScreen(symbol: p.symbol, exchange: p.exchange),
+                      ),
+                    ),
+                    borderRadius: BorderRadius.circular(10),
+                    child: Container(
+                      width: 175,
+                      margin: const EdgeInsets.only(right: 10),
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: bg,
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: color.withOpacity(0.5)),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                p.symbol,
+                                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+                              ),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                                decoration: BoxDecoration(
+                                  color: color.withOpacity(0.25),
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: Text(
+                                  isBull ? '↑ BUY' : '↓ SELL',
+                                  style: TextStyle(color: color, fontSize: 9, fontWeight: FontWeight.bold),
+                                ),
+                              ),
+                            ],
+                          ),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Target: ₹${p.targetPrice.toStringAsFixed(2)}',
+                                style: TextStyle(color: color, fontSize: 13, fontWeight: FontWeight.bold),
+                              ),
+                              Text(
+                                '${p.expectedGainPct >= 0 ? "+" : ""}${p.expectedGainPct.toStringAsFixed(1)}% expected',
+                                style: TextStyle(color: Colors.grey.shade400, fontSize: 10),
+                              ),
+                            ],
+                          ),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                '🎯 ${p.confidenceScore.toStringAsFixed(0)}% Conf.',
+                                style: const TextStyle(color: Colors.lightBlueAccent, fontSize: 10, fontWeight: FontWeight.w600),
+                              ),
+                              const Icon(Icons.arrow_forward_ios, color: Colors.grey, size: 10),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
         ],
       ),
     );

@@ -40,6 +40,22 @@ class BaseMarketDataProvider(ABC):
         """
         pass
 
+    def search_stocks(self, query: str, exchange: str = "NSE") -> List[Dict[str, Any]]:
+        """Searches available stocks matching the query."""
+        q = query.strip().upper()
+        universe = self.get_supported_universe(exchange)
+        return [s for s in universe if q in s["symbol"].upper() or q in s["name"].upper()]
+
+    def get_bulk_quotes(self, symbols: List[str], exchange: str = "NSE") -> Dict[str, QuoteRead]:
+        """Fetches quotes for multiple symbols."""
+        results = {}
+        for s in symbols:
+            try:
+                results[s.upper()] = self.get_quote(s, exchange)
+            except Exception:
+                pass
+        return results
+
     def get_market_status(self, exchange: str = "NSE") -> Dict[str, Any]:
         """
         Determines if the market is currently OPEN, CLOSED, or in PRE-MARKET.
