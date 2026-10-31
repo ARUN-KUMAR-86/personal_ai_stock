@@ -279,52 +279,11 @@ class PortfolioScreen extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
+                  const Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Text('TOTAL PORTFOLIO VALUE',
+                      Text('TOTAL PORTFOLIO VALUE',
                           style: TextStyle(color: Colors.grey, fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 0.5)),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                        decoration: BoxDecoration(
-                          color: (state.safetyStatus?.executionMode == 'GROWW_LIVE' && state.isGrowwConnected)
-                              ? Colors.green.withOpacity(0.15)
-                              : Colors.amber.withOpacity(0.15),
-                          borderRadius: BorderRadius.circular(6),
-                          border: Border.all(
-                            color: (state.safetyStatus?.executionMode == 'GROWW_LIVE' && state.isGrowwConnected)
-                                ? Colors.green.withOpacity(0.4)
-                                : Colors.amber.withOpacity(0.4),
-                          ),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              (state.safetyStatus?.executionMode == 'GROWW_LIVE' && state.isGrowwConnected)
-                                  ? Icons.verified
-                                  : Icons.science_outlined,
-                              size: 11,
-                              color: (state.safetyStatus?.executionMode == 'GROWW_LIVE' && state.isGrowwConnected)
-                                  ? Colors.greenAccent
-                                  : Colors.amberAccent,
-                            ),
-                            const SizedBox(width: 4),
-                            Text(
-                              (state.safetyStatus?.executionMode == 'GROWW_LIVE' && state.isGrowwConnected)
-                                  ? 'LIVE BROKER'
-                                  : 'PAPER TRADING (SIMULATED)',
-                              style: TextStyle(
-                                color: (state.safetyStatus?.executionMode == 'GROWW_LIVE' && state.isGrowwConnected)
-                                    ? Colors.greenAccent
-                                    : Colors.amberAccent,
-                                fontSize: 9,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
                     ],
                   ),
                   const SizedBox(height: 6),

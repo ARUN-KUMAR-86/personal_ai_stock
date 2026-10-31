@@ -592,7 +592,7 @@ class _StockRecommendationScreenState extends State<StockRecommendationScreen> {
                     const SizedBox(height: 12),
                   ],
 
-                  // Execution Mode & Broker Badge
+                  // Target Holding Horizon Badge
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                     decoration: BoxDecoration(
@@ -605,16 +605,10 @@ class _StockRecommendationScreenState extends State<StockRecommendationScreen> {
                       children: [
                         Row(
                           children: [
-                            Icon(
-                              prepared.mode == 'GROWW_LIVE' ? Icons.verified : Icons.science,
-                              color: prepared.mode == 'GROWW_LIVE' ? Colors.greenAccent : Colors.lightBlueAccent,
-                              size: 18,
-                            ),
+                            const Icon(Icons.schedule, color: Colors.blueAccent, size: 18),
                             const SizedBox(width: 8),
                             Text(
-                              prepared.mode == 'GROWW_LIVE'
-                                  ? 'Official Groww Trade API (Live)'
-                                  : 'Paper Trading Mode (Simulated)',
+                              prepared.holdingPeriodHours >= 168 ? 'Target Horizon: 30-Day Positional' : 'Target Horizon: 48h Swing',
                               style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600),
                             ),
                           ],
@@ -1823,60 +1817,12 @@ class _StockRecommendationScreenState extends State<StockRecommendationScreen> {
                     // 8. Clearly Labelled Manual BUY Button
                     Builder(
                       builder: (ctx) {
-                        final appState = ctx.watch<AppState>();
-                        final isGrowwConn = appState.isGrowwConnected;
                         final enteredAmount = double.tryParse(_amountController.text.replaceAll(',', '')) ?? 0.0;
                         final sharesCount = currentPrice > 0 ? (enteredAmount / currentPrice).floor() : 0;
                         final canBuy = sharesCount >= 1;
 
                         return Column(
                           children: [
-                            // Broker Mode Status Badge directly above BUY button
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                              margin: const EdgeInsets.only(bottom: 10),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFF1E222D),
-                                borderRadius: BorderRadius.circular(10),
-                                border: Border.all(
-                                  color: isGrowwConn ? Colors.teal.withOpacity(0.3) : Colors.white10,
-                                ),
-                              ),
-                              child: Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Row(
-                                    children: [
-                                      Icon(
-                                        isGrowwConn ? Icons.verified : Icons.science_outlined,
-                                        size: 16,
-                                        color: isGrowwConn ? Colors.greenAccent : Colors.lightBlueAccent,
-                                      ),
-                                      const SizedBox(width: 8),
-                                      Text(
-                                        isGrowwConn
-                                            ? 'Broker: Official Groww Trade API'
-                                            : 'Broker: Paper Trading Mode (Simulated)',
-                                        style: TextStyle(
-                                          color: isGrowwConn ? Colors.greenAccent : Colors.lightBlueAccent,
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.w600,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                  if (!isGrowwConn)
-                                    InkWell(
-                                      onTap: () => GrowwLoginDialog.show(context),
-                                      child: const Text(
-                                        'Log In to Groww →',
-                                        style: TextStyle(color: Colors.tealAccent, fontSize: 11, fontWeight: FontWeight.bold),
-                                      ),
-                                    ),
-                                ],
-                              ),
-                            ),
-
                             SizedBox(
                               width: double.infinity,
                               height: 54,
@@ -1900,7 +1846,7 @@ class _StockRecommendationScreenState extends State<StockRecommendationScreen> {
                             const SizedBox(height: 10),
                             const Center(
                               child: Text(
-                                'Mandatory manual buy approval • The AI never buys automatically • Verified Groww execution',
+                                'Mandatory manual buy approval • The AI never buys automatically',
                                 textAlign: TextAlign.center,
                                 style: TextStyle(color: Colors.grey, fontSize: 10),
                               ),

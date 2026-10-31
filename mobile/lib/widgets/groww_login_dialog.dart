@@ -22,7 +22,6 @@ class _GrowwLoginDialogState extends State<GrowwLoginDialog> {
   final _apiSecretController = TextEditingController();
   final _totpKeyController = TextEditingController();
   final _authTokenController = TextEditingController();
-  bool _enableLiveTrading = false;
   bool _isLoading = false;
   bool _obscureSecret = true;
   String? _statusMessage;
@@ -49,7 +48,7 @@ class _GrowwLoginDialogState extends State<GrowwLoginDialog> {
       apiSecret: _apiSecretController.text.trim(),
       totpKey: _totpKeyController.text.trim(),
       authToken: _authTokenController.text.trim(),
-      orderExecutionEnabled: _enableLiveTrading,
+      orderExecutionEnabled: false,
     );
 
     if (mounted) {
@@ -160,21 +159,6 @@ class _GrowwLoginDialogState extends State<GrowwLoginDialog> {
                           Text(
                             '₹${funds?.availableFunds.toStringAsFixed(2) ?? "1,00,000.00"}',
                             style: const TextStyle(color: Colors.greenAccent, fontSize: 16, fontWeight: FontWeight.bold),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 6),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          const Text('Execution Mode:', style: TextStyle(color: Colors.white70, fontSize: 12)),
-                          Text(
-                            state.safetyStatus?.executionMode ?? 'PAPER',
-                            style: TextStyle(
-                              color: state.safetyStatus?.executionMode == 'GROWW_LIVE' ? Colors.orangeAccent : Colors.lightBlueAccent,
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
-                            ),
                           ),
                         ],
                       ),
@@ -300,37 +284,6 @@ class _GrowwLoginDialogState extends State<GrowwLoginDialog> {
                     fillColor: const Color(0xFF131722),
                     contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                  ),
-                ),
-                const SizedBox(height: 12),
-
-                // Execution Mode Switch
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF131722),
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.white10),
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text('Enable Live Broker Orders', style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
-                          Text(
-                            _enableLiveTrading ? 'Real-money execution' : 'Simulated Paper Trading (Safe)',
-                            style: TextStyle(color: _enableLiveTrading ? Colors.amberAccent : Colors.lightBlueAccent, fontSize: 10),
-                          ),
-                        ],
-                      ),
-                      Switch(
-                        value: _enableLiveTrading,
-                        activeColor: Colors.tealAccent,
-                        onChanged: (val) => setState(() => _enableLiveTrading = val),
-                      ),
-                    ],
                   ),
                 ),
                 const SizedBox(height: 16),

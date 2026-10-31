@@ -18,7 +18,6 @@ class DashboardScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final state = context.watch<AppState>();
-    final isGrowwLive = state.safetyStatus?.executionMode == 'GROWW_LIVE' && state.isGrowwConnected;
 
     return Scaffold(
       backgroundColor: const Color(0xFF131722),
@@ -244,93 +243,7 @@ class DashboardScreen extends StatelessWidget {
                 ),
               ],
             ),
-
-            // Active Trading Execution Mode Banner
-            Container(
-              margin: const EdgeInsets.only(top: 12, bottom: 16),
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-              decoration: BoxDecoration(
-                color: isGrowwLive
-                    ? Colors.teal.shade900.withOpacity(0.35)
-                    : Colors.blueGrey.shade900.withOpacity(0.4),
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(
-                  color: isGrowwLive
-                      ? Colors.tealAccent.withOpacity(0.5)
-                      : Colors.lightBlueAccent.withOpacity(0.3),
-                ),
-              ),
-              child: Row(
-                children: [
-                  Icon(
-                    isGrowwLive ? Icons.verified_user : Icons.science_outlined,
-                    color: isGrowwLive ? Colors.tealAccent : Colors.lightBlueAccent,
-                    size: 20,
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Text(
-                              isGrowwLive ? 'GROWW LIVE TRADING' : 'PAPER TRADING (SAFE SANDBOX)',
-                              style: TextStyle(
-                                color: isGrowwLive ? Colors.tealAccent : Colors.lightBlueAccent,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 12,
-                                letterSpacing: 0.5,
-                              ),
-                            ),
-                            const SizedBox(width: 6),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-                              decoration: BoxDecoration(
-                                color: isGrowwLive
-                                    ? Colors.tealAccent.withOpacity(0.2)
-                                    : Colors.blue.withOpacity(0.2),
-                                borderRadius: BorderRadius.circular(4),
-                              ),
-                              child: Text(
-                                isGrowwLive ? 'LIVE' : 'SIMULATED',
-                                style: TextStyle(
-                                  color: isGrowwLive ? Colors.tealAccent : Colors.lightBlueAccent,
-                                  fontSize: 9,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          isGrowwLive
-                              ? 'Verified Groww Trade API active. Orders execute with real broker capital upon approval.'
-                              : 'Orders are fully simulated. Zero capital risk. Auto-risk controls active.',
-                          style: TextStyle(color: Colors.grey.shade400, fontSize: 11),
-                        ),
-                      ],
-                    ),
-                  ),
-                  TextButton(
-                    style: TextButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      visualDensity: VisualDensity.compact,
-                    ),
-                    onPressed: () => GrowwLoginDialog.show(context),
-                    child: Text(
-                      isGrowwLive ? 'Manage' : 'Switch Mode',
-                      style: const TextStyle(
-                        color: Colors.white70,
-                        fontSize: 11,
-                        decoration: TextDecoration.underline,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
+            const SizedBox(height: 16),
 
             // Pending Trade Alerts requiring owner approval (Section 4)
             if (state.pendingTradeAlerts.isNotEmpty) ...[

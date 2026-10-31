@@ -525,7 +525,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 _buildSystemStatRow('Live Monitoring', '24/7 Tick Active', Colors.green),
                 _buildSystemStatRow('Confluence Engine', 'Supertrend + ADX + BB + RSI', const Color(0xFF2563EB)),
                 _buildSystemStatRow('AI Model', 'Gemini Pro / Flash Confluence', Colors.teal),
-                _buildSystemStatRow('Execution Mode', 'Simulated Paper + Realtime FCM', Colors.amber.shade800),
               ],
             ),
           ),
