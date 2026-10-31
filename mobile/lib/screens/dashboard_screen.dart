@@ -1338,7 +1338,11 @@ class DashboardScreen extends StatelessWidget {
                     onTap: () => Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (_) => StockRecommendationScreen(symbol: p.symbol, exchange: p.exchange),
+                        builder: (_) => StockRecommendationScreen(
+                          symbol: p.symbol,
+                          exchange: p.exchange,
+                          initialHorizon: p.timeHorizon,
+                        ),
                       ),
                     ),
                     borderRadius: BorderRadius.circular(10),

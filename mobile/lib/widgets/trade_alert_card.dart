@@ -235,6 +235,7 @@ class TradeAlertCard extends StatelessWidget {
                       builder: (_) => StockRecommendationScreen(
                         symbol: alert.symbol,
                         exchange: alert.exchange,
+                        initialHorizon: alert.timeHorizon,
                       ),
                     ),
                   );

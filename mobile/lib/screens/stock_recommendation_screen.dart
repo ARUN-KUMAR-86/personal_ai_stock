@@ -14,12 +14,14 @@ class StockRecommendationScreen extends StatefulWidget {
   final String symbol;
   final String exchange;
   final StockSignal? initialSignal;
+  final String? initialHorizon;
 
   const StockRecommendationScreen({
     super.key,
     required this.symbol,
     this.exchange = 'NSE',
     this.initialSignal,
+    this.initialHorizon,
   });
 
   @override
@@ -35,6 +37,7 @@ class _StockRecommendationScreenState extends State<StockRecommendationScreen> {
   bool isPredictingLive = false;
   bool showAlgorithmDetails = true;
   String? error;
+  String _selectedHorizon = '1-DAY';
 
   // Investment Amount & Risk Input State
   final TextEditingController _amountController = TextEditingController(text: '5000');
@@ -51,13 +54,23 @@ class _StockRecommendationScreenState extends State<StockRecommendationScreen> {
   void initState() {
     super.initState();
     signal = widget.initialSignal;
+    if (widget.initialHorizon != null && widget.initialHorizon!.toUpperCase().contains('MONTH')) {
+      _selectedHorizon = '1-MONTH';
+      _holdingPeriodHours = 720;
+    } else if (signal != null && signal!.holdingPeriodHours >= 168) {
+      _selectedHorizon = '1-MONTH';
+      _holdingPeriodHours = 720;
+    } else {
+      _selectedHorizon = '1-DAY';
+      _holdingPeriodHours = signal?.holdingPeriodHours ?? 48;
+    }
+
     _stopLossController = TextEditingController(
       text: signal?.stopLoss?.toStringAsFixed(2) ?? '',
     );
     _targetController = TextEditingController(
       text: signal?.target?.toStringAsFixed(2) ?? '',
     );
-    _holdingPeriodHours = signal?.holdingPeriodHours ?? 48;
 
     _amountController.addListener(_onInputsChanged);
     _stopLossController.addListener(_onInputsChanged);
@@ -209,7 +222,11 @@ class _StockRecommendationScreenState extends State<StockRecommendationScreen> {
           ? Future.value(signal!)
           : api.getStockRecommendation(widget.symbol, exchange: widget.exchange);
       final candleFuture = api.getStockCandles(widget.symbol);
-      final predFuture = context.read<AppState>().getOrFetchPrediction(widget.symbol, exchange: widget.exchange);
+      final predFuture = context.read<AppState>().getOrFetchPrediction(
+        widget.symbol,
+        exchange: widget.exchange,
+        timeframe: _selectedHorizon,
+      );
 
       final results = await Future.wait([sigFuture, candleFuture, predFuture]);
       final fetchedSignal = results[0] as StockSignal;
@@ -225,7 +242,14 @@ class _StockRecommendationScreenState extends State<StockRecommendationScreen> {
         if (_targetController.text.isEmpty && (fetchedPred?.targetPrice != null || fetchedSignal.target != null)) {
           _targetController.text = (fetchedPred?.targetPrice ?? fetchedSignal.target!).toStringAsFixed(2);
         }
-        _holdingPeriodHours = fetchedSignal.holdingPeriodHours;
+        if (fetchedPred != null && fetchedPred.timeHorizon.toUpperCase().contains('MONTH')) {
+          _selectedHorizon = '1-MONTH';
+          _holdingPeriodHours = 720;
+        } else if (_selectedHorizon == '1-MONTH') {
+          _holdingPeriodHours = 720;
+        } else {
+          _holdingPeriodHours = fetchedSignal.holdingPeriodHours;
+        }
 
         // Ensure default amount is at least 1 or 2 shares
         final currentAmount = double.tryParse(_amountController.text.replaceAll(',', '')) ?? 0.0;
@@ -247,18 +271,85 @@ class _StockRecommendationScreenState extends State<StockRecommendationScreen> {
     }
   }
 
-  Future<void> _runGeminiPrediction() async {
-    setState(() => isPredictingLive = true);
+  Future<void> _switchHorizon(String newHorizon) async {
+    final isMonth = newHorizon.toUpperCase().contains('MONTH');
+    final curIsMonth = _selectedHorizon.toUpperCase().contains('MONTH');
+    if (isMonth == curIsMonth && prediction != null) {
+      return;
+    }
+
+    setState(() {
+      _selectedHorizon = newHorizon;
+      _holdingPeriodHours = isMonth ? 720 : 48;
+      isLoading = true;
+    });
+
     try {
-      final p = await context.read<AppState>().runGeminiPrediction(widget.symbol, exchange: widget.exchange);
+      var p = await context.read<AppState>().getOrFetchPrediction(
+        widget.symbol,
+        exchange: widget.exchange,
+        timeframe: newHorizon,
+      );
+
+      // If no cached prediction exists for this horizon, trigger Gemini AI generation directly
+      if (p == null && mounted) {
+        p = await context.read<AppState>().runGeminiPrediction(
+          widget.symbol,
+          exchange: widget.exchange,
+          timeframe: newHorizon,
+        );
+      }
+
       if (mounted) {
         setState(() {
           prediction = p;
+          isLoading = false;
+          if (p != null) {
+            _targetController.text = p.targetPrice.toStringAsFixed(2);
+            if (p.stopLoss != null) {
+              _stopLossController.text = p.stopLoss!.toStringAsFixed(2);
+            }
+          } else if (signal != null) {
+            if (isMonth) {
+              _targetController.text = (signal!.price * 1.18).toStringAsFixed(2);
+              _stopLossController.text = (signal!.price * 0.94).toStringAsFixed(2);
+            } else {
+              _targetController.text = (signal!.target ?? signal!.price * 1.05).toStringAsFixed(2);
+              _stopLossController.text = (signal!.stopLoss ?? signal!.price * 0.98).toStringAsFixed(2);
+            }
+          }
+        });
+        _updateInstantClientCalculation();
+        _recalculateMetrics();
+      }
+    } catch (_) {
+      if (mounted) setState(() => isLoading = false);
+    }
+  }
+
+  Future<void> _runGeminiPrediction({String? horizon}) async {
+    final targetHorizon = horizon ?? _selectedHorizon;
+    setState(() => isPredictingLive = true);
+    try {
+      final p = await context.read<AppState>().runGeminiPrediction(
+        widget.symbol,
+        exchange: widget.exchange,
+        timeframe: targetHorizon,
+      );
+      if (mounted) {
+        setState(() {
+          prediction = p;
+          _selectedHorizon = targetHorizon;
           isPredictingLive = false;
           if (p != null) {
             _targetController.text = p.targetPrice.toStringAsFixed(2);
             if (p.stopLoss != null) {
               _stopLossController.text = p.stopLoss!.toStringAsFixed(2);
+            }
+            if (targetHorizon.contains('MONTH')) {
+              _holdingPeriodHours = 720;
+            } else {
+              _holdingPeriodHours = 48;
             }
           }
         });
@@ -266,7 +357,7 @@ class _StockRecommendationScreenState extends State<StockRecommendationScreen> {
         _recalculateMetrics();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('✨ Gemini predicted: ${p?.predictedDirection ?? 'Setup'} target ₹${p?.targetPrice.toStringAsFixed(2)} (${p?.confidenceScore.toStringAsFixed(0)}% confidence)!'),
+            content: Text('✨ Gemini ($targetHorizon) predicted: ${p?.predictedDirection ?? 'Setup'} target ₹${p?.targetPrice.toStringAsFixed(2)} (${p?.confidenceScore.toStringAsFixed(0)}% confidence)!'),
             backgroundColor: Colors.teal,
             duration: const Duration(seconds: 3),
           ),
@@ -276,7 +367,10 @@ class _StockRecommendationScreenState extends State<StockRecommendationScreen> {
       if (mounted) {
         setState(() => isPredictingLive = false);
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Prediction error: $e'), backgroundColor: Colors.redAccent),
+          SnackBar(
+            content: Text('Prediction error: $e'),
+            backgroundColor: Colors.redAccent,
+          ),
         );
       }
     }
@@ -1590,44 +1684,87 @@ class _StockRecommendationScreenState extends State<StockRecommendationScreen> {
                               const SizedBox(height: 14),
 
                               // Holding Period Selector
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  const Text('Max Holding Period:', style: TextStyle(color: Colors.white70, fontSize: 12)),
                                   Row(
+                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                     children: [
-                                      ChoiceChip(
-                                        label: const Text('24 Hours'),
-                                        selected: _holdingPeriodHours == 24,
-                                        selectedColor: Colors.blueAccent.withOpacity(0.3),
-                                        labelStyle: TextStyle(
-                                          color: _holdingPeriodHours == 24 ? Colors.blueAccent : Colors.grey,
+                                      const Text('Max Holding Period:', style: TextStyle(color: Colors.white70, fontSize: 12)),
+                                      Text(
+                                        _holdingPeriodHours >= 168 ? '30 Days (Positional)' : '$_holdingPeriodHours Hours (Swing)',
+                                        style: TextStyle(
+                                          color: _holdingPeriodHours >= 168 ? Colors.purpleAccent : Colors.blueAccent,
                                           fontSize: 11,
+                                          fontWeight: FontWeight.bold,
                                         ),
-                                        onSelected: (val) {
-                                          if (val) {
-                                            setState(() => _holdingPeriodHours = 24);
-                                            _recalculateMetrics();
-                                          }
-                                        },
-                                      ),
-                                      const SizedBox(width: 8),
-                                      ChoiceChip(
-                                        label: const Text('48 Hours'),
-                                        selected: _holdingPeriodHours == 48,
-                                        selectedColor: Colors.blueAccent.withOpacity(0.3),
-                                        labelStyle: TextStyle(
-                                          color: _holdingPeriodHours == 48 ? Colors.blueAccent : Colors.grey,
-                                          fontSize: 11,
-                                        ),
-                                        onSelected: (val) {
-                                          if (val) {
-                                            setState(() => _holdingPeriodHours = 48);
-                                            _recalculateMetrics();
-                                          }
-                                        },
                                       ),
                                     ],
+                                  ),
+                                  const SizedBox(height: 6),
+                                  SingleChildScrollView(
+                                    scrollDirection: Axis.horizontal,
+                                    child: Row(
+                                      children: [
+                                        ChoiceChip(
+                                          label: const Text('24 Hours'),
+                                          selected: _holdingPeriodHours == 24,
+                                          selectedColor: Colors.blueAccent.withOpacity(0.3),
+                                          labelStyle: TextStyle(
+                                            color: _holdingPeriodHours == 24 ? Colors.blueAccent : Colors.grey,
+                                            fontSize: 11,
+                                          ),
+                                          onSelected: (val) {
+                                            if (val) {
+                                              setState(() {
+                                                _holdingPeriodHours = 24;
+                                                _selectedHorizon = '1-DAY';
+                                              });
+                                              _recalculateMetrics();
+                                            }
+                                          },
+                                        ),
+                                        const SizedBox(width: 8),
+                                        ChoiceChip(
+                                          label: const Text('48 Hours'),
+                                          selected: _holdingPeriodHours == 48,
+                                          selectedColor: Colors.blueAccent.withOpacity(0.3),
+                                          labelStyle: TextStyle(
+                                            color: _holdingPeriodHours == 48 ? Colors.blueAccent : Colors.grey,
+                                            fontSize: 11,
+                                          ),
+                                          onSelected: (val) {
+                                            if (val) {
+                                              setState(() {
+                                                _holdingPeriodHours = 48;
+                                                _selectedHorizon = '1-DAY';
+                                              });
+                                              _recalculateMetrics();
+                                            }
+                                          },
+                                        ),
+                                        const SizedBox(width: 8),
+                                        ChoiceChip(
+                                          label: const Text('30 Days (1-Month)'),
+                                          selected: _holdingPeriodHours >= 168,
+                                          selectedColor: Colors.purpleAccent.withOpacity(0.3),
+                                          labelStyle: TextStyle(
+                                            color: _holdingPeriodHours >= 168 ? Colors.purpleAccent : Colors.grey,
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                          onSelected: (val) {
+                                            if (val) {
+                                              setState(() {
+                                                _holdingPeriodHours = 720;
+                                                _selectedHorizon = '1-MONTH';
+                                              });
+                                              _recalculateMetrics();
+                                            }
+                                          },
+                                        ),
+                                      ],
+                                    ),
                                   ),
                                 ],
                               ),
@@ -2008,7 +2145,7 @@ class _StockRecommendationScreenState extends State<StockRecommendationScreen> {
                   visualDensity: VisualDensity.compact,
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                 ),
-                onPressed: isPredictingLive ? null : _runGeminiPrediction,
+                onPressed: isPredictingLive ? null : () => _runGeminiPrediction(),
                 icon: isPredictingLive
                     ? const SizedBox(
                         width: 12,
@@ -2022,6 +2159,92 @@ class _StockRecommendationScreenState extends State<StockRecommendationScreen> {
                 ),
               ),
             ],
+          ),
+          const SizedBox(height: 14),
+
+          // Interactive Time Horizon Toggle (1-DAY Swing vs 1-MONTH Positional)
+          Container(
+            padding: const EdgeInsets.all(3),
+            decoration: BoxDecoration(
+              color: const Color(0xFF0D111A),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: Colors.purpleAccent.withOpacity(0.35)),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: InkWell(
+                    onTap: () => _switchHorizon('1-DAY'),
+                    borderRadius: BorderRadius.circular(8),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      decoration: BoxDecoration(
+                        color: !_selectedHorizon.toUpperCase().contains('MONTH')
+                            ? Colors.purpleAccent.shade700
+                            : Colors.transparent,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      alignment: Alignment.center,
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.bolt,
+                            size: 14,
+                            color: !_selectedHorizon.toUpperCase().contains('MONTH') ? Colors.white : Colors.grey,
+                          ),
+                          const SizedBox(width: 5),
+                          Text(
+                            '1-DAY Swing',
+                            style: TextStyle(
+                              color: !_selectedHorizon.toUpperCase().contains('MONTH') ? Colors.white : Colors.grey,
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 4),
+                Expanded(
+                  child: InkWell(
+                    onTap: () => _switchHorizon('1-MONTH'),
+                    borderRadius: BorderRadius.circular(8),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      decoration: BoxDecoration(
+                        color: _selectedHorizon.toUpperCase().contains('MONTH')
+                            ? Colors.purpleAccent.shade700
+                            : Colors.transparent,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      alignment: Alignment.center,
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.calendar_month,
+                            size: 14,
+                            color: _selectedHorizon.toUpperCase().contains('MONTH') ? Colors.white : Colors.grey,
+                          ),
+                          const SizedBox(width: 5),
+                          Text(
+                            '1-MONTH Positional',
+                            style: TextStyle(
+                              color: _selectedHorizon.toUpperCase().contains('MONTH') ? Colors.white : Colors.grey,
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
           const SizedBox(height: 14),
 
@@ -2099,13 +2322,23 @@ class _StockRecommendationScreenState extends State<StockRecommendationScreen> {
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                           decoration: BoxDecoration(
-                            color: const Color(0xFF1E222D),
+                            color: _selectedHorizon.toUpperCase().contains('MONTH')
+                                ? Colors.purple.shade900.withOpacity(0.5)
+                                : const Color(0xFF1E222D),
                             borderRadius: BorderRadius.circular(6),
-                            border: Border.all(color: Colors.white12),
+                            border: Border.all(
+                              color: _selectedHorizon.toUpperCase().contains('MONTH')
+                                  ? Colors.purpleAccent.withOpacity(0.6)
+                                  : Colors.white12,
+                            ),
                           ),
                           child: Text(
-                            pred?.timeHorizon ?? '1-DAY (Swing)',
-                            style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600),
+                            pred?.timeHorizon ?? (_selectedHorizon.toUpperCase().contains('MONTH') ? '1-MONTH (Positional)' : '1-DAY (Swing)'),
+                            style: TextStyle(
+                              color: _selectedHorizon.toUpperCase().contains('MONTH') ? Colors.purpleAccent.shade100 : Colors.white,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
                         ),
                       ],

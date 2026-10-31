@@ -414,7 +414,11 @@ class AppState extends ChangeNotifier {
     notifyListeners();
     try {
       final pred = await api.predictStock(symbol, timeframe: timeframe, exchange: exchange);
-      topPredictions.removeWhere((p) => p.symbol.toUpperCase() == symbol.toUpperCase());
+      final isMonth = timeframe.toUpperCase().contains('MONTH');
+      topPredictions.removeWhere((p) =>
+        p.symbol.toUpperCase() == symbol.toUpperCase() &&
+        (isMonth ? p.timeHorizon.toUpperCase().contains('MONTH') : !p.timeHorizon.toUpperCase().contains('MONTH'))
+      );
       topPredictions.insert(0, pred);
       for (int i = 0; i < stocks.length; i++) {
         if (stocks[i].symbol.toUpperCase() == symbol.toUpperCase()) {
@@ -452,7 +456,11 @@ class AppState extends ChangeNotifier {
   }
 
   Future<StockPrediction?> getOrFetchPrediction(String symbol, {String timeframe = '1-DAY', String exchange = 'NSE'}) async {
-    final existing = topPredictions.where((p) => p.symbol.toUpperCase() == symbol.toUpperCase()).firstOrNull;
+    final isMonth = timeframe.toUpperCase().contains('MONTH');
+    final existing = topPredictions.where((p) =>
+      p.symbol.toUpperCase() == symbol.toUpperCase() &&
+      (isMonth ? p.timeHorizon.toUpperCase().contains('MONTH') : !p.timeHorizon.toUpperCase().contains('MONTH'))
+    ).firstOrNull;
     if (existing != null) return existing;
     return await api.getStockPrediction(symbol, timeframe: timeframe, exchange: exchange);
   }

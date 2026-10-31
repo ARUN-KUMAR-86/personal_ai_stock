@@ -307,7 +307,8 @@ def predict_stock(
     """
     sym = symbol.upper().strip()
     ex = (req.exchange if req else exchange).upper()
-    horizon = (req.time_horizon if req else "1-DAY").upper()
+    horizon_raw = (req.time_horizon if req else "1-DAY").upper()
+    horizon = "1-MONTH" if "MONTH" in horizon_raw else "1-DAY"
 
     stock = db.query(Stock).filter(Stock.symbol == sym, Stock.exchange == ex).first()
     comp_name = stock.name if stock else sym
@@ -362,18 +363,30 @@ def get_stock_prediction(
     """Retrieves the latest AI stock prediction or generates a new one on-demand."""
     sym = symbol.upper().strip()
     ex = exchange.upper()
+    is_month = "MONTH" in time_horizon.upper()
+    horizon_clean = "1-MONTH" if is_month else "1-DAY"
+    horizon_pattern = "%MONTH%" if is_month else "%1-DAY%"
 
     latest = (
         db.query(StockPrediction)
-        .filter(StockPrediction.symbol == sym, StockPrediction.exchange == ex)
+        .filter(
+            StockPrediction.symbol == sym,
+            StockPrediction.exchange == ex,
+            StockPrediction.time_horizon.like(horizon_pattern),
+        )
         .order_by(StockPrediction.created_at.desc())
         .first()
     )
     if latest:
         return latest
 
-    # If none exists yet, generate one right away
-    return predict_stock(symbol=sym, exchange=ex, req=PredictionRequest(symbol=sym, exchange=ex, time_horizon=time_horizon), db=db)
+    # If none exists yet, generate one right away for the requested horizon
+    return predict_stock(
+        symbol=sym,
+        exchange=ex,
+        req=PredictionRequest(symbol=sym, exchange=ex, time_horizon=horizon_clean),
+        db=db,
+    )
 
 
 @router.get("/predictions/top", response_model=List[PredictionRead])

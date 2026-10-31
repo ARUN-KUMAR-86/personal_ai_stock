@@ -20,15 +20,12 @@ class GeminiStockPredictor:
     """Institutional-grade AI stock price predictor powered by Google Gemini and quantitative confluence."""
 
     def __init__(self):
-        self.default_model = "gemini-2.5-flash"
+        self.default_model = "gemini-3.5-flash"
         self.models_to_try = [
-            "gemini-2.5-flash",
-            "gemini-1.5-pro",
-            "gemini-2.5-pro",
             "gemini-3.5-flash",
+            "gemini-3.5-flash-lite",
             "gemini-flash-latest",
             "gemini-3.8-flash",
-            "gemini-3.5-flash-lite",
             "gemini-pro-latest",
         ]
 
@@ -100,82 +97,151 @@ class GeminiStockPredictor:
         upper_wick_ratio = float(metrics.get("upper_wick_ratio") or 0.0)
 
         # 3. Deterministic Algorithmic Scoring (Confluence Engine - Institutional Accuracy)
+        is_month = "MONTH" in str(time_horizon).upper()
+        horizon_clean = "1-MONTH" if is_month else "1-DAY"
+        horizon_display = "1-MONTH (Positional 30 Days)" if is_month else "1-DAY (Swing 24-48h)"
+
         score = 50.0
-        # Trend Confluence (Moving Averages)
-        if price >= ema_21 and ema_21 >= ema_50:
-            score += 15.0
-        elif price <= ema_21 and ema_21 <= ema_50:
-            score -= 15.0
 
-        # Supertrend Confluence
-        if supertrend_dir == 1 and price >= supertrend:
-            score += 15.0
-        elif supertrend_dir == -1 and price <= supertrend:
-            score -= 15.0
+        if is_month:
+            # 1-MONTH Long-Term / Positional Confluence:
+            # Multi-week Trend (50-SMA & 200-SMA Golden Alignment)
+            if price >= sma_50 and sma_50 >= sma_200:
+                score += 25.0
+            elif price < sma_200:
+                score -= 25.0
+            elif price >= sma_50:
+                score += 15.0
 
-        # Momentum Confluence (RSI Sweet Spot)
-        if 54.0 <= rsi <= 70.0:
-            score += 15.0
-        elif rsi < 40.0:
-            score -= 15.0
-        elif rsi > 74.0:
-            score -= 10.0  # Overbought pullback risk
+            # Supertrend Trend Filter
+            if supertrend_dir == 1 and price >= supertrend:
+                score += 15.0
+            elif supertrend_dir == -1:
+                score -= 15.0
 
-        # Trend Strength via ADX
-        if adx >= 22.0 and plus_di > minus_di:
-            score += 10.0
-        elif adx < 18.0:
-            score -= 10.0  # Choppy sideways chop penalty
+            # ADX Trend Sustainability
+            if adx >= 22.0 and plus_di >= minus_di:
+                score += 15.0
+            elif adx < 18.0:
+                score -= 10.0
 
-        # Volume Flow
-        if rvol >= 1.3:
-            score += 15.0
-        elif rvol < 0.7:
-            score -= 10.0
+            # RSI Positional Momentum (Accumulation zone 48-68)
+            if 48.0 <= rsi <= 68.0:
+                score += 15.0
+            elif rsi < 38.0:
+                score -= 15.0
+            elif rsi > 74.0:
+                score -= 10.0
 
-        # Breakout proximity & Trap Detection
-        if price >= 0.98 * swing_high:
-            if upper_wick_ratio > 0.40:
-                score -= 15.0  # False breakout rejection trap!
-            else:
+            # Volume expansion
+            if rvol >= 1.2:
                 score += 10.0
 
-        confidence = round(min(max(score, 20.0), 96.0), 1)
+            confidence = round(min(max(score, 20.0), 96.0), 1)
 
-        # Baseline directional projection
-        if confidence >= 72.0:
-            direction = "BULLISH"
-            action = "STRONG BUY" if confidence >= 82.0 else "BUY"
-            mult = 3.5 if time_horizon == "1-DAY" else 5.5
-            target = round(price + max(mult * atr, price * 0.04), 2)
-            # Anchor stop-loss to Supertrend or 1.25x ATR
-            sl_candidate = max(price - (1.25 * atr), 0.5)
-            if supertrend_dir == 1 and supertrend < price:
-                stop_loss = round(max(sl_candidate, supertrend * 0.995), 2)
+            # Positional target (+12% to +25%) and trailing structural stop-loss
+            if confidence >= 68.0:
+                direction = "BULLISH"
+                action = "STRONG BUY" if confidence >= 80.0 else "BUY"
+                target = round(price + max(5.5 * atr, price * 0.15), 2)
+                stop_loss = round(max(price - (2.2 * atr), sma_50 * 0.96, 0.5), 2)
+            elif confidence <= 40.0:
+                direction = "BEARISH"
+                action = "STRONG SELL" if confidence <= 28.0 else "SELL"
+                target = round(max(price - max(4.0 * atr, price * 0.12), 0.5), 2)
+                stop_loss = round(price + (2.0 * atr), 2)
             else:
-                stop_loss = round(sl_candidate, 2)
-        elif confidence <= 38.0:
-            direction = "BEARISH"
-            action = "STRONG SELL" if confidence <= 28.0 else "SELL"
-            mult = 2.5 if time_horizon == "1-DAY" else 4.0
-            target = round(max(price - (mult * atr), 0.5), 2)
-            stop_loss = round(price + (1.25 * atr), 2)
+                direction = "NEUTRAL"
+                action = "HOLD"
+                target = round(price + (2.5 * atr), 2)
+                stop_loss = round(max(price - (2.0 * atr), 0.5), 2)
+
+            gain_pct = round(((target - price) / price) * 100, 2)
+
+            working_algo_text = (
+                f"1. Structural Trend Baseline (1-Month): Price ₹{price:.2f} evaluated vs 50-SMA (₹{sma_50:.2f}) and 200-SMA (₹{sma_200:.2f}). "
+                f"{'Institutional Golden Cross / structural bull trend confirmed' if price >= sma_50 and sma_50 >= sma_200 else 'Consolidation / structural baseline testing'}.\n"
+                f"2. Supertrend Trend Filter: Supertrend is {'BULLISH (₹' + str(round(supertrend, 2)) + ')' if supertrend_dir == 1 else 'BEARISH'}.\n"
+                f"3. Positional Momentum & ADX: ADX is {adx:.1f} ({'Strong sustainable trend' if adx >= 22 else 'Rangebound'}), RSI is {rsi:.1f}.\n"
+                f"4. Institutional Accumulation: Relative Volume is {rvol:.2f}x average daily volume.\n"
+                f"5. 1-Month Positional Forecast: Confluence score of {confidence}% outputs {direction} ({action}) targeting ₹{target:.2f} (+{gain_pct}%) with 30-day invalidation stop cut at ₹{stop_loss:.2f}."
+            )
         else:
-            direction = "NEUTRAL"
-            action = "HOLD"
-            target = round(price + (1.5 * atr), 2)
-            stop_loss = round(max(price - (1.5 * atr), 0.5), 2)
+            # 1-DAY Intraday / Short-Term Swing Confluence:
+            # Trend Confluence (Moving Averages)
+            if price >= ema_21 and ema_21 >= ema_50:
+                score += 15.0
+            elif price <= ema_21 and ema_21 <= ema_50:
+                score -= 15.0
 
-        gain_pct = round(((target - price) / price) * 100, 2)
+            # Supertrend Confluence
+            if supertrend_dir == 1 and price >= supertrend:
+                score += 15.0
+            elif supertrend_dir == -1 and price <= supertrend:
+                score -= 15.0
 
-        working_algo_text = (
-            f"1. Trend Confluence: Price ₹{price:.2f} evaluated vs 21-EMA (₹{ema_21:.2f}) & 50-EMA (₹{ema_50:.2f}). "
-            f"{'Bullish alignment confirmed' if price >= ema_21 else 'Consolidation / below moving averages'}.\n"
-            f"2. Momentum & Velocity: RSI (14) is {rsi:.1f} ({'Optimal bullish velocity zone' if 50 <= rsi <= 72 else 'Neutral/Oversold'}).\n"
-            f"3. Institutional Volume Flow: Relative Volume (RVOL) is {rvol:.2f}x average daily volume.\n"
-            f"4. Volatility & Channel Range: 14-Day ATR is ₹{atr:.2f} (±{round((atr/price)*100, 1)}% daily band). 20-Day Range: ₹{swing_low:.2f} - ₹{swing_high:.2f}.\n"
-            f"5. Algorithmic Projection: Confluence confidence score of {confidence}% outputs {direction} ({action}) targeting ₹{target:.2f} with risk cut at ₹{stop_loss:.2f}."
-        )
+            # Momentum Confluence (RSI Sweet Spot)
+            if 54.0 <= rsi <= 70.0:
+                score += 15.0
+            elif rsi < 40.0:
+                score -= 15.0
+            elif rsi > 74.0:
+                score -= 10.0  # Overbought pullback risk
+
+            # Trend Strength via ADX
+            if adx >= 22.0 and plus_di > minus_di:
+                score += 10.0
+            elif adx < 18.0:
+                score -= 10.0  # Choppy sideways chop penalty
+
+            # Volume Flow
+            if rvol >= 1.3:
+                score += 15.0
+            elif rvol < 0.7:
+                score -= 10.0
+
+            # Breakout proximity & Trap Detection
+            if price >= 0.98 * swing_high:
+                if upper_wick_ratio > 0.40:
+                    score -= 15.0  # False breakout rejection trap!
+                else:
+                    score += 10.0
+
+            confidence = round(min(max(score, 20.0), 96.0), 1)
+
+            # Baseline directional projection
+            if confidence >= 72.0:
+                direction = "BULLISH"
+                action = "STRONG BUY" if confidence >= 82.0 else "BUY"
+                mult = 3.5
+                target = round(price + max(mult * atr, price * 0.04), 2)
+                sl_candidate = max(price - (1.25 * atr), 0.5)
+                if supertrend_dir == 1 and supertrend < price:
+                    stop_loss = round(max(sl_candidate, supertrend * 0.995), 2)
+                else:
+                    stop_loss = round(sl_candidate, 2)
+            elif confidence <= 38.0:
+                direction = "BEARISH"
+                action = "STRONG SELL" if confidence <= 28.0 else "SELL"
+                mult = 2.5
+                target = round(max(price - (mult * atr), 0.5), 2)
+                stop_loss = round(price + (1.25 * atr), 2)
+            else:
+                direction = "NEUTRAL"
+                action = "HOLD"
+                target = round(price + (1.5 * atr), 2)
+                stop_loss = round(max(price - (1.5 * atr), 0.5), 2)
+
+            gain_pct = round(((target - price) / price) * 100, 2)
+
+            working_algo_text = (
+                f"1. Trend Confluence: Price ₹{price:.2f} evaluated vs 21-EMA (₹{ema_21:.2f}) & 50-EMA (₹{ema_50:.2f}). "
+                f"{'Bullish alignment confirmed' if price >= ema_21 else 'Consolidation / below moving averages'}.\n"
+                f"2. Momentum & Velocity: RSI (14) is {rsi:.1f} ({'Optimal bullish velocity zone' if 50 <= rsi <= 72 else 'Neutral/Oversold'}).\n"
+                f"3. Institutional Volume Flow: Relative Volume (RVOL) is {rvol:.2f}x average daily volume.\n"
+                f"4. Volatility & Channel Range: 14-Day ATR is ₹{atr:.2f} (±{round((atr/price)*100, 1)}% daily band). 20-Day Range: ₹{swing_low:.2f} - ₹{swing_high:.2f}.\n"
+                f"5. Algorithmic Projection: Confluence confidence score of {confidence}% outputs {direction} ({action}) targeting ₹{target:.2f} with risk cut at ₹{stop_loss:.2f}."
+            )
 
         prediction_data = {
             "symbol": sym,
@@ -188,8 +254,8 @@ class GeminiStockPredictor:
             "expected_gain_pct": gain_pct,
             "stop_loss": stop_loss,
             "confidence_score": confidence,
-            "time_horizon": "1-DAY (Swing)" if time_horizon == "1-DAY" else "1-MONTH (Positional)",
-            "algorithm_name": "Gemini Predictive AI Confluence",
+            "time_horizon": horizon_display,
+            "algorithm_name": f"Gemini Predictive AI Confluence ({horizon_clean})",
             "working_algorithm": working_algo_text,
             "algorithm_metrics": {
                 "rsi_14": rsi,

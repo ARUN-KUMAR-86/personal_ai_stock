@@ -53,13 +53,13 @@ class _LiveMonitoringScreenState extends State<LiveMonitoringScreen> {
         'name': s.name,
         'exchange': s.exchange,
         'sector': s.sector,
-        'price': s.latestPrice ?? 0.0,
-        'percent_change': s.percentChange ?? 0.0,
-        'change': s.change ?? 0.0,
+        'price': s.latestPrice,
+        'percent_change': s.percentChange,
+        'change': s.change,
         'day_high': s.dayHigh,
         'day_low': s.dayLow,
-        'tick_direction': (s.percentChange ?? 0) >= 0 ? 'UP' : 'DOWN',
-        'supertrend_direction': (s.percentChange ?? 0) >= 0 ? 'BULLISH' : 'BEARISH',
+        'tick_direction': s.percentChange >= 0 ? 'UP' : 'DOWN',
+        'supertrend_direction': s.percentChange >= 0 ? 'BULLISH' : 'BEARISH',
         'signal_priority': s.isHighPriority ? 'HIGH' : 'MEDIUM',
         'signal_type': s.latestSignal,
         'target_price': s.predictedTarget,
@@ -214,7 +214,6 @@ class _LiveMonitoringScreenState extends State<LiveMonitoringScreen> {
     String serverTime,
     int activeCount,
   ) {
-    final theme = Theme.of(context);
     final cardBg = isDark ? const Color(0xFF1E293B) : Colors.white;
 
     return Container(
@@ -302,7 +301,6 @@ class _LiveMonitoringScreenState extends State<LiveMonitoringScreen> {
   }
 
   Widget _buildSearchAndFilters(BuildContext context, bool isDark) {
-    final theme = Theme.of(context);
     final cardBg = isDark ? const Color(0xFF1E293B) : Colors.white;
 
     return Column(
@@ -407,7 +405,6 @@ class _LiveMonitoringScreenState extends State<LiveMonitoringScreen> {
     final exchange = item['exchange'] ?? 'NSE';
     final price = (item['price'] as num?)?.toDouble() ?? 0.0;
     final pctChange = (item['percent_change'] as num?)?.toDouble() ?? 0.0;
-    final change = (item['change'] as num?)?.toDouble() ?? 0.0;
     final dayHigh = (item['day_high'] as num?)?.toDouble();
     final dayLow = (item['day_low'] as num?)?.toDouble();
     final tickDir = item['tick_direction'] ?? 'FLAT';
