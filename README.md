@@ -1,14 +1,15 @@
-# Personal AI Stock Intelligence & Android Notification System
+# Zed — Institutional AI Stock Intelligence & Live Monitoring System
 
-A private, self-hosted quantitative stock scanning and decision-support application built for Linux workstations and Android smartphones.
+A private, self-hosted quantitative stock scanning, 24/7 real-time live monitoring, and AI decision-support application built for Linux workstations and Android smartphones.
 
-Automatically scans supported Indian stock markets (NSE / BSE), computes verifiable technical indicators, identifies high-confluence entry and exit opportunities, calculates ATR-based stop-loss and target levels, enforces strict portfolio risk limits, tracks paper trading performance, and dispatches push alerts to your Android phone via Firebase Cloud Messaging.
+Automatically scans supported Indian stock markets (NSE / BSE) and global US equities, computes verifiable institutional technical indicators (Supertrend, ADX trend strength, Bollinger Bands, RSI, MACD, and Candlestick Wick Trap Filters), provides real-time live quote monitoring, calculates ATR-based stop-loss and target levels, enforces strict portfolio risk limits, tracks paper trading performance, and dispatches push alerts to your Android phone via Firebase Cloud Messaging.
 
 > [!IMPORTANT]
 > **Free Cloud Backend & Android App Ready**:
-> - **Zero-Laptop Cloud Operation**: Refer to [`docs/CLOUD_DEPLOYMENT.md`](file:///home/arun/personal-ai-stock/docs/CLOUD_DEPLOYMENT.md) for 1-click Render free-tier deployment, market hours keep-alive, and Firebase setup.
-> - **Ready-to-Install Android APK**: [`mobile/build/app/outputs/flutter-apk/app-arm64-v8a-release.apk`](file:///home/arun/personal-ai-stock/mobile/build/app/outputs/flutter-apk/app-arm64-v8a-release.apk) or [`/home/arun/Downloads/app-arm64-v8a-release.apk`](file:///home/arun/Downloads/app-arm64-v8a-release.apk) (21.9 MB).
-> - **Personal User Guide**: Refer to [`docs/PERSONAL_USER_GUIDE.md`](file:///home/arun/personal-ai-stock/docs/PERSONAL_USER_GUIDE.md) for day-to-day workflow instructions.
+> - **Brand & Symbol**: App renamed to **Zed** with new custom geometric cyan-and-royal-blue app symbol and launcher icons.
+> - **24/7 Real-Time Live Monitoring**: Dedicated Live Monitor tab with real-time price updates, tick directions, Supertrend alignment, and instant priority scanner.
+> - **Institutional Grade Accuracy**: Supertrend (10, 3.0), ADX (14) trend filter (rejects choppy consolidation), Bollinger Bands volatility squeeze detection, and candlestick upper-wick trap detection.
+> - **Ready-to-Install Android APK**: [`mobile/build/app/outputs/flutter-apk/app-arm64-v8a-release.apk`](file:///home/arun/personal-ai-stock/mobile/build/app/outputs/flutter-apk/app-arm64-v8a-release.apk) or [`/home/arun/Downloads/app-arm64-v8a-release.apk`](file:///home/arun/Downloads/app-arm64-v8a-release.apk).
 
 ---
 

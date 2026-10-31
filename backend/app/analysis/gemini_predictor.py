@@ -20,8 +20,11 @@ class GeminiStockPredictor:
     """Institutional-grade AI stock price predictor powered by Google Gemini and quantitative confluence."""
 
     def __init__(self):
-        self.default_model = "gemini-3.5-flash"
+        self.default_model = "gemini-2.5-flash"
         self.models_to_try = [
+            "gemini-2.5-flash",
+            "gemini-1.5-pro",
+            "gemini-2.5-pro",
             "gemini-3.5-flash",
             "gemini-flash-latest",
             "gemini-3.8-flash",
@@ -89,22 +92,40 @@ class GeminiStockPredictor:
         pivot = float(metrics.get("pivot") or price)
         r1 = float(metrics.get("r1") or (price * 1.02))
         s1 = float(metrics.get("s1") or (price * 0.98))
+        supertrend = float(metrics.get("supertrend") or price)
+        supertrend_dir = int(metrics.get("supertrend_dir", 1))
+        adx = float(metrics.get("adx_14") or 20.0)
+        plus_di = float(metrics.get("plus_di") or 0.0)
+        minus_di = float(metrics.get("minus_di") or 0.0)
+        upper_wick_ratio = float(metrics.get("upper_wick_ratio") or 0.0)
 
-        # 3. Deterministic Algorithmic Scoring (Confluence Engine)
+        # 3. Deterministic Algorithmic Scoring (Confluence Engine - Institutional Accuracy)
         score = 50.0
-        # Trend Confluence
+        # Trend Confluence (Moving Averages)
         if price >= ema_21 and ema_21 >= ema_50:
-            score += 20.0
+            score += 15.0
         elif price <= ema_21 and ema_21 <= ema_50:
-            score -= 20.0
+            score -= 15.0
 
-        # Momentum Confluence
-        if 55.0 <= rsi <= 72.0:
+        # Supertrend Confluence
+        if supertrend_dir == 1 and price >= supertrend:
+            score += 15.0
+        elif supertrend_dir == -1 and price <= supertrend:
+            score -= 15.0
+
+        # Momentum Confluence (RSI Sweet Spot)
+        if 54.0 <= rsi <= 70.0:
             score += 15.0
         elif rsi < 40.0:
             score -= 15.0
-        elif rsi > 78.0:
-            score -= 5.0  # Overbought pullback risk
+        elif rsi > 74.0:
+            score -= 10.0  # Overbought pullback risk
+
+        # Trend Strength via ADX
+        if adx >= 22.0 and plus_di > minus_di:
+            score += 10.0
+        elif adx < 18.0:
+            score -= 10.0  # Choppy sideways chop penalty
 
         # Volume Flow
         if rvol >= 1.3:
@@ -112,25 +133,33 @@ class GeminiStockPredictor:
         elif rvol < 0.7:
             score -= 10.0
 
-        # Breakout proximity
+        # Breakout proximity & Trap Detection
         if price >= 0.98 * swing_high:
-            score += 10.0
+            if upper_wick_ratio > 0.40:
+                score -= 15.0  # False breakout rejection trap!
+            else:
+                score += 10.0
 
-        confidence = round(min(max(score, 25.0), 96.0), 1)
+        confidence = round(min(max(score, 20.0), 96.0), 1)
 
         # Baseline directional projection
-        if confidence >= 70.0:
+        if confidence >= 72.0:
             direction = "BULLISH"
             action = "STRONG BUY" if confidence >= 82.0 else "BUY"
             mult = 3.5 if time_horizon == "1-DAY" else 5.5
             target = round(price + max(mult * atr, price * 0.04), 2)
-            stop_loss = round(max(price - (1.3 * atr), 0.5), 2)
-        elif confidence <= 40.0:
+            # Anchor stop-loss to Supertrend or 1.25x ATR
+            sl_candidate = max(price - (1.25 * atr), 0.5)
+            if supertrend_dir == 1 and supertrend < price:
+                stop_loss = round(max(sl_candidate, supertrend * 0.995), 2)
+            else:
+                stop_loss = round(sl_candidate, 2)
+        elif confidence <= 38.0:
             direction = "BEARISH"
-            action = "STRONG SELL" if confidence <= 30.0 else "SELL"
+            action = "STRONG SELL" if confidence <= 28.0 else "SELL"
             mult = 2.5 if time_horizon == "1-DAY" else 4.0
             target = round(max(price - (mult * atr), 0.5), 2)
-            stop_loss = round(price + (1.3 * atr), 2)
+            stop_loss = round(price + (1.25 * atr), 2)
         else:
             direction = "NEUTRAL"
             action = "HOLD"
@@ -175,6 +204,9 @@ class GeminiStockPredictor:
                 "pivot": pivot,
                 "r1": r1,
                 "s1": s1,
+                "supertrend": supertrend,
+                "supertrend_dir": supertrend_dir,
+                "adx_14": adx,
             },
             "ai_prediction_summary": (
                 f"{comp_name} ({sym}) displays a high-probability {direction} structure at ₹{price:.2f}. "

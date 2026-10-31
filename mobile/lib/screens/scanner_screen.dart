@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../state/app_state.dart';
 import '../widgets/signal_pill.dart';
 import '../widgets/priority_badge.dart';
+import '../widgets/zed_logo.dart';
 import '../models/stock_summary.dart';
 import 'stock_recommendation_screen.dart';
 
@@ -116,14 +117,20 @@ class _ScannerScreenState extends State<ScannerScreen> {
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
       appBar: AppBar(
-        title: Text(
-          'STOCK SCANNER & AI PREDICTOR',
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-            fontSize: 16,
-            letterSpacing: 0.5,
-            color: theme.colorScheme.onSurface,
-          ),
+        title: Row(
+          children: [
+            const ZedLogo(size: 24),
+            const SizedBox(width: 8),
+            Text(
+              'ZED AI SCANNER',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 16,
+                letterSpacing: 0.5,
+                color: theme.colorScheme.onSurface,
+              ),
+            ),
+          ],
         ),
         actions: [
           IconButton(

@@ -3,6 +3,7 @@ import 'package:http/http.dart' as http;
 import 'package:provider/provider.dart';
 import '../state/app_state.dart';
 import '../services/storage_service.dart';
+import '../widgets/zed_logo.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -149,14 +150,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
       appBar: AppBar(
-        title: Text(
-          'SETTINGS & PREFERENCES',
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-            fontSize: 17,
-            letterSpacing: 0.5,
-            color: theme.colorScheme.onSurface,
-          ),
+        title: Row(
+          children: [
+            const ZedLogo(size: 24),
+            const SizedBox(width: 8),
+            Text(
+              'ZED SETTINGS',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 17,
+                letterSpacing: 0.5,
+                color: theme.colorScheme.onSurface,
+              ),
+            ),
+          ],
         ),
       ),
       body: ListView(
@@ -480,7 +487,69 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ],
             ),
           ),
+          // 6. ZED SYSTEM & APP INFORMATION
+          const SizedBox(height: 16),
+          _buildCard(
+            context,
+            title: 'ZED SYSTEM INFORMATION',
+            icon: Icons.info_outline,
+            iconColor: const Color(0xFF38BDF8),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const ZedLogo(size: 38),
+                    const SizedBox(width: 12),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Zed AI Stock Intelligence',
+                          style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15),
+                        ),
+                        Text(
+                          'Version 2.1.0 • Institutional Confluence',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                const Divider(),
+                const SizedBox(height: 6),
+                _buildSystemStatRow('Live Monitoring', '24/7 Tick Active', Colors.green),
+                _buildSystemStatRow('Confluence Engine', 'Supertrend + ADX + BB + RSI', const Color(0xFF2563EB)),
+                _buildSystemStatRow('AI Model', 'Gemini Pro / Flash Confluence', Colors.teal),
+                _buildSystemStatRow('Execution Mode', 'Simulated Paper + Realtime FCM', Colors.amber.shade800),
+              ],
+            ),
+          ),
           const SizedBox(height: 24),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSystemStatRow(String label, String value, Color valueColor) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(label, style: const TextStyle(fontSize: 12, color: Colors.grey)),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              color: valueColor,
+            ),
+          ),
         ],
       ),
     );

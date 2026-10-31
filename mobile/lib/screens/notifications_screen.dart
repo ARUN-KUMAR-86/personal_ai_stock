@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../state/app_state.dart';
 import '../models/alert.dart';
 import '../widgets/trade_alert_card.dart';
+import '../widgets/zed_logo.dart';
 
 class NotificationsScreen extends StatefulWidget {
   const NotificationsScreen({super.key});
@@ -50,10 +51,10 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       appBar: AppBar(
         title: Row(
           children: [
-            Icon(Icons.bolt, color: theme.primaryColor, size: 22),
-            const SizedBox(width: 6),
+            const ZedLogo(size: 24),
+            const SizedBox(width: 8),
             Text(
-              'STOCK NOTIFICATIONS',
+              'ZED ALERTS',
               style: TextStyle(
                 fontWeight: FontWeight.bold,
                 fontSize: 17,

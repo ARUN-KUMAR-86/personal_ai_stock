@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'state/app_state.dart';
+import 'screens/live_monitoring_screen.dart';
 import 'screens/notifications_screen.dart';
 import 'screens/scanner_screen.dart';
 import 'screens/settings_screen.dart';
@@ -95,7 +96,7 @@ class PersonalStockApp extends StatelessWidget {
 
     return MaterialApp(
       navigatorKey: NotificationService.navigatorKey,
-      title: 'AI Stock Intelligence',
+      title: 'Zed',
       debugShowCheckedModeBanner: false,
       theme: lightTheme,
       darkTheme: darkTheme,
@@ -116,6 +117,7 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
   int _currentIndex = 0;
 
   final List<Widget> _screens = const [
+    LiveMonitoringScreen(),
     NotificationsScreen(),
     ScannerScreen(),
     SettingsScreen(),
@@ -144,6 +146,11 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
         selectedFontSize: 12,
         unselectedFontSize: 12,
         items: [
+          const BottomNavigationBarItem(
+            icon: Icon(Icons.sensors),
+            activeIcon: Icon(Icons.sensors, color: Color(0xFF10B981)),
+            label: 'Live Monitor',
+          ),
           BottomNavigationBarItem(
             icon: unreadCount > 0
                 ? Badge(
@@ -162,7 +169,7 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
           const BottomNavigationBarItem(
             icon: Icon(Icons.radar),
             activeIcon: Icon(Icons.radar, color: Colors.blueAccent),
-            label: 'Internet Scanner',
+            label: 'AI Scanner',
           ),
           const BottomNavigationBarItem(
             icon: Icon(Icons.settings_outlined),

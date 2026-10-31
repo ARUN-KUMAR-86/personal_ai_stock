@@ -57,6 +57,13 @@ class HighestGainMaximizerStrategy(BaseStrategy):
         ema_50 = metrics["ema_50"] or price
         sma_50 = metrics["sma_50"] or price
         swing_high = metrics["swing_high_20"] or price
+        supertrend = metrics.get("supertrend") or price
+        supertrend_dir = metrics.get("supertrend_dir", 1)
+        adx = metrics.get("adx_14", 20.0)
+        plus_di = metrics.get("plus_di", 0.0)
+        minus_di = metrics.get("minus_di", 0.0)
+        upper_wick_ratio = metrics.get("upper_wick_ratio", 0.0)
+        bb_pct_b = metrics.get("bb_pct_b", 0.5)
 
         timestamp = (
             enriched_df.iloc[-1]["timestamp"].to_pydatetime()
@@ -64,38 +71,69 @@ class HighestGainMaximizerStrategy(BaseStrategy):
             else datetime.now(timezone.utc)
         )
 
-        # Check conditions for maximum upside
-        is_uptrend = (ema_21 >= ema_50) and (price >= sma_50 * 0.98)
+        # High-Accuracy Confluence Criteria (Multi-Factor Verification)
+        # 1. Moving Average Trend Alignment
+        is_ma_uptrend = (ema_21 >= ema_50) and (price >= sma_50 * 0.98)
+        # 2. Supertrend Confirmation
+        is_supertrend_bull = (supertrend_dir == 1) and (price >= supertrend * 0.99)
+        is_uptrend = is_ma_uptrend and is_supertrend_bull
+
+        # 3. Institutional Volume Surge
         is_volume_surge = rvol >= 1.25
-        is_momentum_zone = 52.0 <= rsi <= 76.0
-        is_near_high = price >= (0.98 * swing_high)
 
-        # Calculate high upside target and protective stop loss
-        # Target aims for highest practical return (+4% to +15% using ATR multiplier)
+        # 4. Momentum Velocity (Healthy non-exhausted zone)
+        is_momentum_zone = 52.0 <= rsi <= 72.0
+
+        # 5. Trend Strength via ADX (Rejects choppy sideways markets)
+        is_adx_trending = (adx >= 22.0) and (plus_di >= minus_di)
+
+        # 6. Breakout Proximity
+        is_near_high = price >= (0.975 * swing_high)
+
+        # 7. Candlestick Trap Filter (Rejects false breakout candles with heavy upper wick rejections)
+        has_wick_trap = upper_wick_ratio > 0.42
+
+        # High upside target and protective stop loss
         upside_atr = max(3.2 * atr, price * 0.05)
-        downside_atr = min(1.3 * atr, price * 0.025)
-        target = round(price + upside_atr, 2)
-        stop_loss = round(max(price - downside_atr, 0.5), 2)
+        # Stop loss anchored below Supertrend or 1.25x ATR
+        downside_atr = min(1.25 * atr, price * 0.025)
+        raw_sl = max(price - downside_atr, 0.5)
+        if is_supertrend_bull and supertrend > 0 and supertrend < price:
+            stop_loss = round(max(raw_sl, supertrend * 0.995), 2)
+        else:
+            stop_loss = round(raw_sl, 2)
 
-        risk = price - stop_loss
-        reward = target - price
-        rr_ratio = round(reward / risk, 2) if risk > 0 else 3.0
+        target = round(price + upside_atr, 2)
+        risk = max(price - stop_loss, 0.5)
+        reward = max(target - price, 1.0)
+        rr_ratio = round(reward / risk, 2)
         potential_gain_pct = round(((target - price) / price) * 100, 2)
 
-        # Score confluence (strength 0 - 100)
+        # Quantitative Confluence Scoring (0 - 100)
         score = 0.0
-        if is_uptrend:
-            score += 30.0
-        if is_volume_surge:
-            score += 25.0
-        if is_momentum_zone:
-            score += 25.0
-        if is_near_high:
+        if is_ma_uptrend:
             score += 20.0
+        if is_supertrend_bull:
+            score += 20.0
+        if is_volume_surge:
+            score += 20.0
+        if is_momentum_zone:
+            score += 15.0
+        if is_adx_trending:
+            score += 15.0
+        if is_near_high:
+            score += 10.0
 
-        # Additional bonus for exceptional volume or strong breakout
-        if rvol >= 1.8:
+        # Exceptional volume booster
+        if rvol >= 1.75:
             score = min(100.0, score + 10.0)
+
+        # Penalize false breakout upper-wick traps
+        if has_wick_trap:
+            score = max(0.0, score - 20.0)
+        # Penalize overbought exhaustion
+        if rsi > 74.0:
+            score = max(0.0, score - 15.0)
 
         # Priority & Signal Classification
         if score >= 75.0 and potential_gain_pct >= 3.5:
@@ -178,14 +216,19 @@ class HighestGainMaximizerStrategy(BaseStrategy):
                 "atr_14": atr,
                 "ema_21": ema_21,
                 "ema_50": ema_50,
+                "supertrend": supertrend,
+                "supertrend_dir": supertrend_dir,
+                "adx_14": adx,
                 "priority": priority,
                 "potential_gain_pct": potential_gain_pct,
             },
             score_breakdown={
-                "trend": 30.0 if is_uptrend else 0.0,
-                "volume": 25.0 if is_volume_surge else 0.0,
-                "momentum": 25.0 if is_momentum_zone else 0.0,
-                "breakout": 20.0 if is_near_high else 0.0,
+                "ma_trend": 20.0 if is_ma_uptrend else 0.0,
+                "supertrend": 20.0 if is_supertrend_bull else 0.0,
+                "volume": 20.0 if is_volume_surge else 0.0,
+                "momentum": 15.0 if is_momentum_zone else 0.0,
+                "adx_strength": 15.0 if is_adx_trending else 0.0,
+                "breakout": 10.0 if is_near_high else 0.0,
                 "priority": priority,
             },
             explanation=explanation,

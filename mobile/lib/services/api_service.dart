@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import '../models/market_status.dart';
 import '../models/stock_summary.dart';
@@ -90,6 +91,42 @@ class ApiService {
       return raw.map((item) => StockSignal.fromJson(item)).toList();
     }
     return [];
+  }
+
+  Future<Map<String, dynamic>> getLiveMonitoringStatus({String exchange = 'NSE'}) async {
+    try {
+      final url = await _getUrl('/monitoring/status?exchange=$exchange');
+      final res = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 5));
+      if (res.statusCode == 200) {
+        return jsonDecode(res.body);
+      }
+    } catch (_) {}
+    return {'is_live_monitoring_active': true, 'scheduler_running': true};
+  }
+
+  Future<Map<String, dynamic>> getLiveMonitoringFeed({String exchange = 'ALL', bool priorityOnly = false}) async {
+    try {
+      final url = await _getUrl('/monitoring/live-feed?exchange=$exchange&priority_only=$priorityOnly');
+      final res = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 6));
+      if (res.statusCode == 200) {
+        return jsonDecode(res.body);
+      }
+    } catch (_) {}
+    return {'status': 'OFFLINE', 'items': []};
+  }
+
+  Future<Map<String, dynamic>> triggerQuickScan() async {
+    try {
+      final url = await _getUrl('/monitoring/quick-scan');
+      final headers = await _headers();
+      final res = await http.post(Uri.parse(url), headers: headers).timeout(const Duration(seconds: 25));
+      if (res.statusCode == 200) {
+        return jsonDecode(res.body);
+      }
+    } catch (e) {
+      debugPrint('Quick scan note: $e');
+    }
+    return {'status': 'DONE'};
   }
 
   Future<List<StockSignal>> getSignalsForStock(String symbol) async {

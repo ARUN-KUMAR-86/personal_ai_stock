@@ -41,8 +41,8 @@ class AlertMarkReadRequest(BaseModel):
 
 
 class NotificationTestRequest(BaseModel):
-    title: str = "PERSONAL AI STOCK ALERT [TEST]"
-    body: str = "Test notification from Personal AI Stock Intelligence Backend"
+    title: str = "ZED ALERT [TEST]"
+    body: str = "Test notification from Zed AI Backend"
     symbol: str = "RELIANCE"
     exchange: str = "NSE"
     device_token: Optional[str] = None

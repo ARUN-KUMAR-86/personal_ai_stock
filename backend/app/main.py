@@ -29,6 +29,7 @@ from app.api.v1.orders import router as orders_router
 from app.api.v1.safety import router as safety_router
 from app.api.v1.watchlist import router as watchlist_router
 from app.api.v1.trading_control import router as trading_control_router
+from app.api.v1.monitoring import router as monitoring_router
 
 
 
@@ -46,11 +47,11 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title=settings.APP_NAME,
     description=(
-        "Personal AI Stock Intelligence & Android Notification System.\n\n"
-        "Provides market scanning, transparent rule-based quantitative strategies, "
-        "portfolio risk controls, Groww broker integration, paper trading, and Firebase Cloud Messaging alerts."
+        "Zed — Institutional AI Stock Intelligence & Real-Time Live Monitoring System.\n\n"
+        "Provides 24/7 live market monitoring, high-accuracy multi-indicator confluence strategies, "
+        "portfolio risk controls, Groww broker integration, paper trading, and real-time push alerts."
     ),
-    version="1.0.0",
+    version="2.0.0",
     lifespan=lifespan,
     docs_url="/docs",
     redoc_url="/redoc",
@@ -67,6 +68,7 @@ app.add_middleware(
 
 # Mount API Routers
 app.include_router(health_router, prefix=settings.API_V1_STR)
+app.include_router(monitoring_router, prefix=settings.API_V1_STR)
 app.include_router(auth_router, prefix=settings.API_V1_STR)
 app.include_router(stocks_router, prefix=settings.API_V1_STR)
 app.include_router(scanner_router, prefix=settings.API_V1_STR)

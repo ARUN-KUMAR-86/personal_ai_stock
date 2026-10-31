@@ -75,6 +75,14 @@ class AppState extends ChangeNotifier {
   bool isPredicting = false;
   String? lastPredictedSymbol;
 
+  // Live Monitoring Engine
+  List<Map<String, dynamic>> liveFeed = [];
+  Map<String, dynamic>? liveMonitoringStatus;
+  bool isLiveMonitoringActive = true;
+  bool isQuickScanning = false;
+  DateTime? lastLiveFeedUpdate;
+  int _syncCycleCounter = 0;
+
   AppState() {
     _initData();
   }
@@ -85,7 +93,9 @@ class AppState extends ChangeNotifier {
     await _loadCachedData();
     // 2. Refresh live data from backend
     await refreshAll();
-    // 3. Start ultra-low latency continuous live sync loop (every 3s)
+    // 3. Fetch initial live monitoring feed
+    await fetchLiveFeed();
+    // 4. Start ultra-low latency continuous live sync loop (every 3s)
     startUltraSyncLoop();
   }
 
@@ -291,12 +301,52 @@ class AppState extends ChangeNotifier {
         // Secondary client-side verification
         await checkAndExecuteAutoSell();
 
+        // Refresh live monitoring feed every second UltraSync cycle (approx 6s)
+        _syncCycleCounter++;
+        if (_syncCycleCounter % 2 == 0) {
+          fetchLiveFeed(silent: true);
+        }
+
         notifyListeners();
       }
     } catch (e) {
       debugPrint('UltraSync error: $e');
     } finally {
       _isUltraSyncing = false;
+    }
+  }
+
+  /// Refreshes the real-time live monitoring tick feed
+  Future<void> fetchLiveFeed({String exchange = 'ALL', bool silent = false}) async {
+    try {
+      final feed = await api.getLiveMonitoringFeed(exchange: exchange);
+      if (feed['items'] is List) {
+        liveFeed = List<Map<String, dynamic>>.from(feed['items']);
+        lastLiveFeedUpdate = DateTime.now();
+      }
+      final status = await api.getLiveMonitoringStatus(exchange: exchange == 'ALL' ? 'NSE' : exchange);
+      liveMonitoringStatus = status;
+      if (!silent) {
+        notifyListeners();
+      }
+    } catch (e) {
+      debugPrint('fetchLiveFeed error: $e');
+    }
+  }
+
+  /// Triggers an immediate high-speed priority scan of monitored universe
+  Future<void> executeQuickScan() async {
+    isQuickScanning = true;
+    notifyListeners();
+    try {
+      await api.triggerQuickScan();
+      await fetchLiveFeed();
+      await refreshAll();
+    } catch (e) {
+      debugPrint('executeQuickScan error: $e');
+    } finally {
+      isQuickScanning = false;
+      notifyListeners();
     }
   }
 
