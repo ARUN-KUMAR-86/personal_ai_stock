@@ -12,6 +12,8 @@ for i in {1..120}; do
     RES=$?
     if [ $RES -eq 0 ]; then
       echo "=== INSTALLATION SUCCESSFUL ==="
+      echo "Setting up ADB reverse port 8000 for local communication..."
+      $ADB -s "$DEV_ID" reverse tcp:8000 tcp:8000
       echo "Launching app on device..."
       $ADB -s "$DEV_ID" shell monkey -p com.personal.aistock -c android.intent.category.LAUNCHER 1 >/dev/null 2>&1
       exit 0

@@ -97,6 +97,10 @@ class IndianMarketDataService:
     def format_ticker(cls, symbol: str, exchange: str = "NSE") -> str:
         """Formats ticker with appropriate Indian exchange suffix."""
         sym = symbol.strip().upper()
+        if sym == "JIO":
+            return "JPL.NS"
+        if sym == "TATAMOTORS":
+            return "TMPV.NS"
         if sym.startswith("^"):
             return sym
         if sym.endswith(".NS") or sym.endswith(".BO"):

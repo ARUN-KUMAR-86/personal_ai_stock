@@ -84,6 +84,8 @@ class YahooMarketDataProvider(BaseMarketDataProvider):
         sym = symbol.strip().upper()
         if sym == "JIO":
             return "JPL.NS"
+        if sym == "TATAMOTORS":
+            return "TMPV.NS"
         if sym.endswith(".NS") or sym.endswith(".BO"):
             return sym
         if exchange.upper() in ("US", "NASDAQ", "NYSE", "GLOBAL"):

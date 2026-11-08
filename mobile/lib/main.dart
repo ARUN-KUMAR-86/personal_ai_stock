@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'state/app_state.dart';
@@ -13,8 +14,18 @@ void main() async {
 
   FlutterError.onError = (details) {
     FlutterError.presentError(details);
-    debugPrint('FLUTTER_ERROR_EXACT: ${details.exception}');
-    debugPrint('FLUTTER_STACK_EXACT: ${details.stack}');
+    // ignore: avoid_print
+    print('FLUTTER_ERROR_EXACT: ${details.exception}');
+    // ignore: avoid_print
+    print('FLUTTER_STACK_EXACT: ${details.stack}');
+  };
+
+  PlatformDispatcher.instance.onError = (error, stack) {
+    // ignore: avoid_print
+    print('FLUTTER_ASYNC_ERROR: $error');
+    // ignore: avoid_print
+    print('FLUTTER_ASYNC_STACK: $stack');
+    return true;
   };
 
   final appState = AppState();

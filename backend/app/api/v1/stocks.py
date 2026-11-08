@@ -419,10 +419,31 @@ def add_stock_to_universe(item: AddStockRequest, db: Session = Depends(get_db)):
 @router.get("/live-quotes")
 def get_live_quotes(exchange: str = "NSE", db: Session = Depends(get_db)):
     """Returns a consolidated dictionary of real-time quotes for all active universe stocks."""
-    stocks = db.query(Stock).filter(Stock.is_active == True).all()
-    symbols = [s.symbol for s in stocks]
+    query = db.query(Stock).filter(Stock.is_active == True)
+    if exchange.upper() in ("US", "NASDAQ", "NYSE"):
+        stocks = query.filter(Stock.exchange.in_(["US", "NASDAQ", "NYSE"])).all()
+        target_ex = "US"
+    elif exchange.upper() in ("NSE", "BSE", "INDIA"):
+        stocks = query.filter(Stock.exchange.in_(["NSE", "BSE", "INDIA"])).all()
+        target_ex = "NSE"
+    else:
+        stocks = query.all()
+        target_ex = exchange
+
+    # Bulk fetch segmented by proper exchange so US symbols don't get queried as .NS and vice-versa
+    nse_symbols = [s.symbol for s in stocks if s.exchange.upper() in ("NSE", "BSE", "INDIA")]
+    us_symbols = [s.symbol for s in stocks if s.exchange.upper() in ("US", "NASDAQ", "NYSE")]
+    other_symbols = [s.symbol for s in stocks if s.symbol not in nse_symbols and s.symbol not in us_symbols]
+
+    quotes = {}
     provider = get_market_data_provider()
-    quotes = provider.get_bulk_quotes(symbols, exchange=exchange)
+    if nse_symbols:
+        quotes.update(provider.get_bulk_quotes(nse_symbols, exchange="NSE"))
+    if us_symbols:
+        quotes.update(provider.get_bulk_quotes(us_symbols, exchange="US"))
+    if other_symbols:
+        quotes.update(provider.get_bulk_quotes(other_symbols, exchange=target_ex))
+
     return {
         sym: {
             "symbol": q.symbol,

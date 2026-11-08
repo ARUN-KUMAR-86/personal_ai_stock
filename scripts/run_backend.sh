@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -e
+unset PYTHONPATH
 
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$DIR/backend"
@@ -22,6 +23,15 @@ if command -v ss >/dev/null 2>&1; then
         echo "You can stop it with: kill -9 $PID_USING_PORT"
         echo "Or run on a different port: ./scripts/run_backend.sh 8080"
         exit 1
+    fi
+fi
+
+# Check if adb is available and auto-reverse port for any connected Android phone
+ADB_BIN=$(command -v adb 2>/dev/null || echo "/home/arun/android-sdk/platform-tools/adb")
+if [ -x "$ADB_BIN" ]; then
+    if "$ADB_BIN" devices 2>/dev/null | grep -v "List of" | grep -qw "device"; then
+        echo "📱 Connected Android device detected. Setting up ADB reverse on port $PORT..."
+        "$ADB_BIN" reverse tcp:"$PORT" tcp:"$PORT" 2>/dev/null || true
     fi
 fi
 

@@ -39,8 +39,7 @@ class StorageService {
     if (saved != null &&
         saved.isNotEmpty &&
         saved != cloudProductionUrl &&
-        !saved.contains('10.0.2.2') &&
-        !saved.contains('192.168.')) {
+        !saved.contains('10.0.2.2')) {
       return saved;
     }
 
@@ -56,7 +55,7 @@ class StorageService {
     try {
       final res = await http
           .get(Uri.parse('http://127.0.0.1:8000/api/v1/market-status'))
-          .timeout(const Duration(milliseconds: 350));
+          .timeout(const Duration(milliseconds: 1200));
       if (res.statusCode == 200) {
         _cachedActiveBaseUrl = 'http://127.0.0.1:8000';
         _lastHealthCheckTime = now;
