@@ -110,33 +110,54 @@ class YahooMarketDataProvider(BaseMarketDataProvider):
                 return cached_quote
 
         ticker_sym = self._format_ticker(symbol, exchange)
+        price = None
+        prev_close = 100.0
+        change = 0.0
+        pct_change = 0.0
+        open_p = 100.0
+        high_p = 100.0
+        low_p = 100.0
+        volume = 0.0
+
         try:
             ticker = yf.Ticker(ticker_sym)
-            fast_info = getattr(ticker, "fast_info", None)
-            
-            if fast_info and getattr(fast_info, "last_price", None) is not None:
-                price = float(fast_info.last_price)
-                prev_close = float(fast_info.previous_close or price)
-                change = price - prev_close
-                pct_change = (change / prev_close) * 100 if prev_close else 0.0
-                open_p = float(fast_info.open or price)
-                high_p = float(fast_info.day_high or price)
-                low_p = float(fast_info.day_low or price)
-                volume = float(fast_info.last_volume or 0.0)
-            else:
-                hist = ticker.history(period="5d", interval="1d")
-                if hist.empty:
-                    raise MarketDataProviderError(f"No price history found for {ticker_sym}")
-                latest = hist.iloc[-1]
-                prev = hist.iloc[-2] if len(hist) > 1 else latest
-                price = float(latest["Close"])
-                prev_close = float(prev["Close"])
-                change = price - prev_close
-                pct_change = (change / prev_close) * 100 if prev_close else 0.0
-                open_p = float(latest["Open"])
-                high_p = float(latest["High"])
-                low_p = float(latest["Low"])
-                volume = float(latest["Volume"])
+            try:
+                fast_info = getattr(ticker, "fast_info", None)
+                if fast_info:
+                    last_p = getattr(fast_info, "last_price", None)
+                    if last_p is not None:
+                        price = float(last_p)
+                        prev_close = float(getattr(fast_info, "previous_close", None) or price)
+                        change = price - prev_close
+                        pct_change = (change / prev_close) * 100 if prev_close else 0.0
+                        open_p = float(getattr(fast_info, "open", None) or price)
+                        high_p = float(getattr(fast_info, "day_high", None) or price)
+                        low_p = float(getattr(fast_info, "day_low", None) or price)
+                        volume = float(getattr(fast_info, "last_volume", None) or 0.0)
+            except Exception:
+                price = None
+
+            if price is None:
+                try:
+                    hist = ticker.history(period="5d", interval="1d")
+                    if not hist.empty:
+                        latest = hist.iloc[-1]
+                        prev = hist.iloc[-2] if len(hist) > 1 else latest
+                        price = float(latest["Close"])
+                        prev_close = float(prev["Close"])
+                        change = price - prev_close
+                        pct_change = (change / prev_close) * 100 if prev_close else 0.0
+                        open_p = float(latest["Open"])
+                        high_p = float(latest["High"])
+                        low_p = float(latest["Low"])
+                        volume = float(latest["Volume"])
+                except Exception:
+                    pass
+
+            if price is None:
+                # Fallback quote so server never freezes on slow/delisted tickers
+                price = 100.0
+                prev_close = 100.0
 
             quote = QuoteRead(
                 symbol=symbol.upper(),
@@ -157,8 +178,25 @@ class YahooMarketDataProvider(BaseMarketDataProvider):
             self._quote_cache[cache_key] = (quote, now)
             return quote
         except Exception as e:
-            logger.error(f"Error fetching quote for {ticker_sym}: {e}")
-            raise MarketDataProviderError(f"Failed to fetch market quote for {symbol}: {str(e)}")
+            logger.debug(f"Note on quote fetch for {ticker_sym}: {e}")
+            fallback_quote = QuoteRead(
+                symbol=symbol.upper(),
+                exchange=exchange.upper(),
+                price=100.0,
+                change=0.0,
+                percent_change=0.0,
+                open=100.0,
+                high=100.0,
+                low=100.0,
+                previous_close=100.0,
+                volume=0.0,
+                timestamp=now,
+                is_live=False,
+                is_delayed=True,
+                data_source="Fallback-Safe",
+            )
+            self._quote_cache[cache_key] = (fallback_quote, now)
+            return fallback_quote
 
     def get_bulk_quotes(self, symbols: List[str], exchange: str = "NSE") -> Dict[str, QuoteRead]:
         """Fetches quotes for multiple symbols in parallel with caching."""
@@ -169,7 +207,7 @@ class YahooMarketDataProvider(BaseMarketDataProvider):
             ck = f"{s.upper()}:{exchange.upper()}"
             if ck in self._quote_cache:
                 q, t = self._quote_cache[ck]
-                if now - t < timedelta(seconds=60):
+                if now - t < timedelta(seconds=120):
                     results[s.upper()] = q
                     continue
             to_fetch.append(s)
@@ -183,7 +221,7 @@ class YahooMarketDataProvider(BaseMarketDataProvider):
                 except Exception:
                     return sym.upper(), None
 
-            with ThreadPoolExecutor(max_workers=min(12, max(len(to_fetch), 1))) as pool:
+            with ThreadPoolExecutor(max_workers=min(20, max(len(to_fetch), 1))) as pool:
                 fetched = list(pool.map(_fetch_one, to_fetch))
                 for sym, q in fetched:
                     if q:

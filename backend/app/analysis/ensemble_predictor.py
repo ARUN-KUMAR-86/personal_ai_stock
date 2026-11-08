@@ -113,11 +113,11 @@ class EnsembleStockPredictor:
             return
 
         try:
-            gb = HistGradientBoostingClassifier(max_iter=50, max_leaf_nodes=15, random_state=42)
+            gb = HistGradientBoostingClassifier(max_iter=20, max_leaf_nodes=10, random_state=42)
             gb.fit(X, y)
             self._gb_model = gb
 
-            rf = RandomForestClassifier(n_estimators=40, max_depth=5, random_state=42)
+            rf = RandomForestClassifier(n_estimators=15, max_depth=4, n_jobs=-1, random_state=42)
             rf.fit(X, y)
             self._rf_model = rf
 

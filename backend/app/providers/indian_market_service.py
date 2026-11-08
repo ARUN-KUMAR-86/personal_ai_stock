@@ -9,6 +9,7 @@ Handles:
 
 from datetime import datetime, timezone, timedelta
 from typing import List, Dict, Any, Optional
+from concurrent.futures import ThreadPoolExecutor
 import yfinance as yf
 from app.core.logging import logger
 from app.schemas.candle import QuoteRead
@@ -159,15 +160,19 @@ class IndianMarketDataService:
             "market_close_time": "15:30 IST",
         }
 
+    _index_cache: Dict[str, Any] = {}
+    _index_cache_ts: float = 0.0
+    _fundamentals_cache: Dict[str, Any] = {}
+    _fundamentals_cache_ts: Dict[str, float] = {}
+
     @classmethod
     def get_indices(cls, force_refresh: bool = False) -> List[Dict[str, Any]]:
-        """Fetches live quotes for major Indian benchmark and sector indices."""
+        """Fetches live quotes for major Indian benchmark and sector indices in parallel with caching."""
         now = datetime.now(timezone.utc).timestamp()
-        if not force_refresh and cls._index_cache and (now - cls._index_cache_ts < 90):
+        if not force_refresh and cls._index_cache and (now - cls._index_cache_ts < 120):
             return list(cls._index_cache.values())
 
-        results = []
-        for item in INDIAN_INDICES:
+        def _fetch_one_index(item: Dict[str, str]) -> Dict[str, Any]:
             sym = item["symbol"]
             name = item["name"]
             cat = item["category"]
@@ -196,7 +201,7 @@ class IndianMarketDataService:
             except Exception as e:
                 logger.debug(f"Index fetch note for {sym}: {e}")
 
-            idx_data = {
+            return {
                 "symbol": sym,
                 "name": name,
                 "category": cat,
@@ -207,8 +212,12 @@ class IndianMarketDataService:
                 "currency_symbol": cls.CURRENCY_SYMBOL,
                 "is_positive": pct_change >= 0,
             }
-            results.append(idx_data)
-            cls._index_cache[sym] = idx_data
+
+        with ThreadPoolExecutor(max_workers=min(8, len(INDIAN_INDICES))) as pool:
+            results = list(pool.map(_fetch_one_index, INDIAN_INDICES))
+
+        for idx_data in results:
+            cls._index_cache[idx_data["symbol"]] = idx_data
 
         cls._index_cache_ts = now
         return results
@@ -258,12 +267,24 @@ class IndianMarketDataService:
 
     @classmethod
     def get_stock_fundamentals(cls, symbol: str, exchange: str = "NSE") -> Dict[str, Any]:
-        """Fetches detailed financial statements and company fundamentals for an Indian stock."""
-        ticker_sym = cls.format_ticker(symbol, exchange)
-        ticker = yf.Ticker(ticker_sym)
-        info = ticker.info or {}
+        """Fetches detailed financial statements and company fundamentals for an Indian stock (with caching)."""
+        clean_sym = symbol.strip().upper()
+        cache_key = f"{clean_sym}:{exchange.upper()}"
+        now = datetime.now(timezone.utc).timestamp()
+        if cache_key in cls._fundamentals_cache:
+            cached_data, cached_ts = cls._fundamentals_cache[cache_key]
+            if now - cached_ts < 300:
+                return cached_data
 
-        return {
+        ticker_sym = cls.format_ticker(symbol, exchange)
+        try:
+            ticker = yf.Ticker(ticker_sym)
+            info = ticker.info or {}
+        except Exception as e:
+            logger.debug(f"Indian fundamentals error for {ticker_sym}: {e}")
+            info = {}
+
+        fund_data = {
             "symbol": symbol.upper(),
             "exchange": exchange.upper(),
             "market": "INDIA",
@@ -298,3 +319,5 @@ class IndianMarketDataService:
             "website": info.get("website"),
             "summary": info.get("longBusinessSummary"),
         }
+        cls._fundamentals_cache[cache_key] = (fund_data, now)
+        return fund_data

@@ -1,5 +1,6 @@
 """Database engine, session management, and table initialization."""
 
+import os
 from typing import Generator
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
@@ -11,6 +12,11 @@ from app.database.base import Base
 db_url = settings.DATABASE_URL
 if db_url.startswith("postgres://"):
     db_url = db_url.replace("postgres://", "postgresql://", 1)
+
+# Ensure relative SQLite path resolves canonically to backend/stock_intel.db
+if db_url in ("sqlite:///./stock_intel.db", "sqlite:///stock_intel.db"):
+    canonical_db_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "stock_intel.db"))
+    db_url = f"sqlite:///{canonical_db_path}"
 
 connect_args = {}
 if db_url.startswith("sqlite"):
@@ -28,10 +34,10 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 def _migrate_sqlite_columns():
     """Ensures newly added columns exist in existing SQLite databases."""
-    if not settings.DATABASE_URL.startswith("sqlite"):
+    if not db_url.startswith("sqlite"):
         return
     import sqlite3
-    db_path = settings.DATABASE_URL.replace("sqlite:///", "")
+    db_path = db_url.replace("sqlite:///", "")
     try:
         conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
@@ -174,6 +180,16 @@ def init_db() -> None:
     import app.models  # noqa: F401
     Base.metadata.create_all(bind=engine)
     _migrate_sqlite_columns()
+
+    # Automatically ensure full universe (NSE + US Mega-Caps) is synchronized
+    try:
+        from app.scanner.engine import scanner_engine
+        db = SessionLocal()
+        scanner_engine.sync_universe(db, exchange="ALL")
+        db.close()
+    except Exception as e:
+        logger.warning(f"Universe auto-sync note during init_db: {e}")
+
     logger.info("Database tables initialized successfully.")
 
 

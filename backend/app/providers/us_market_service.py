@@ -9,6 +9,7 @@ Handles:
 
 from datetime import datetime, timezone, timedelta
 from typing import List, Dict, Any, Optional
+from concurrent.futures import ThreadPoolExecutor
 import yfinance as yf
 from app.core.logging import logger
 from app.schemas.candle import QuoteRead
@@ -135,13 +136,12 @@ class USMarketDataService:
 
     @classmethod
     def get_indices(cls, force_refresh: bool = False) -> List[Dict[str, Any]]:
-        """Fetches live quotes for major US benchmark and sector indices."""
+        """Fetches live quotes for major US benchmark and sector indices in parallel with caching."""
         now = datetime.now(timezone.utc).timestamp()
-        if not force_refresh and cls._index_cache and (now - cls._index_cache_ts < 90):
+        if not force_refresh and cls._index_cache and (now - cls._index_cache_ts < 120):
             return list(cls._index_cache.values())
 
-        results = []
-        for item in US_INDICES:
+        def _fetch_one_index(item: Dict[str, str]) -> Dict[str, Any]:
             sym = item["symbol"]
             name = item["name"]
             cat = item["category"]
@@ -170,7 +170,7 @@ class USMarketDataService:
             except Exception as e:
                 logger.debug(f"US Index fetch note for {sym}: {e}")
 
-            idx_data = {
+            return {
                 "symbol": sym,
                 "name": name,
                 "category": cat,
@@ -181,8 +181,12 @@ class USMarketDataService:
                 "currency_symbol": cls.CURRENCY_SYMBOL,
                 "is_positive": pct_change >= 0,
             }
-            results.append(idx_data)
-            cls._index_cache[sym] = idx_data
+
+        with ThreadPoolExecutor(max_workers=min(8, len(US_INDICES))) as pool:
+            results = list(pool.map(_fetch_one_index, US_INDICES))
+
+        for idx_data in results:
+            cls._index_cache[idx_data["symbol"]] = idx_data
 
         cls._index_cache_ts = now
         return results
@@ -230,14 +234,28 @@ class USMarketDataService:
 
         return results
 
+    _fundamentals_cache: Dict[str, Any] = {}
+    _fundamentals_cache_ts: Dict[str, float] = {}
+
     @classmethod
     def get_stock_fundamentals(cls, symbol: str) -> Dict[str, Any]:
-        """Fetches detailed SEC financial statements and company fundamentals for a US stock."""
-        ticker_sym = cls.format_ticker(symbol)
-        ticker = yf.Ticker(ticker_sym)
-        info = ticker.info or {}
+        """Fetches detailed SEC financial statements and company fundamentals for a US stock (with caching)."""
+        clean_sym = symbol.strip().upper()
+        now = datetime.now(timezone.utc).timestamp()
+        if clean_sym in cls._fundamentals_cache:
+            cached_data, cached_ts = cls._fundamentals_cache[clean_sym]
+            if now - cached_ts < 300:
+                return cached_data
 
-        return {
+        ticker_sym = cls.format_ticker(symbol)
+        try:
+            ticker = yf.Ticker(ticker_sym)
+            info = ticker.info or {}
+        except Exception as e:
+            logger.debug(f"Ticker info error for {ticker_sym}: {e}")
+            info = {}
+
+        fund_data = {
             "symbol": symbol.upper(),
             "exchange": info.get("exchange") or "NASDAQ",
             "market": "US",
@@ -272,3 +290,5 @@ class USMarketDataService:
             "website": info.get("website"),
             "summary": info.get("longBusinessSummary"),
         }
+        cls._fundamentals_cache[clean_sym] = (fund_data, now)
+        return fund_data

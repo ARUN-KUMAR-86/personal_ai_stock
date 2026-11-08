@@ -73,9 +73,18 @@ def get_stock_universe(
     provider = get_market_data_provider()
     symbols = [s.symbol for s in stocks]
     
-    # Bulk fetch live quotes
-    ex_for_quotes = "US" if exchange.upper() in ("US", "NASDAQ", "NYSE") else ("NSE" if exchange == "ALL" else exchange)
-    bulk_quotes = provider.get_bulk_quotes(symbols=symbols, exchange=ex_for_quotes)
+    # Bulk fetch live quotes segmented by respective market exchange
+    nse_symbols = [s.symbol for s in stocks if s.exchange.upper() in ("NSE", "BSE", "INDIA")]
+    us_symbols = [s.symbol for s in stocks if s.exchange.upper() in ("US", "NASDAQ", "NYSE")]
+    other_symbols = [s.symbol for s in stocks if s.symbol not in nse_symbols and s.symbol not in us_symbols]
+
+    bulk_quotes = {}
+    if nse_symbols:
+        bulk_quotes.update(provider.get_bulk_quotes(symbols=nse_symbols, exchange="NSE"))
+    if us_symbols:
+        bulk_quotes.update(provider.get_bulk_quotes(symbols=us_symbols, exchange="US"))
+    if other_symbols:
+        bulk_quotes.update(provider.get_bulk_quotes(symbols=other_symbols, exchange=exchange))
 
     summaries = []
     for stock in stocks:

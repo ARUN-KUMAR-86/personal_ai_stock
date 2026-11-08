@@ -49,7 +49,14 @@ def _scheduled_scan_job():
     logger.info("Executing scheduled market scan...")
     db = SessionLocal()
     try:
-        scanner_engine.run_scan(db=db, exchange="NSE")
+        preferred = _get_setting_value("PREFERRED_MARKET", "ALL").upper()
+        if preferred in ("US", "NASDAQ", "NYSE"):
+            scan_exchange = "US"
+        elif preferred in ("NSE", "BSE", "INDIA"):
+            scan_exchange = "NSE"
+        else:
+            scan_exchange = "ALL"
+        scanner_engine.run_scan(db=db, exchange=scan_exchange)
     except Exception as e:
         logger.error(f"Scheduled scan failed with exception: {e}")
     finally:
@@ -66,13 +73,31 @@ def _scheduled_realtime_market_monitor_job():
         from app.providers.factory import get_market_data_provider
 
         provider = get_market_data_provider()
-        # Fetch symbols for watchlist & priority stocks
-        watch_symbols = [w.symbol for w in db.query(WatchlistItem).all()]
-        active_symbols = [s.symbol for s in db.query(Stock).filter(Stock.is_active == True).limit(20).all()]
-        all_syms = list(set(watch_symbols + active_symbols + ["JPL", "JIOFIN", "RELIANCE"]))
+        
+        # Load stocks partitioned by exchange
+        stocks_all = db.query(Stock).filter(Stock.is_active == True).all()
+        nse_syms = [s.symbol for s in stocks_all if s.exchange.upper() in ("NSE", "BSE", "INDIA")]
+        us_syms = [s.symbol for s in stocks_all if s.exchange.upper() in ("US", "NASDAQ", "NYSE")]
+        
+        # Also include any watchlist items
+        watch_items = db.query(WatchlistItem).all()
+        for w in watch_items:
+            sym = w.symbol.upper()
+            if any(s.symbol == sym and s.exchange.upper() in ("US", "NASDAQ", "NYSE") for s in stocks_all):
+                if sym not in us_syms:
+                    us_syms.append(sym)
+            else:
+                if sym not in nse_syms:
+                    nse_syms.append(sym)
 
-        # Fast parallel bulk quotes refresh
-        provider.get_bulk_quotes(all_syms, exchange="NSE")
+        if "RELIANCE" not in nse_syms:
+            nse_syms.append("RELIANCE")
+
+        # Fast parallel bulk quotes refresh for each respective market
+        if nse_syms:
+            provider.get_bulk_quotes(nse_syms[:25], exchange="NSE")
+        if us_syms:
+            provider.get_bulk_quotes(us_syms[:25], exchange="US")
 
         # Also trigger position monitor
         PositionMonitor.check_and_update_positions(db=db)

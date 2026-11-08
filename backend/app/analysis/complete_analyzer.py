@@ -20,6 +20,7 @@ Performs exhaustive independent research for any selected Indian or US stock:
 
 from datetime import datetime, timezone
 from typing import Dict, Any, List, Optional
+from concurrent.futures import ThreadPoolExecutor
 import math
 import numpy as np
 import pandas as pd
@@ -71,11 +72,53 @@ class CompleteStockAnalyzer:
 
         provider = get_market_data_provider()
 
+        # Concurrently ingest market quotes, historical candles, fundamentals, and news
+        def _fetch_quote():
+            try:
+                return provider.get_quote(clean_sym, exchange=target_exchange)
+            except Exception as q_err:
+                logger.warning(f"Live quote fetch error for {clean_sym} ({target_exchange}): {q_err}")
+                return None
+
+        def _fetch_candles():
+            try:
+                return provider.get_historical_ohlcv(clean_sym, exchange=target_exchange, timeframe="1d", period="1y")
+            except Exception as hist_err:
+                logger.warning(f"Could not load 1y historical candles for {clean_sym}: {hist_err}")
+                return pd.DataFrame()
+
+        def _fetch_fundamentals():
+            try:
+                if is_us:
+                    return USMarketDataService.get_stock_fundamentals(clean_sym)
+                else:
+                    return IndianMarketDataService.get_stock_fundamentals(clean_sym, exchange=target_exchange)
+            except Exception as f_err:
+                logger.debug(f"Fundamentals fetch note for {clean_sym}: {f_err}")
+                return {}
+
+        def _fetch_news():
+            try:
+                return MarketSpecificNewsService.get_company_news(clean_sym, exchange=target_exchange, limit=5)
+            except Exception as n_err:
+                logger.debug(f"News fetch note for {clean_sym}: {n_err}")
+                return []
+
+        with ThreadPoolExecutor(max_workers=4) as pool:
+            f_q = pool.submit(_fetch_quote)
+            f_df = pool.submit(_fetch_candles)
+            f_fund = pool.submit(_fetch_fundamentals)
+            f_news = pool.submit(_fetch_news)
+
+            quote = f_q.result()
+            df = f_df.result()
+            fundamentals = f_fund.result() or {}
+            news_articles = f_news.result() or []
+
         # ─────────────────────────────────────────────────────────────
         # 1. LIVE STOCK PRICE & VERIFIED MARKET DATA
         # ─────────────────────────────────────────────────────────────
-        try:
-            quote = provider.get_quote(clean_sym, exchange=target_exchange)
+        if quote and quote.price:
             current_price = float(quote.price)
             price_change = float(quote.change or 0.0)
             pct_change = float(quote.percent_change or 0.0)
@@ -86,8 +129,7 @@ class CompleteStockAnalyzer:
             volume = float(quote.volume or 0.0)
             is_live = bool(quote.is_live)
             data_source = quote.data_source or "Verified Market Stream"
-        except Exception as q_err:
-            logger.warning(f"Live quote fetch error for {clean_sym} ({target_exchange}): {q_err}")
+        else:
             current_price = 100.0
             price_change = 0.0
             pct_change = 0.0
@@ -102,12 +144,6 @@ class CompleteStockAnalyzer:
         # ─────────────────────────────────────────────────────────────
         # 2. HISTORICAL PRICE MOVEMENTS & CANDLESTICK DATA
         # ─────────────────────────────────────────────────────────────
-        try:
-            df = provider.get_historical_ohlcv(clean_sym, exchange=target_exchange, timeframe="1d", period="1y")
-        except Exception as hist_err:
-            logger.warning(f"Could not load 1y historical candles for {clean_sym}: {hist_err}")
-            df = pd.DataFrame()
-
         has_data = df is not None and not df.empty and len(df) >= 15
 
         # ─────────────────────────────────────────────────────────────
@@ -195,13 +231,7 @@ class CompleteStockAnalyzer:
         # ─────────────────────────────────────────────────────────────
         # 8, 9, 10. COMPANY FUNDAMENTALS, FINANCIAL STATEMENTS & EARNINGS
         # ─────────────────────────────────────────────────────────────
-        try:
-            if is_us:
-                fundamentals = USMarketDataService.get_stock_fundamentals(clean_sym)
-            else:
-                fundamentals = IndianMarketDataService.get_stock_fundamentals(clean_sym, exchange=target_exchange)
-        except Exception as f_err:
-            logger.debug(f"Fundamentals fetch note for {clean_sym}: {f_err}")
+        if not fundamentals:
             fundamentals = {
                 "symbol": clean_sym,
                 "company_name": clean_sym,
@@ -225,9 +255,7 @@ class CompleteStockAnalyzer:
         # ─────────────────────────────────────────────────────────────
         # 11. GLOBAL & DOMESTIC NEWS + SENTIMENT
         # ─────────────────────────────────────────────────────────────
-        news_articles = MarketSpecificNewsService.get_company_news(clean_sym, exchange=target_exchange, limit=5)
         avg_news_score = float(np.mean([a["sentiment_score"] for a in news_articles])) if news_articles else 50.0
-
         macro_intelligence = MarketSpecificNewsService.get_market_macro_intelligence(market=target_market)
 
         # ─────────────────────────────────────────────────────────────

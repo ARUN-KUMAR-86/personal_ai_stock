@@ -180,10 +180,18 @@ class AppState extends ChangeNotifier {
     marketIndices = [];
     notifyListeners();
 
-    // Fetch market-specific overview, live feed & stock universe
-    await fetchMarketOverview();
-    await fetchLiveFeed(exchange: activeExchangeDefault);
-    await refreshAll();
+    // Fetch market-specific overview, live feed & stock universe in parallel
+    try {
+      await Future.wait([
+        refreshAll(silent: true),
+        fetchMarketOverview(silent: true),
+        fetchLiveFeed(exchange: activeExchangeDefault),
+      ]);
+    } catch (e) {
+      debugPrint('Error selecting market $clean: $e');
+    } finally {
+      notifyListeners();
+    }
   }
 
   Future<void> fetchMarketOverview({bool silent = false}) async {
