@@ -9,6 +9,7 @@ import '../models/prediction.dart';
 import '../widgets/signal_pill.dart';
 import '../widgets/priority_badge.dart';
 import '../widgets/groww_login_dialog.dart';
+import '../widgets/manual_purchase_dialog.dart';
 
 class StockRecommendationScreen extends StatefulWidget {
   final String symbol;
@@ -1823,30 +1824,56 @@ class _StockRecommendationScreenState extends State<StockRecommendationScreen> {
 
                         return Column(
                           children: [
+                            // Prominent Manual Groww Purchase Button
                             SizedBox(
                               width: double.infinity,
                               height: 54,
                               child: ElevatedButton.icon(
                                 style: ElevatedButton.styleFrom(
-                                  backgroundColor: canBuy ? Colors.green.shade600 : Colors.grey.shade800,
+                                  backgroundColor: Colors.green.shade600,
                                   foregroundColor: Colors.white,
                                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                                  elevation: canBuy ? 3 : 0,
+                                  elevation: 4,
+                                ),
+                                onPressed: () {
+                                  ManualPurchaseDialog.show(
+                                    context,
+                                    symbol: widget.symbol,
+                                    companyName: signal?.companyName ?? widget.symbol,
+                                    currentPrice: currentPrice > 0 ? currentPrice : signal?.price,
+                                    targetPrice: double.tryParse(_targetController.text) ?? signal?.target,
+                                    stopLossPrice: double.tryParse(_stopLossController.text) ?? signal?.stopLoss,
+                                  );
+                                },
+                                icon: const Icon(Icons.check_circle_outline, size: 22),
+                                label: const Text(
+                                  'I BOUGHT THIS STOCK (GROWW)',
+                                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, letterSpacing: 0.5),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            SizedBox(
+                              width: double.infinity,
+                              height: 42,
+                              child: OutlinedButton.icon(
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: Colors.lightBlueAccent,
+                                  side: BorderSide(color: Colors.blueAccent.withOpacity(0.4)),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                                 ),
                                 onPressed: canBuy ? _initiateBuyFlow : null,
-                                icon: const Icon(Icons.shopping_cart_checkout, size: 22),
+                                icon: const Icon(Icons.science_outlined, size: 16),
                                 label: Text(
-                                  canBuy
-                                      ? 'BUY $sharesCount SHARES — ₹${(calculation?.totalOutlay ?? (sharesCount * currentPrice)).toStringAsFixed(2)}'
-                                      : 'ENTER MIN. ₹${currentPrice.ceil()} (1 SHARE)',
-                                  style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+                                  canBuy ? 'SIMULATE PAPER TRADE ($sharesCount SHARES)' : 'SIMULATE PAPER TRADE',
+                                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
                                 ),
                               ),
                             ),
                             const SizedBox(height: 10),
                             const Center(
                               child: Text(
-                                'Mandatory manual buy approval • The AI never buys automatically',
+                                'Manual Groww Entry • Independent Portfolio Monitoring & Threshold Alerts',
                                 textAlign: TextAlign.center,
                                 style: TextStyle(color: Colors.grey, fontSize: 10),
                               ),

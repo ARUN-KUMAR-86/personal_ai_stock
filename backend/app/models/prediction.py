@@ -27,6 +27,21 @@ class StockPrediction(Base):
     key_catalysts = Column(JSON, nullable=True)
     risk_assessment = Column(JSON, nullable=True)
     invalidation_trigger = Column(Text, nullable=True)
-    model_used = Column(String(50), nullable=True, default="Gemini 3.5 Flash")
+    model_used = Column(String(50), nullable=True, default="Institutional AI Ensemble")
+    
+    # Continuous validation, probabilities, and model versioning
+    prob_up = Column(Float, nullable=True)
+    prob_down = Column(Float, nullable=True)
+    prob_sideways = Column(Float, nullable=True)
+    market_regime = Column(String(50), nullable=True)
+    candlestick_patterns = Column(JSON, nullable=True)
+    dimension_scores = Column(JSON, nullable=True)
+    approval_status = Column(String(50), nullable=True, default="APPROVED")
+    outcome_status = Column(String(30), nullable=True, default="PENDING")
+    actual_future_price = Column(Float, nullable=True)
+    actual_return_pct = Column(Float, nullable=True)
+    outcome_evaluated_at = Column(DateTime, nullable=True)
+    model_version = Column(String(30), nullable=True, default="v2.0-ensemble")
+
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))

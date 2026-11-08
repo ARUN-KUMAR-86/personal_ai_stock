@@ -30,6 +30,7 @@ class BacktestTradeLog(BaseModel):
     fees: float
     entry_reason: str
     exit_reason: str
+    market_regime: Optional[str] = "NORMAL"
 
 
 class BacktestResult(BaseModel):
@@ -50,4 +51,12 @@ class BacktestResult(BaseModel):
     profit_factor: float
     max_drawdown_pct: float
     sharpe_ratio: float
+    sortino_ratio: Optional[float] = 0.0
+    precision_pct: Optional[float] = 0.0
+    recall_pct: Optional[float] = 0.0
+    f1_score: Optional[float] = 0.0
+    false_positive_rate: Optional[float] = 0.0
+    false_negative_rate: Optional[float] = 0.0
+    regime_breakdown: Optional[Dict[str, Any]] = None
+    stock_breakdown: Optional[Dict[str, Any]] = None
     trades: List[BacktestTradeLog]

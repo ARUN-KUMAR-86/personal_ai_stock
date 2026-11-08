@@ -141,19 +141,21 @@ def get_setting(key: str, db: Session = Depends(get_db)):
     return {"key": key, "value": record.value}
 
 
-@app.get("/", response_class=HTMLResponse)
+@app.get("/")
 def root(request: Request):
     accept = request.headers.get("accept", "")
     index_file = os.path.join(static_dir, "index.html")
-    if "text/html" in accept and os.path.exists(index_file):
+    if os.path.exists(index_file) and ("application/json" not in accept):
         return FileResponse(index_file)
-    return {
+    from fastapi.responses import JSONResponse
+    return JSONResponse({
         "app": settings.APP_NAME,
-        "version": "1.0.0",
+        "version": "2.0.0",
         "docs_url": "/docs",
+        "dashboard_url": "/dashboard",
         "health_check": f"{settings.API_V1_STR}/health",
         "alerts_stream": f"{settings.API_V1_STR}/alerts/stream",
-    }
+    })
 
 
 @app.get("/dashboard", response_class=HTMLResponse)
@@ -162,6 +164,25 @@ def dashboard():
     if os.path.exists(index_file):
         return FileResponse(index_file)
     return HTMLResponse("<h1>AI Stock Intelligence Dashboard</h1>")
+
+
+@app.get("/download-app")
+@app.get("/app.apk")
+def download_app_apk():
+    """Serves the latest compiled Android APK for direct phone download & installation."""
+    apk_paths = [
+        "/home/arun/personal-ai-stock/app-arm64-v8a-release.apk",
+        "/home/arun/personal-ai-stock/mobile/build/app/outputs/flutter-apk/app-arm64-v8a-release.apk",
+        "/home/arun/personal-ai-stock/mobile/build/app/outputs/flutter-apk/app-debug.apk",
+    ]
+    for p in apk_paths:
+        if os.path.exists(p):
+            return FileResponse(
+                p,
+                media_type="application/vnd.android.package-archive",
+                filename="personal-ai-stock.apk",
+            )
+    raise HTTPException(status_code=404, detail="APK not found")
 
 
 @app.get("/health")

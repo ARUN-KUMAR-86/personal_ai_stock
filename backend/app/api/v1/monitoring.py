@@ -198,3 +198,18 @@ def trigger_quick_scan(db: Session = Depends(get_db)):
     # Execute priority scan
     scanner_engine.run_scan(db=db, exchange="NSE", force=True)
     return {"status": "COMPLETED", "message": "Priority live monitor scan finished successfully."}
+
+
+@router.post("/pass")
+def run_monitoring_pass(force_market_open: bool = False, db: Session = Depends(get_db)):
+    """Triggers an immediate monitoring pass over open positions and active signals."""
+    from app.portfolio.monitor import PositionMonitor
+    pos_res = PositionMonitor.check_and_update_positions(db, force_market_open=force_market_open)
+    cancelled_sigs = PositionMonitor.monitor_and_cancel_invalidated_signals(db)
+    return {
+        "status": "COMPLETED",
+        "positions_monitored": pos_res["monitored_count"],
+        "position_actions": pos_res["actions_taken"],
+        "invalidated_signals": cancelled_sigs,
+    }
+

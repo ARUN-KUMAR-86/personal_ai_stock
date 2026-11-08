@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../state/app_state.dart';
 import '../models/portfolio.dart';
+import '../widgets/priority_badge.dart';
+import '../widgets/manual_purchase_dialog.dart';
+import '../widgets/manual_sale_dialog.dart';
 
 class PortfolioScreen extends StatelessWidget {
   const PortfolioScreen({super.key});
@@ -324,12 +327,27 @@ class PortfolioScreen extends StatelessWidget {
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text('Portfolio Exposure', style: TextStyle(color: Colors.grey, fontSize: 10)),
+                          const Text('Realized P&L', style: TextStyle(color: Colors.grey, fontSize: 10)),
                           const SizedBox(height: 2),
                           Text(
-                            '${portfolio?.portfolioExposurePct.toStringAsFixed(1) ?? '0.0'}%',
+                            '${(portfolio?.totalRealizedPnl ?? 0) >= 0 ? '+' : ''}₹${portfolio?.totalRealizedPnl.toStringAsFixed(2) ?? '0.00'}',
                             style: TextStyle(
-                              color: (portfolio?.portfolioExposurePct ?? 0) > 25.0 ? Colors.orangeAccent : Colors.white,
+                              color: (portfolio?.totalRealizedPnl ?? 0) >= 0 ? Colors.greenAccent : Colors.redAccent,
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text('Active Holdings', style: TextStyle(color: Colors.grey, fontSize: 10)),
+                          const SizedBox(height: 2),
+                          Text(
+                            '${portfolio?.positions.length ?? 0} Stocks',
+                            style: const TextStyle(
+                              color: Colors.white,
                               fontSize: 14,
                               fontWeight: FontWeight.w600,
                             ),
@@ -341,7 +359,30 @@ class PortfolioScreen extends StatelessWidget {
                 ],
               ),
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 12),
+
+            // Prominent "I BOUGHT THIS STOCK" Manual Groww Purchase Action
+            SizedBox(
+              width: double.infinity,
+              height: 48,
+              child: ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.green.shade700,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  elevation: 3,
+                ),
+                icon: const Icon(Icons.add_shopping_cart, size: 20),
+                label: const Text(
+                  'I BOUGHT THIS STOCK (GROWW)',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, letterSpacing: 0.6),
+                ),
+                onPressed: () {
+                  ManualPurchaseDialog.show(context, symbol: '');
+                },
+              ),
+            ),
+            const SizedBox(height: 16),
 
             // Positions Header
             Row(
@@ -484,6 +525,8 @@ class PortfolioScreen extends StatelessWidget {
                         children: [
                           Row(
                             children: [
+                              PriorityBadge(priority: pos.priority, fontSize: 10),
+                              const SizedBox(width: 8),
                               Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                 decoration: BoxDecoration(
@@ -493,7 +536,7 @@ class PortfolioScreen extends StatelessWidget {
                                   borderRadius: BorderRadius.circular(4),
                                 ),
                                 child: Text(
-                                  pos.mode == 'PAPER' ? 'PAPER (SIMULATED)' : 'LIVE BROKER',
+                                  pos.mode == 'PAPER' ? 'PAPER' : 'GROWW MANUAL',
                                   style: TextStyle(
                                     color: pos.mode == 'PAPER' ? Colors.amberAccent : Colors.greenAccent,
                                     fontSize: 9,
@@ -501,23 +544,67 @@ class PortfolioScreen extends StatelessWidget {
                                   ),
                                 ),
                               ),
-                              const SizedBox(width: 6),
-                              Text(
-                                'Hold: ${pos.holdingPeriodHours}h',
-                                style: const TextStyle(color: Colors.grey, fontSize: 10),
-                              ),
+                              if (pos.pnlPct != 0.0) ...[
+                                const SizedBox(width: 6),
+                                Text(
+                                  '(${isProfit ? '+' : ''}${pos.pnlPct.toStringAsFixed(2)}%)',
+                                  style: TextStyle(
+                                    color: isProfit ? Colors.greenAccent : Colors.redAccent,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ],
                             ],
                           ),
-                          if (pos.exitTriggered)
-                            Flexible(
-                              child: Text(
-                                '⚠️ ${pos.exitReason ?? "Exit Triggered"}',
-                                style: const TextStyle(color: Colors.orangeAccent, fontSize: 10, fontWeight: FontWeight.bold),
-                                overflow: TextOverflow.ellipsis,
-                              ),
+                          // Prominent "I SOLD THIS STOCK" Manual Sale Action
+                          ElevatedButton.icon(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.red.shade700,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                              visualDensity: VisualDensity.compact,
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                             ),
+                            icon: const Icon(Icons.sell_outlined, size: 14),
+                            label: const Text(
+                              'I SOLD THIS STOCK',
+                              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11),
+                            ),
+                            onPressed: () {
+                              ManualSaleDialog.show(context, pos);
+                            },
+                          ),
                         ],
                       ),
+                      if (pos.triggeredThresholds.isNotEmpty) ...[
+                        const SizedBox(height: 8),
+                        Wrap(
+                          spacing: 4,
+                          runSpacing: 4,
+                          children: pos.triggeredThresholds.map((t) {
+                            final isProfitAlert = t.contains('+') || t.contains('PROFIT');
+                            return Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: (isProfitAlert ? Colors.green : Colors.red).withOpacity(0.2),
+                                borderRadius: BorderRadius.circular(4),
+                                border: Border.all(
+                                  color: (isProfitAlert ? Colors.greenAccent : Colors.redAccent).withOpacity(0.4),
+                                ),
+                              ),
+                              child: Text(
+                                'ALERT: $t',
+                                style: TextStyle(
+                                  color: isProfitAlert ? Colors.greenAccent : Colors.redAccent,
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            );
+                          }).toList(),
+                        ),
+                      ],
                     ],
                   ),
                 );

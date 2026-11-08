@@ -12,6 +12,7 @@ import '../models/trading_control.dart';
 import '../models/prediction.dart';
 import '../services/api_service.dart';
 import '../services/storage_service.dart';
+import '../services/notification_service.dart';
 
 class AppState extends ChangeNotifier {
   final ApiService api = ApiService();
@@ -29,11 +30,17 @@ class AppState extends ChangeNotifier {
   Timer? _ultraSyncTimer;
   bool _isUltraSyncing = false;
 
+  // Background Auto-Reconnect Engine
+  Timer? _reconnectTimer;
+  bool _isAutoReconnecting = false;
+
   MarketStatus? marketStatus;
   List<StockSummary> stocks = [];
   List<StockSignal> latestSignals = [];
   List<StockAlert> alerts = [];
   List<StockAlert> tradeAlerts = [];
+  final Set<int> _seenAlertIds = {};
+  bool _hasInitialAlertsLoaded = false;
   PortfolioSummary? portfolio;
   List<PaperTrade> paperTrades = [];
   BrokerFunds? funds;
@@ -45,6 +52,8 @@ class AppState extends ChangeNotifier {
   String activeAlgorithm = 'Highest Profit Maximizer (Auto Take Money)';
   bool autoTakeProfit = true;
   bool isDarkMode = false; // Default: White & Blue theme
+  bool onlySellAlerts = true; // User preference: Strictly SELL alerts only for marked/bought stocks
+  final Map<String, Set<String>> _clientTriggeredMilestones = {};
 
   // Watchlist state
   List<WatchlistItem> watchlistItems = [];
@@ -109,6 +118,7 @@ class AppState extends ChangeNotifier {
       activeAlgorithm = await StorageService.getActiveAlgorithm();
       autoTakeProfit = await StorageService.getAutoTakeProfit();
       isDarkMode = await StorageService.getIsDarkMode();
+      onlySellAlerts = await StorageService.getOnlySellAlerts();
       final cachedWatch = await StorageService.getWatchlist();
       watchlistSymbols = cachedWatch.map((s) => s.toUpperCase()).toSet();
       notifyListeners();
@@ -117,26 +127,59 @@ class AppState extends ChangeNotifier {
     }
   }
 
+  Future<void> setOnlySellAlerts(bool enabled) async {
+    onlySellAlerts = enabled;
+    await StorageService.setOnlySellAlerts(enabled);
+    notifyListeners();
+  }
+
   Future<void> toggleDarkMode(bool enabled) async {
     isDarkMode = enabled;
     await StorageService.setIsDarkMode(enabled);
     notifyListeners();
   }
 
-  Future<void> refreshAll() async {
-    isLoading = true;
-    errorMessage = null;
-    notifyListeners();
+  void _scheduleAutoReconnect() {
+    if (_isAutoReconnecting) return;
+    _isAutoReconnecting = true;
+    _reconnectTimer?.cancel();
+    _reconnectTimer = Timer.periodic(const Duration(seconds: 4), (timer) async {
+      final healthy = await api.checkHealth();
+      if (healthy) {
+        timer.cancel();
+        _reconnectTimer = null;
+        _isAutoReconnecting = false;
+        isOnline = true;
+        errorMessage = null;
+        debugPrint('[Auto-Reconnect] Cloud server is online! Automatically loading market data...');
+        await refreshAll(silent: true);
+        await fetchLiveFeed(silent: true);
+        notifyListeners();
+      }
+    });
+  }
+
+  Future<void> refreshAll({bool silent = false}) async {
+    if (!silent) {
+      isLoading = true;
+      errorMessage = null;
+      notifyListeners();
+    }
 
     try {
       final healthy = await api.checkHealth();
       isOnline = healthy;
       if (!healthy) {
-        // Do NOT abort or clear existing trades! Keep local simulation positions fully visible.
-        errorMessage = 'Connecting to backend... Running in offline simulation mode with your saved trades.';
+        // Automatically start background reconnection attempts so user never needs to manually click!
+        errorMessage = 'Cloud server waking up... Auto-connecting in background.';
         isLoading = false;
         notifyListeners();
+        _scheduleAutoReconnect();
         return;
+      } else {
+        _reconnectTimer?.cancel();
+        _reconnectTimer = null;
+        _isAutoReconnecting = false;
       }
 
       final results = await Future.wait([
@@ -174,7 +217,38 @@ class AppState extends ChangeNotifier {
       marketStatus = results[0] as MarketStatus;
       stocks = results[1] as List<StockSummary>;
       latestSignals = results[2] as List<StockSignal>;
-      alerts = results[3] as List<StockAlert>;
+      final fetchedAlerts = results[3] as List<StockAlert>;
+      if (_hasInitialAlertsLoaded) {
+        for (final alert in fetchedAlerts) {
+          if (!_seenAlertIds.contains(alert.id)) {
+            _seenAlertIds.add(alert.id);
+            if (!alert.isRead) {
+              final isSell = alert.action.toUpperCase() == 'SELL' ||
+                  alert.title.toUpperCase().contains('SELL') ||
+                  alert.message.toUpperCase().contains('SELL');
+              if (onlySellAlerts && !isSell) {
+                // Strictly SELL alerts only; suppress general BUY signal alerts
+                continue;
+              }
+              NotificationService().showNotification(
+                id: alert.id,
+                title: alert.title,
+                body: alert.message,
+                data: {
+                  'symbol': alert.symbol,
+                  'exchange': alert.exchange,
+                  'action': alert.action,
+                },
+                isCritical: isSell,
+              );
+            }
+          }
+        }
+      } else {
+        _hasInitialAlertsLoaded = true;
+        _seenAlertIds.addAll(fetchedAlerts.map((a) => a.id));
+      }
+      alerts = fetchedAlerts;
       
       final fetchedPortfolio = results[4] as PortfolioSummary;
       if (fetchedPortfolio.positions.isNotEmpty || (portfolio == null || portfolio!.positions.isEmpty)) {
@@ -274,7 +348,13 @@ class AppState extends ChangeNotifier {
       if (syncData != null) {
         syncLatencyMs = syncData.clientRoundtripMs;
         lastUltraSyncTime = DateTime.now();
+        final wasOffline = !isOnline;
         isOnline = true;
+        errorMessage = null;
+
+        if (wasOffline || stocks.isEmpty || latestSignals.isEmpty) {
+          refreshAll(silent: true);
+        }
 
         portfolio = syncData.portfolio;
         await StorageService.saveCachedPortfolio(portfolio!);
@@ -295,7 +375,15 @@ class AppState extends ChangeNotifier {
 
         if (syncData.autoSellActions.isNotEmpty) {
           final first = syncData.autoSellActions.first;
-          lastAutoSellMessage = '⚡ Auto-Sell executed: ${first['symbol']} (${first['reason']})';
+          final sym = first['symbol'] ?? 'STOCK';
+          final reason = first['reason'] ?? 'Auto Take Profit / Stop Loss';
+          lastAutoSellMessage = '⚡ Auto-Sell executed: $sym ($reason)';
+          NotificationService().showNotification(
+            title: '⚡ AUTO-SELL EXECUTED: $sym',
+            body: '$reason | Live monitoring auto profit/loss lock executed.',
+            data: {'symbol': sym, 'exchange': 'NSE', 'action': 'SELL'},
+            isCritical: true,
+          );
         }
 
         // Secondary client-side verification
@@ -370,12 +458,79 @@ class AppState extends ChangeNotifier {
       } catch (_) {}
     }
 
-    // 2. Client-Side Simulation Auto-Sell Check:
-    // If any open paper position has hit target ("Take Money") or stop-loss, execute auto-sell!
+    // 2. Client-Side Evaluation & Stepped Sell Notifications (+₹30 Profit / -₹30 Loss):
+    // Evaluates every marked position and dispatches heads-up SELL alerts with Buy Amount, Sell Amount, and PnL
     final positionsCopy = List<Position>.from(portfolio!.positions);
     for (final pos in positionsCopy) {
       if (!pos.isOpen) continue;
-      final price = pos.currentPrice;
+      final buyPrice = pos.avgEntryPrice;
+      final currPrice = pos.currentPrice > 0 ? pos.currentPrice : buyPrice;
+      final qty = pos.quantity > 0 ? pos.quantity : 1;
+      final pnlInr = pos.unrealizedPnl != 0.0 ? pos.unrealizedPnl : (currPrice - buyPrice) * qty;
+      final pnlPct = buyPrice > 0 ? ((currPrice - buyPrice) / buyPrice) * 100.0 : 0.0;
+
+      final posKey = '${pos.symbol}_${pos.id}';
+      final milestones = _clientTriggeredMilestones.putIfAbsent(posKey, () => <String>{});
+
+      // Stepping logic: Every +₹30 profit milestone (+30, +60, +90, +120...)
+      if (pnlInr > 0) {
+        milestones.removeWhere((k) => k.startsWith('LOSS_'));
+        final stepProfit = (pnlInr ~/ 30) * 30;
+        if (stepProfit >= 30) {
+          for (int milestone = 30; milestone <= stepProfit; milestone += 30) {
+            final tKey = 'PROFIT_INR_$milestone';
+            if (!milestones.contains(tKey)) {
+              milestones.add(tKey);
+              final totalBuy = buyPrice * qty;
+              final totalSell = currPrice * qty;
+              final title = '🔴 SELL ALERT (+₹$milestone PROFIT): ${pos.symbol} @ ₹${currPrice.toStringAsFixed(2)}';
+              final body = '🔴 SELL ALERT: ${pos.symbol} reached +₹$milestone Profit Target!\n'
+                  '• Buy Price: ₹${buyPrice.toStringAsFixed(2)} | Total Buy Amount: ₹${totalBuy.toStringAsFixed(2)} (Qty: $qty)\n'
+                  '• Sell Price: ₹${currPrice.toStringAsFixed(2)} | Total Sell Amount: ₹${totalSell.toStringAsFixed(2)}\n'
+                  '• Profit / Loss: +₹${pnlInr.toStringAsFixed(2)} (+${pnlPct.toStringAsFixed(2)}%)\n'
+                  '• Milestone: +₹$milestone Profit Target Reached\n'
+                  'Action: Execute SELL order in Groww to lock in your profit!';
+              NotificationService().showNotification(
+                title: title,
+                body: body,
+                data: {'symbol': pos.symbol, 'exchange': 'NSE', 'action': 'SELL'},
+                isCritical: true,
+              );
+              debugPrint('Dispatched stepped profit SELL alert for ${pos.symbol}: +₹$milestone');
+            }
+          }
+        }
+      } else if (pnlInr < 0) {
+        milestones.removeWhere((k) => k.startsWith('PROFIT_'));
+        final absLoss = pnlInr.abs();
+        final stepLoss = (absLoss ~/ 30) * 30;
+        if (stepLoss >= 30) {
+          for (int milestone = 30; milestone <= stepLoss; milestone += 30) {
+            final tKey = 'LOSS_INR_$milestone';
+            if (!milestones.contains(tKey)) {
+              milestones.add(tKey);
+              final totalBuy = buyPrice * qty;
+              final totalSell = currPrice * qty;
+              final title = '🔴 SELL ALERT (-₹$milestone LOSS): ${pos.symbol} @ ₹${currPrice.toStringAsFixed(2)}';
+              final body = '🔴 SELL ALERT: ${pos.symbol} reached -₹$milestone Stop-Loss Milestone!\n'
+                  '• Buy Price: ₹${buyPrice.toStringAsFixed(2)} | Total Buy Amount: ₹${totalBuy.toStringAsFixed(2)} (Qty: $qty)\n'
+                  '• Sell Price: ₹${currPrice.toStringAsFixed(2)} | Total Sell Amount: ₹${totalSell.toStringAsFixed(2)}\n'
+                  '• Profit / Loss: -₹${absLoss.toStringAsFixed(2)} (-${pnlPct.abs().toStringAsFixed(2)}%)\n'
+                  '• Milestone: -₹$milestone Loss Stop-Loss Milestone\n'
+                  'Action: Execute SELL order in Groww to protect your capital!';
+              NotificationService().showNotification(
+                title: title,
+                body: body,
+                data: {'symbol': pos.symbol, 'exchange': 'NSE', 'action': 'SELL'},
+                isCritical: true,
+              );
+              debugPrint('Dispatched stepped loss SELL alert for ${pos.symbol}: -₹$milestone');
+            }
+          }
+        }
+      }
+
+      final price = currPrice;
       bool shouldAutoSell = false;
       String reason = '';
 
@@ -815,6 +970,68 @@ class AppState extends ChangeNotifier {
     }
   }
 
+  Future<Map<String, dynamic>> recordManualPurchase({
+    required String symbol,
+    String exchange = 'NSE',
+    required double actualPrice,
+    required int quantity,
+    String? purchaseDate,
+    String? purchaseTime,
+    double charges = 0.0,
+    double? customTarget,
+    double? customStopLoss,
+    String? companyName,
+  }) async {
+    final result = await api.recordManualPurchase(
+      symbol: symbol,
+      exchange: exchange,
+      actualPrice: actualPrice,
+      quantity: quantity,
+      purchaseDate: purchaseDate,
+      purchaseTime: purchaseTime,
+      charges: charges,
+      customTarget: customTarget,
+      customStopLoss: customStopLoss,
+      companyName: companyName,
+    );
+    try {
+      portfolio = await api.getPortfolioSummary();
+      if (portfolio != null) {
+        await StorageService.saveCachedPortfolio(portfolio!);
+      }
+    } catch (_) {}
+    notifyListeners();
+    return result;
+  }
+
+  Future<Map<String, dynamic>> recordManualSale({
+    required String symbol,
+    String exchange = 'NSE',
+    required double sellingPrice,
+    required int quantitySold,
+    String? sellingDate,
+    String? sellingTime,
+    double charges = 0.0,
+  }) async {
+    final result = await api.recordManualSale(
+      symbol: symbol,
+      exchange: exchange,
+      sellingPrice: sellingPrice,
+      quantitySold: quantitySold,
+      sellingDate: sellingDate,
+      sellingTime: sellingTime,
+      charges: charges,
+    );
+    try {
+      portfolio = await api.getPortfolioSummary();
+      if (portfolio != null) {
+        await StorageService.saveCachedPortfolio(portfolio!);
+      }
+    } catch (_) {}
+    notifyListeners();
+    return result;
+  }
+
   Future<void> checkPositionMonitoring() async {
     try {
       await api.checkPositionMonitoring();
@@ -1040,6 +1257,7 @@ class AppState extends ChangeNotifier {
   @override
   void dispose() {
     _ultraSyncTimer?.cancel();
+    _reconnectTimer?.cancel();
     super.dispose();
   }
 }

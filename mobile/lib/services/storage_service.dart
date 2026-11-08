@@ -180,6 +180,18 @@ class StorageService {
   }
 
   static const String keyDarkMode = 'user_is_dark_mode';
+  static const String keyOnlySellAlerts = 'user_only_sell_alerts';
+
+  static Future<bool> getOnlySellAlerts() async {
+    final prefs = await SharedPreferences.getInstance();
+    // Default is true (User strictly wants SELL alerts only for bought/marked stocks)
+    return prefs.getBool(keyOnlySellAlerts) ?? true;
+  }
+
+  static Future<void> setOnlySellAlerts(bool enabled) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(keyOnlySellAlerts, enabled);
+  }
 
   static Future<bool> getIsDarkMode() async {
     final prefs = await SharedPreferences.getInstance();

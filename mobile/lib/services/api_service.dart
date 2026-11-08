@@ -33,14 +33,14 @@ class ApiService {
   Future<bool> checkHealth() async {
     try {
       final url = await _getUrl('/health');
-      final res = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 5));
+      final res = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 8));
       if (res.statusCode == 200) return true;
     } catch (_) {}
 
-    // Resilient Cloud Fallback with wake-up handling (takes up to 18 seconds for sleeping Render):
+    // Resilient Cloud Fallback with wake-up handling (takes up to 25 seconds for sleeping Render):
     try {
       const cloudUrl = StorageService.cloudProductionUrl;
-      final res = await http.get(Uri.parse('$cloudUrl/health')).timeout(const Duration(seconds: 18));
+      final res = await http.get(Uri.parse('$cloudUrl/health')).timeout(const Duration(seconds: 25));
       if (res.statusCode == 200) {
         await StorageService.setBaseUrl(cloudUrl);
         return true;
@@ -326,6 +326,84 @@ class ApiService {
         }),
       ).timeout(const Duration(seconds: 10));
     } catch (_) {}
+  }
+
+  Future<Map<String, dynamic>> recordManualPurchase({
+    required String symbol,
+    String exchange = 'NSE',
+    required double actualPrice,
+    required int quantity,
+    String? purchaseDate,
+    String? purchaseTime,
+    double charges = 0.0,
+    double? customTarget,
+    double? customStopLoss,
+    String? companyName,
+  }) async {
+    final url = await _getUrl('/portfolio/manual-purchase');
+    final headers = await _headers();
+    final res = await http.post(
+      Uri.parse(url),
+      headers: headers,
+      body: jsonEncode({
+        'symbol': symbol,
+        'exchange': exchange,
+        'actual_price': actualPrice,
+        'quantity': quantity,
+        if (purchaseDate != null) 'purchase_date': purchaseDate,
+        if (purchaseTime != null) 'purchase_time': purchaseTime,
+        'charges': charges,
+        if (customTarget != null) 'custom_target': customTarget,
+        if (customStopLoss != null) 'custom_stop_loss': customStopLoss,
+        if (companyName != null) 'company_name': companyName,
+      }),
+    ).timeout(const Duration(seconds: 10));
+    if (res.statusCode == 200 || res.statusCode == 201) {
+      return jsonDecode(res.body);
+    }
+    throw Exception('Failed to record manual purchase (${res.statusCode}: ${res.body})');
+  }
+
+  Future<Map<String, dynamic>> recordManualSale({
+    required String symbol,
+    String exchange = 'NSE',
+    required double sellingPrice,
+    required int quantitySold,
+    String? sellingDate,
+    String? sellingTime,
+    double charges = 0.0,
+  }) async {
+    final url = await _getUrl('/portfolio/manual-sell');
+    final headers = await _headers();
+    final res = await http.post(
+      Uri.parse(url),
+      headers: headers,
+      body: jsonEncode({
+        'symbol': symbol,
+        'exchange': exchange,
+        'selling_price': sellingPrice,
+        'quantity_sold': quantitySold,
+        if (sellingDate != null) 'selling_date': sellingDate,
+        if (sellingTime != null) 'selling_time': sellingTime,
+        'charges': charges,
+      }),
+    ).timeout(const Duration(seconds: 10));
+    if (res.statusCode == 200 || res.statusCode == 201) {
+      return jsonDecode(res.body);
+    }
+    throw Exception('Failed to record manual sale (${res.statusCode}: ${res.body})');
+  }
+
+  Future<List<Map<String, dynamic>>> getClosedPositions({int limit = 50}) async {
+    try {
+      final url = await _getUrl('/portfolio/positions/closed?limit=$limit');
+      final res = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 8));
+      if (res.statusCode == 200) {
+        final List raw = jsonDecode(res.body);
+        return raw.cast<Map<String, dynamic>>();
+      }
+    } catch (_) {}
+    return [];
   }
 
   Future<Map<String, dynamic>> triggerAutoSellCheck() async {

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../state/app_state.dart';
 import '../widgets/zed_logo.dart';
+import '../widgets/manual_purchase_dialog.dart';
 import 'stock_recommendation_screen.dart';
 
 class LiveMonitoringScreen extends StatefulWidget {
@@ -203,6 +204,19 @@ class _LiveMonitoringScreenState extends State<LiveMonitoringScreen> {
             const SizedBox(height: 24),
           ],
         ),
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        backgroundColor: const Color(0xFF16A34A),
+        foregroundColor: Colors.white,
+        elevation: 4,
+        icon: const Icon(Icons.add_shopping_cart, size: 20),
+        label: const Text(
+          'I Bought a Stock',
+          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, letterSpacing: 0.5),
+        ),
+        onPressed: () {
+          ManualPurchaseDialog.show(context, symbol: '');
+        },
       ),
     );
   }

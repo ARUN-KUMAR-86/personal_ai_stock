@@ -19,6 +19,17 @@ class StockPrediction {
   final List<String> riskAssessment;
   final String? invalidationTrigger;
   final String? modelUsed;
+  final double? probUp;
+  final double? probDown;
+  final double? probSideways;
+  final String? marketRegime;
+  final List<String> candlestickPatterns;
+  final Map<String, dynamic>? dimensionScores;
+  final String? approvalStatus;
+  final String? outcomeStatus;
+  final double? actualFuturePrice;
+  final double? actualReturnPct;
+  final String? modelVersion;
   final DateTime? createdAt;
 
   StockPrediction({
@@ -42,6 +53,17 @@ class StockPrediction {
     this.riskAssessment = const [],
     this.invalidationTrigger,
     this.modelUsed,
+    this.probUp,
+    this.probDown,
+    this.probSideways,
+    this.marketRegime,
+    this.candlestickPatterns = const [],
+    this.dimensionScores,
+    this.approvalStatus,
+    this.outcomeStatus,
+    this.actualFuturePrice,
+    this.actualReturnPct,
+    this.modelVersion,
     this.createdAt,
   });
 
@@ -71,6 +93,17 @@ class StockPrediction {
       riskAssessment: (json['risk_assessment'] as List?)?.map((e) => e.toString()).toList() ?? [],
       invalidationTrigger: json['invalidation_trigger'] as String?,
       modelUsed: json['model_used'] as String?,
+      probUp: (json['prob_up'] as num?)?.toDouble(),
+      probDown: (json['prob_down'] as num?)?.toDouble(),
+      probSideways: (json['prob_sideways'] as num?)?.toDouble(),
+      marketRegime: json['market_regime'] as String?,
+      candlestickPatterns: (json['candlestick_patterns'] as List?)?.map((e) => e.toString()).toList() ?? [],
+      dimensionScores: json['dimension_scores'] is Map<String, dynamic> ? json['dimension_scores'] : null,
+      approvalStatus: json['approval_status'] as String?,
+      outcomeStatus: json['outcome_status'] as String?,
+      actualFuturePrice: (json['actual_future_price'] as num?)?.toDouble(),
+      actualReturnPct: (json['actual_return_pct'] as num?)?.toDouble(),
+      modelVersion: json['model_version'] as String?,
       createdAt: json['created_at'] != null ? DateTime.tryParse(json['created_at']) : null,
     );
   }
@@ -96,6 +129,17 @@ class StockPrediction {
         'risk_assessment': riskAssessment,
         'invalidation_trigger': invalidationTrigger,
         'model_used': modelUsed,
+        'prob_up': probUp,
+        'prob_down': probDown,
+        'prob_sideways': probSideways,
+        'market_regime': marketRegime,
+        'candlestick_patterns': candlestickPatterns,
+        'dimension_scores': dimensionScores,
+        'approval_status': approvalStatus,
+        'outcome_status': outcomeStatus,
+        'actual_future_price': actualFuturePrice,
+        'actual_return_pct': actualReturnPct,
+        'model_version': modelVersion,
         'created_at': createdAt?.toIso8601String(),
       };
 }

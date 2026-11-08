@@ -182,27 +182,80 @@ class TradeAlertCard extends StatelessWidget {
               ],
             ),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 10),
 
-          // Rationale / Gemini Pro Thesis
-          if (alert.reason != null && alert.reason!.isNotEmpty)
+          // Dedicated Profit / Loss Badge
+          if (alert.pnlInr != null)
             Container(
+              margin: const EdgeInsets.only(bottom: 10),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: alert.pnlInr! >= 0
+                    ? (isDark ? const Color(0x1A00E676) : const Color(0xFFECFDF5))
+                    : (isDark ? const Color(0x1AFF1744) : const Color(0xFFFEF2F2)),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: alert.pnlInr! >= 0
+                      ? const Color(0xFF10B981).withOpacity(0.5)
+                      : const Color(0xFFEF4444).withOpacity(0.5),
+                ),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Row(
+                    children: [
+                      Icon(
+                        alert.pnlInr! >= 0 ? Icons.trending_up : Icons.trending_down,
+                        size: 16,
+                        color: alert.pnlInr! >= 0 ? const Color(0xFF10B981) : const Color(0xFFEF4444),
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        alert.pnlInr! >= 0 ? 'PROFIT MILESTONE' : 'STOP-LOSS MILESTONE',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w800,
+                          fontSize: 10,
+                          color: alert.pnlInr! >= 0 ? const Color(0xFF10B981) : const Color(0xFFEF4444),
+                        ),
+                      ),
+                    ],
+                  ),
+                  Text(
+                    '${alert.pnlInr! >= 0 ? "+" : ""}₹${alert.pnlInr!.toStringAsFixed(2)} (${alert.pnlPct != null ? "${alert.pnlPct! >= 0 ? "+" : ""}${alert.pnlPct!.toStringAsFixed(2)}%" : ""})',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 12,
+                      color: alert.pnlInr! >= 0 ? const Color(0xFF10B981) : const Color(0xFFEF4444),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+          // Message & Details (Buy Price, Sell Price, Profit & Loss Breakdown)
+          if (alert.message.isNotEmpty || (alert.reason != null && alert.reason!.isNotEmpty))
+            Container(
+              width: double.infinity,
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
                 color: isDark ? const Color(0xFF161C2E) : const Color(0xFFEFF6FF),
                 borderRadius: BorderRadius.circular(8),
                 border: Border(
-                  left: BorderSide(color: theme.primaryColor, width: 3),
+                  left: BorderSide(
+                    color: isBuy ? theme.primaryColor : const Color(0xFFDC2626),
+                    width: 3,
+                  ),
                 ),
               ),
               child: Text(
-                alert.reason!,
-                maxLines: 2,
+                alert.message.isNotEmpty ? alert.message : (alert.reason ?? ''),
+                maxLines: 6,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
                   color: isDark ? Colors.white70 : const Color(0xFF1E293B),
-                  fontSize: 12,
-                  height: 1.4,
+                  fontSize: 11.5,
+                  height: 1.45,
                 ),
               ),
             ),

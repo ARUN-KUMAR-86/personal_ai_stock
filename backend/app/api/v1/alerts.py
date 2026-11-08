@@ -59,18 +59,55 @@ async def stream_realtime_alerts(request: Request):
 @router.get("/history", response_model=List[AlertRead])
 def get_alert_history(
     action: Optional[str] = None,  # Filter by BUY or SELL
+    priority: Optional[str] = None, # Filter by P0, P1, P2, P3, P4
+    category: Optional[str] = None, # "PROFIT", "LOSS", "CRITICAL", "ALL"
     unread_only: bool = False,
-    limit: int = 50,
+    limit: int = 100,
     db: Session = Depends(get_db),
 ):
-    """Retrieves real-time notification history (filtered by BUY or SELL)."""
+    """Retrieves real-time notification history sorted by priority urgency (P0 first)."""
     query = db.query(AlertHistory)
     if action:
         norm = action.upper().strip()
         query = query.filter((AlertHistory.action == norm) | (AlertHistory.alert_type == norm))
+    if priority:
+        query = query.filter(AlertHistory.priority == priority.upper().strip())
+    if category:
+        cat = category.upper().strip()
+        if cat == "PROFIT":
+            query = query.filter(AlertHistory.threshold_key.like("PROFIT_%"))
+        elif cat == "LOSS":
+            query = query.filter(AlertHistory.threshold_key.like("LOSS_%"))
+        elif cat == "CRITICAL":
+            query = query.filter((AlertHistory.priority == "P0") | (AlertHistory.threshold_key == "LOSS_PCT_12"))
+
     if unread_only:
         query = query.filter(AlertHistory.is_read == False)
-    return query.order_by(AlertHistory.created_at.desc()).limit(limit).all()
+
+    alerts = query.all()
+    priority_order = {"P0": 0, "P1": 1, "P2": 2, "P3": 3, "P4": 4}
+    # Always sort: P0 first, then P1, P2, P3, P4, then latest first
+    alerts.sort(
+        key=lambda a: (
+            priority_order.get(a.priority or "P2", 9),
+            -(a.created_at.timestamp() if a.created_at else 0),
+        )
+    )
+    return alerts[:limit]
+
+
+@router.get("/queue")
+def get_notification_queue(limit: int = 50, db: Session = Depends(get_db)):
+    """Retrieves delivery status of queued notifications and retry counts."""
+    from app.models.alert import NotificationQueue
+    items = db.query(NotificationQueue).order_by(NotificationQueue.created_at.desc()).limit(limit).all()
+    return items
+
+
+@router.post("/queue/process")
+def process_notification_queue(db: Session = Depends(get_db)):
+    """Manually triggers processing of pending notifications in the durable queue."""
+    return notifier.process_notification_queue(db=db)
 
 
 @router.post("/clear")

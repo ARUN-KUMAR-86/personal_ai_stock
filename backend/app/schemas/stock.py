@@ -1,7 +1,7 @@
 """Stock schemas."""
 
 from datetime import datetime
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 from pydantic import BaseModel, ConfigDict
 
 
@@ -45,4 +45,12 @@ class StockSummary(BaseModel):
     predicted_direction: Optional[str] = None
     predicted_target: Optional[float] = None
     predicted_confidence: Optional[float] = None
-    priority: Optional[str] = "MEDIUM"
+    priority: Optional[str] = "P2"
+    entry_zone: Optional[str] = None
+    stop_loss: Optional[float] = None
+    target_price: Optional[float] = None
+    risk_reward: Optional[float] = None
+    supporting_indicators: Optional[Dict[str, Any]] = None
+    main_reasons: Optional[str] = None
+    data_freshness: Optional[str] = "Verified Tick"
+    data_available: bool = True

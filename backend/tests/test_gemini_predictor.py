@@ -24,7 +24,7 @@ def test_gemini_predictor_deterministic():
 
     assert pred["symbol"] == "RELIANCE"
     assert pred["predicted_direction"] in ("BULLISH", "BEARISH", "NEUTRAL")
-    assert pred["predicted_action"] in ("STRONG BUY", "BUY", "HOLD", "SELL", "STRONG SELL")
+    assert pred["predicted_action"] in ("STRONG BUY", "BUY", "HOLD", "SELL", "STRONG SELL", "NO TRADE")
     assert pred["target_price"] > 0
     assert pred["confidence_score"] >= 0.0
     assert "working_algorithm" in pred

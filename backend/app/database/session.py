@@ -63,15 +63,22 @@ def _migrate_sqlite_columns():
         pos_cols = [row[1] for row in cursor.fetchall()]
         if pos_cols:
             new_pos_cols = {
+                "company_name": "VARCHAR(100)",
                 "holding_period_hours": "INTEGER DEFAULT 48",
                 "exit_deadline": "DATETIME",
                 "auto_sell_enabled": "BOOLEAN DEFAULT 0",
-                "exit_strategy": "VARCHAR(50) DEFAULT 'TARGET_OR_STOPLOSS_OR_EXPIRY'",
+                "exit_strategy": "VARCHAR(50) DEFAULT 'MANUAL_GROWW_MONITOR'",
                 "exit_triggered": "BOOLEAN DEFAULT 0",
                 "exit_reason": "VARCHAR(100)",
                 "monitored_at": "DATETIME",
-                "mode": "VARCHAR(20) DEFAULT 'PAPER'",
+                "mode": "VARCHAR(20) DEFAULT 'GROWW_MANUAL'",
                 "order_id": "VARCHAR(64)",
+                "charges": "FLOAT DEFAULT 0.0",
+                "purchase_date": "DATETIME",
+                "priority": "VARCHAR(10) DEFAULT 'P2'",
+                "status": "VARCHAR(20) DEFAULT 'ACTIVE'",
+                "triggered_thresholds": "JSON",
+                "custom_thresholds": "JSON",
             }
             for col, col_type in new_pos_cols.items():
                 if col not in pos_cols:
@@ -106,6 +113,12 @@ def _migrate_sqlite_columns():
         alert_cols = [row[1] for row in cursor.fetchall()]
         if alert_cols:
             new_alert_cols = {
+                "priority": "VARCHAR(10) DEFAULT 'P2'",
+                "threshold_key": "VARCHAR(50)",
+                "pnl_inr": "FLOAT",
+                "pnl_pct": "FLOAT",
+                "delivery_status": "VARCHAR(30) DEFAULT 'DELIVERED'",
+                "position_id": "INTEGER",
                 "action": "VARCHAR(10) DEFAULT 'BUY'",
                 "suggested_investment": "FLOAT DEFAULT 100.0",
                 "estimated_quantity": "INTEGER DEFAULT 1",
@@ -125,6 +138,29 @@ def _migrate_sqlite_columns():
             for col, col_type in new_alert_cols.items():
                 if col not in alert_cols:
                     cursor.execute(f"ALTER TABLE alert_history ADD COLUMN {col} {col_type};")
+
+        # Check stock_predictions columns
+        cursor.execute("PRAGMA table_info(stock_predictions);")
+        pred_cols = [row[1] for row in cursor.fetchall()]
+        if pred_cols:
+            new_pred_cols = {
+                "prob_up": "FLOAT",
+                "prob_down": "FLOAT",
+                "prob_sideways": "FLOAT",
+                "market_regime": "VARCHAR(50)",
+                "candlestick_patterns": "JSON",
+                "dimension_scores": "JSON",
+                "approval_status": "VARCHAR(50) DEFAULT 'APPROVED'",
+                "outcome_status": "VARCHAR(30) DEFAULT 'PENDING'",
+                "actual_future_price": "FLOAT",
+                "actual_return_pct": "FLOAT",
+                "outcome_evaluated_at": "DATETIME",
+                "model_version": "VARCHAR(30) DEFAULT 'v2.0-ensemble'",
+            }
+            for col, col_type in new_pred_cols.items():
+                if col not in pred_cols:
+                    cursor.execute(f"ALTER TABLE stock_predictions ADD COLUMN {col} {col_type};")
+
 
         conn.commit()
         conn.close()

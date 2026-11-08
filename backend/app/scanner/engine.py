@@ -1,4 +1,4 @@
-"""Automatic stock scanner and analysis execution engine."""
+"""Automatic stock scanner and 15-step research notification execution engine."""
 
 import time
 from datetime import datetime, timezone
@@ -11,16 +11,24 @@ from app.database.session import SessionLocal
 from app.models.stock import Stock
 from app.models.scan_job import ScanJob
 from app.models.signal import StockSignal
+from app.models.prediction import StockPrediction
 from app.providers.factory import get_market_data_provider
 from app.strategies.registry import strategy_registry
 from app.notifications.notifier import notifier
 from app.analysis.narrative import AINarrativeGenerator
+from app.analysis.ensemble_predictor import ensemble_predictor
+from app.analysis.candlestick_intelligence import CandlestickIntelligence
+from app.analysis.market_structure import MarketStructureAnalyzer
+from app.analysis.volume_intelligence import VolumeIntelligence
+from app.analysis.false_signal_detector import FalseSignalDetector
+from app.analysis.market_regime import MarketRegimeDetector
+from app.analysis.global_market_engine import GlobalMarketEngine
 
 narrative_generator = AINarrativeGenerator()
 
 
 class ScannerEngine:
-    """Orchestrates scanning of supported stock universe and signal generation."""
+    """Orchestrates scanning of supported stock universe and 15-step research pipeline."""
 
     def __init__(self):
         self.is_scanning = False
@@ -60,7 +68,7 @@ class ScannerEngine:
         exchange: str = "ALL",
         force: bool = False,
     ) -> ScanJob:
-        """Executes a scanning pass over active stocks (Indian NSE & Global US)."""
+        """Executes a 15-step research scanning pass over active stocks."""
         if self.is_scanning:
             logger.warning("Scan pass already in progress. Skipping concurrent run.")
             latest = db.query(ScanJob).order_by(ScanJob.id.desc()).first()
@@ -137,7 +145,7 @@ class ScannerEngine:
             primary_strategy = strategy_registry.get(selected_algo) or strategy_registry.get("HighestGainMaximizer") or strategy_registry.get_all()[0]
 
             failed_symbols = []
-            signals_generated = 0
+            approved_signals_count = 0
 
             # Batch scanning to respect rate limits
             batch_size = settings.SCAN_BATCH_SIZE
@@ -145,100 +153,172 @@ class ScannerEngine:
                 batch = target_stocks[i : i + batch_size]
                 for stock in batch:
                     try:
-                        # 1. Fetch historical OHLCV
+                        # 1. Scan stock & 2. Ingest external market data
                         df = provider.get_historical_ohlcv(
                             symbol=stock.symbol,
                             exchange=stock.exchange,
                             timeframe="1d",
                             period="6mo",
                         )
-                        if df.empty or len(df) < 10:
+
+                        # 3. Verify data quality
+                        if df.empty or len(df) < 25:
                             failed_symbols.append({"symbol": stock.symbol, "error": "Insufficient bars"})
                             job.failed_stocks += 1
                             continue
 
-                        # 2. Evaluate Strategy
-                        signal: StockSignal = primary_strategy.evaluate(
+                        # Execute 15-Step Research Pipeline via Ensemble Engine
+                        # Steps 4 through 14: Historical Analysis, Candlesticks, Structure, Volume,
+                        # Multi-Timeframe, Macro Research, Ensemble Prediction, Risk/Reward, False Signals,
+                        # Candle Confirmation, and Confidence Scoring
+                        research_result = ensemble_predictor.predict(
                             df=df,
                             symbol=stock.symbol,
+                            company_name=stock.name or stock.symbol,
                             exchange=stock.exchange,
+                            sector=stock.sector,
+                            time_horizon="1-DAY",
                         )
-                        signal.company_name = stock.name or stock.symbol
-                        signal.data_source = f"{provider.name} (Verified NSE/BSE Feed)"
-                        signal.data_freshness = "Verified Tick / Daily Candle"
-                        if not getattr(signal, "priority", None):
-                            signal.priority = "HIGH" if signal.strength >= 75 else ("MEDIUM" if signal.strength >= 50 else "LOW")
 
+                        action = research_result["predicted_action"]
+                        approval_status = research_result["approval_status"]
+                        confidence = research_result["confidence_score"]
+                        price = research_result["price_at_prediction"]
+                        target_price = research_result["target_price"]
+                        stop_loss_price = research_result["stop_loss"]
+                        regime = research_result["market_regime"]
+                        traps = research_result["false_signal_traps"]
+
+                        # Step 15: Approve or Reject Signal
+                        is_approved = (
+                            approval_status == "APPROVED_SIGNAL"
+                            and confidence >= 80.0
+                            and len(traps) == 0
+                            and action in ("BUY", "STRONG BUY", "SELL", "STRONG SELL")
+                        )
+
+                        if is_approved:
+                            signal_type = "BUY" if "BUY" in action else "SELL"
+                            priority = "HIGH" if confidence >= 90.0 else "MEDIUM"
+                            explanation = f"15-Step Research APPROVED: {action} ({confidence}% confidence). {research_result['verdict_reason']}"
+                        else:
+                            signal_type = "NO TRADE"
+                            priority = "LOW"
+                            explanation = f"NO TRADE – INSUFFICIENT CONFIRMATION. {research_result['verdict_reason']}"
+
+                        # Save Signal Record to Database
+                        signal = StockSignal(
+                            symbol=stock.symbol,
+                            exchange=stock.exchange,
+                            timestamp=datetime.now(timezone.utc),
+                            signal_type=signal_type,
+                            strategy_name=primary_strategy.name,
+                            price=price,
+                            stop_loss=stop_loss_price,
+                            target=target_price,
+                            risk_reward=research_result["risk_reward_ratio"],
+                            strength=confidence,
+                            priority=priority,
+                            company_name=stock.name or stock.symbol,
+                            entry_range_low=round(price * 0.995, 2),
+                            entry_range_high=round(price * 1.005, 2),
+                            holding_period_hours=48,
+                            data_source=f"{provider.name} (Verified NSE/BSE Feed)",
+                            data_freshness="Verified Tick / Daily Candle",
+                            liquidity_summary=f"RVOL: {research_result['rvol']:.2f}x. VWAP: ₹{research_result['vwap']:.2f}.",
+                            explanation=explanation,
+                            indicator_summary={
+                                "rvol": research_result["rvol"],
+                                "vwap": research_result["vwap"],
+                                "market_regime": regime,
+                                "candlestick_patterns": research_result["candlestick_patterns"],
+                                "dimension_scores": research_result["dimension_scores"],
+                                "probabilities": research_result["probabilities"],
+                            },
+                            score_breakdown=research_result["dimension_scores"],
+                            ai_thesis={
+                                "headline": f"{priority} Priority Research: {stock.symbol} ({signal_type})",
+                                "investment_thesis": explanation,
+                                "approval_status": approval_status,
+                                "market_regime": regime,
+                                "candlestick_confirmation": research_result["candlestick_confirmation"],
+                                "market_structure": research_result["market_structure"],
+                                "probabilities": research_result["probabilities"],
+                                "dimension_scores": research_result["dimension_scores"],
+                                "traps_detected": traps,
+                                "model_used": research_result["model_used"],
+                                "verdict_reason": research_result["verdict_reason"],
+                                "catalysts": research_result.get("catalysts") or [
+                                    f"Market structure indicates {struct_res.get('trend_state', 'active trend')}",
+                                    f"Volume confirmation: RVOL is {research_result['rvol']:.2f}x average",
+                                    f"Technical indicators confirm {signal_type} regime",
+                                ],
+                                "risk_factors": research_result.get("risk_factors") or [
+                                    f"Stop-loss protection level: ₹{stop_loss_price:.2f}",
+                                    "General market volatility and macro policy shifts",
+                                    "Sector-specific headwind sensitivity",
+                                ],
+                            },
+                        )
                         db.add(signal)
                         db.commit()
                         db.refresh(signal)
 
-                        # 3. Conduct Gemini Pro deep research & dispatch real-time BUY / SELL notification
-                        if signal.signal_type in ("BUY WATCH", "SELL/EXIT WATCH", "BUY", "SELL"):
-                            signals_generated += 1
-                            action = "BUY" if "BUY" in signal.signal_type.upper() else "SELL"
+                        # Record in StockPrediction table for Continuous Validation
+                        pred_record = StockPrediction(
+                            symbol=stock.symbol,
+                            exchange=stock.exchange,
+                            company_name=stock.name or stock.symbol,
+                            price_at_prediction=price,
+                            predicted_direction=research_result["predicted_direction"],
+                            predicted_action=action,
+                            target_price=target_price,
+                            expected_gain_pct=research_result["expected_gain_pct"],
+                            stop_loss=stop_loss_price,
+                            confidence_score=confidence,
+                            time_horizon="1-DAY (Calibrated)",
+                            algorithm_name=f"Institutional AI Ensemble ({regime})",
+                            working_algorithm=f"15-Step Research Pipeline. Regime: {regime}. Confidence: {confidence}%. Verdict: {research_result['verdict_reason']}",
+                            algorithm_metrics=research_result["dimension_scores"],
+                            ai_prediction_summary=explanation,
+                            model_used=research_result["model_used"],
+                            prob_up=research_result["probabilities"]["prob_up"],
+                            prob_down=research_result["probabilities"]["prob_down"],
+                            prob_sideways=research_result["probabilities"]["prob_sideways"],
+                            market_regime=regime,
+                            candlestick_patterns=research_result["candlestick_patterns"],
+                            dimension_scores=research_result["dimension_scores"],
+                            approval_status=approval_status,
+                            outcome_status="PENDING",
+                            model_version="v2.0-ensemble",
+                        )
+                        db.add(pred_record)
+                        db.commit()
 
-                            # Determine Time Horizon (1-DAY Short Term vs 1-MONTH Long Term)
-                            metrics = signal.indicator_summary or {}
-                            rvol = float(metrics.get("rvol") or 1.0)
-                            rsi = float(metrics.get("rsi_14") or 50.0)
-                            ema_21 = float(metrics.get("ema_21") or signal.price)
-                            ema_50 = float(metrics.get("ema_50") or signal.price)
-                            sma_50 = float(metrics.get("sma_50") or signal.price)
-                            atr = float(metrics.get("atr_14") or max(signal.price * 0.02, 1.0))
-
-                            # 1-DAY: High volume surge or strong momentum velocity
-                            # 1-MONTH: Sustained moving average trend consolidation
-                            is_short_surge = (rvol >= 1.25) or (rsi >= 60.0)
-                            time_horizon = "1-DAY" if is_short_surge else "1-MONTH"
-
-                            target_price = signal.target
-                            stop_loss_price = signal.stop_loss
-
-                            # Calibrate levels for 1-MONTH (Long Term) if applicable
-                            if time_horizon == "1-MONTH" and action == "BUY":
-                                # Positional upside: 4.5x ATR (~12-25% gain)
-                                target_price = round(signal.price + max(4.5 * atr, signal.price * 0.12), 2)
-                                stop_loss_price = round(max(signal.price - (2.2 * atr), sma_50 * 0.97, 0.5), 2)
-
-                            # Institutional Gemini Pro Deep Research
-                            ai_thesis = None
-                            try:
-                                ai_thesis = narrative_generator.generate_thesis(
-                                    symbol=stock.symbol,
-                                    company_name=stock.name or stock.symbol,
-                                    exchange=stock.exchange,
-                                    signal_type="BUY WATCH" if action == "BUY" else "SELL/EXIT WATCH",
-                                    strategy_name=signal.strategy_name,
-                                    price=signal.price,
-                                    stop_loss=stop_loss_price,
-                                    target=target_price,
-                                    risk_reward=signal.risk_reward,
-                                    metrics=metrics,
-                                    financial_news=signal.financial_news,
-                                    time_horizon=time_horizon,
-                                )
-                                signal.ai_thesis = ai_thesis
-                                db.commit()
-                            except Exception as ai_err:
-                                logger.warning(f"Gemini Pro research note for {stock.symbol}: {ai_err}")
-
-                            # Real-time notification dispatch (Strictly BUY or SELL only)
-                            if not notifier.should_suppress_duplicate(db, stock.symbol, action):
+                        # Dispatch Notification ONLY if Approved
+                        if is_approved:
+                            norm_action = "BUY" if "BUY" in action else "SELL"
+                            if not notifier.should_suppress_duplicate(db, stock.symbol, norm_action):
+                                approved_signals_count += 1
                                 notifier.send_buy_sell_alert(
                                     db=db,
                                     symbol=stock.symbol,
                                     exchange=stock.exchange,
-                                    action=action,
-                                    price=signal.price,
+                                    action=norm_action,
+                                    price=price,
                                     stop_loss=stop_loss_price,
                                     target=target_price,
-                                    risk_reward=signal.risk_reward,
-                                    reason=f"{signal.strategy_name}: {signal.explanation}",
-                                    gemini_research=ai_thesis,
+                                    risk_reward=research_result["risk_reward_ratio"],
+                                    reason=explanation,
+                                    gemini_research=signal.ai_thesis,
                                     signal_id=signal.id,
-                                    time_horizon=time_horizon,
+                                    time_horizon="1-DAY",
                                 )
+                                logger.info(f"DISPATCHED APPROVED NOTIFICATION for {stock.symbol}: {norm_action}")
+                            else:
+                                logger.info(f"Suppressed duplicate alert for {stock.symbol} ({norm_action}) within cooldown period.")
+                        else:
+                            logger.debug(f"Stock {stock.symbol} returned NO TRADE (Confidence: {confidence}%). Notification withheld.")
 
                         job.scanned_stocks += 1
 
@@ -248,15 +328,14 @@ class ScannerEngine:
                         job.failed_stocks += 1
 
                 job.failed_symbols = failed_symbols
-                job.passed_signals = signals_generated
+                job.passed_signals = approved_signals_count
                 db.commit()
-                # Brief sleep between batches to respect rate limits
-                time.sleep(0.5)
+                time.sleep(0.3)
 
             job.status = "COMPLETED"
             job.finished_at = datetime.now(timezone.utc)
             db.commit()
-            logger.info(f"Scan job #{job.id} completed: {job.scanned_stocks} scanned, {signals_generated} signals.")
+            logger.info(f"Scan job #{job.id} completed: {job.scanned_stocks} scanned, {approved_signals_count} approved signals.")
 
         except Exception as e:
             logger.error(f"Fatal error in scan job #{job.id}: {e}")

@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Zed — Live Market Monitoring & Institutional AI Intelligence</title>
+  <title>Zed — Personal AI Stock Research, Priority Ranking & Live Portfolio Monitor</title>
   <link rel="icon" type="image/png" href="/static/favicon.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -15,142 +15,290 @@
   <header class="app-header">
     <div class="header-left">
       <div class="logo-badge">
-        <span class="logo-icon"><img src="/static/favicon.png" width="28" height="28" style="border-radius: 6px; vertical-align: middle;" alt="Zed" /></span>
+        <span class="logo-icon"><img src="/static/favicon.png" width="30" height="30" style="border-radius: 6px; vertical-align: middle;" alt="Zed" /></span>
         <div>
-          <h1 class="logo-title">ZED</h1>
-          <span class="logo-subtitle">Live Market Monitoring & AI Intelligence</span>
+          <h1 class="logo-title">ZED AI</h1>
+          <span class="logo-subtitle">Research, Priority Ranking & Portfolio Monitor</span>
         </div>
       </div>
       <div class="status-chip live-pulse" id="sse-status">
         <span class="pulse-dot"></span>
-        <span id="sse-status-text">CONNECTING LIVE SSE...</span>
+        <span id="sse-status-text">LIVE FEED: CONNECTING...</span>
       </div>
       <div class="status-chip" id="market-status-chip">
         <span class="market-dot"></span>
         <span id="market-status-text">NSE: CHECKING...</span>
       </div>
+      <div class="status-chip" id="cloud-worker-chip" style="border-color: #10b981; color: #10b981;">
+        <span class="pulse-dot" style="background:#10b981;"></span>
+        <span id="cloud-worker-text">CLOUD 24/7: ACTIVE</span>
+      </div>
     </div>
 
     <div class="header-right">
-      <button class="btn btn-primary" id="btn-scan-now" onclick="triggerDailyScan()">
-        <span class="btn-icon">🔍</span> Search All Stocks Daily
+      <button class="btn btn-primary" id="btn-manual-purchase" onclick="openManualPurchaseModal()" title="Record a stock manually bought on Groww">
+        <span class="btn-icon">🛒</span> I Bought a Stock
       </button>
-      <button class="btn btn-secondary" id="btn-audio-toggle" onclick="toggleAudio()" title="Toggle Alert Chime">
-        <span id="audio-icon">🔔</span> Audio: <span id="audio-status">ON</span>
+      <a href="/download-app" class="btn btn-outline" style="color:#10b981; border-color:#10b981; text-decoration:none;" title="Download Android App APK for Phone">
+        <span class="btn-icon">📱</span> Install Phone App
+      </a>
+      <button class="btn btn-outline" id="btn-scan-now" onclick="triggerDailyScan()">
+        <span class="btn-icon">🔍</span> Research Market
       </button>
-      <button class="btn btn-outline" id="btn-theme-toggle" onclick="toggleTheme()" title="Switch between White/Blue and Dark Theme">
+      <button class="btn btn-outline" onclick="openTestNotificationModal()" title="Test Alert Notification Delivery">
+        <span>🔔</span> Test Alert
+      </button>
+      <button class="btn btn-secondary" id="btn-audio-toggle" onclick="toggleAudio()" title="Toggle Alert Sound Chime">
+        <span id="audio-icon">🔊</span> Audio: <span id="audio-status">ON</span>
+      </button>
+      <button class="btn btn-outline" id="btn-theme-toggle" onclick="toggleTheme()" title="Switch between Light and Dark Theme">
         <span id="theme-icon">🌙</span> <span id="theme-text">Dark</span>
       </button>
-      <button class="btn btn-outline" onclick="openSettingsModal()" title="System Configuration">
+      <button class="btn btn-outline" onclick="openSettingsModal()" title="Settings & Threshold Configurations">
         <span>⚙️</span> Settings
       </button>
     </div>
   </header>
 
-  <!-- Metric Summary Banner -->
+  <!-- Section 6: CRITICAL -12% EXTREME LOSS ALERT BANNER (Displayed dynamically when triggered) -->
+  <div id="critical-alert-banner" class="critical-alert-banner" style="display: none;">
+    <div class="alert-banner-content">
+      <span class="alert-banner-icon">🚨</span>
+      <div class="alert-banner-text">
+        <strong id="critical-banner-title">CRITICAL EXTREME LOSS WARNING DETECTED</strong>
+        <p id="critical-banner-desc">One or more of your active holdings has breached critical capital protection limits (-12% or -₹200). Immediate action required.</p>
+      </div>
+      <button class="btn btn-sm btn-sell" onclick="switchSection('loss-alerts')">Inspect Critical Alerts</button>
+      <button class="banner-close" onclick="dismissCriticalBanner()">&times;</button>
+    </div>
+  </div>
+
+  <!-- Metric Summary Banner (Sections 10, 11, 12, 13, 15) -->
   <section class="metrics-bar">
-    <div class="metric-card">
-      <div class="metric-label">TOTAL NOTIFICATIONS</div>
-      <div class="metric-val" id="count-total">0</div>
-      <div class="metric-desc">Dispatched signals</div>
+    <div class="metric-card" onclick="switchSection('active-holdings')" style="cursor: pointer;">
+      <div class="metric-label">12. TOTAL INVESTMENT</div>
+      <div class="metric-val text-cyan" id="metric-total-invested">₹0.00</div>
+      <div class="metric-desc" id="metric-open-count">0 Active Stocks</div>
     </div>
-    <div class="metric-card metric-buy">
-      <div class="metric-label">🟢 BUY NOTIFICATIONS</div>
-      <div class="metric-val text-buy" id="count-buy">0</div>
-      <div class="metric-desc">High confluence entries</div>
+    <div class="metric-card" onclick="switchSection('active-holdings')" style="cursor: pointer;">
+      <div class="metric-label">13. PORTFOLIO MARKET VALUE</div>
+      <div class="metric-val text-main" id="metric-market-value">₹0.00</div>
+      <div class="metric-desc">Live Mark-to-Market</div>
     </div>
-    <div class="metric-card metric-sell">
-      <div class="metric-label">🔴 SELL NOTIFICATIONS</div>
-      <div class="metric-val text-sell" id="count-sell">0</div>
-      <div class="metric-desc">Take profit & stop exits</div>
+    <div class="metric-card" onclick="switchSection('profit-alerts')" style="cursor: pointer;">
+      <div class="metric-label">11. UNREALIZED PROFIT/LOSS</div>
+      <div class="metric-val text-buy" id="metric-unrealized-pnl">₹0.00</div>
+      <div class="metric-desc" id="metric-unrealized-pct">0.00% Net Return</div>
     </div>
-    <div class="metric-card">
-      <div class="metric-label">AI RESEARCH ENGINE</div>
-      <div class="metric-val text-cyan" id="ai-model-tag">Gemini Pro</div>
-      <div class="metric-desc">Deep web & market thesis</div>
+    <div class="metric-card" onclick="switchSection('closed-holdings')" style="cursor: pointer;">
+      <div class="metric-label">10. REALIZED PROFIT/LOSS</div>
+      <div class="metric-val text-main" id="metric-realized-pnl">₹0.00</div>
+      <div class="metric-desc" id="metric-closed-count">0 Closed Holdings</div>
+    </div>
+    <div class="metric-card" onclick="switchSection('cloud-monitoring')" style="cursor: pointer;">
+      <div class="metric-label">15. CLOUD MONITORING STATUS</div>
+      <div class="metric-val text-buy" id="metric-cloud-status">ACTIVE 24/7</div>
+      <div class="metric-desc">Independent Cloud Worker</div>
     </div>
   </section>
 
-  <!-- Scanner Live Progress (Hidden when idle) -->
+  <!-- 15 Comprehensive Dashboard Navigation Tabs -->
+  <nav class="dashboard-tabs">
+    <button class="d-tab active" data-section="highest-priority" onclick="switchSection('highest-priority')">
+      ⭐ 1. Highest Priority Stocks (<span id="count-priority">0</span>)
+    </button>
+    <button class="d-tab" data-section="ai-buy-ops" onclick="switchSection('ai-buy-ops')">
+      🟢 2. AI Buy Opportunities (<span id="count-buy-ops">0</span>)
+    </button>
+    <button class="d-tab" data-section="active-holdings" onclick="switchSection('active-holdings')">
+      💼 3 & 8. My Purchased Stocks (<span id="count-holdings">0</span>)
+    </button>
+    <button class="d-tab" data-section="profit-alerts" onclick="switchSection('profit-alerts')">
+      📈 4. Profit Alerts (<span id="count-profit-alerts">0</span>)
+    </button>
+    <button class="d-tab" data-section="loss-alerts" onclick="switchSection('loss-alerts')">
+      📉 5. Loss Alerts (<span id="count-loss-alerts">0</span>)
+    </button>
+    <button class="d-tab" data-section="critical-alerts" onclick="switchSection('critical-alerts')">
+      🚨 6. Critical -12% Alerts (<span id="count-critical-alerts">0</span>)
+    </button>
+    <button class="d-tab" data-section="sell-signals" onclick="switchSection('sell-signals')">
+      🔴 7. Sell Signals (<span id="count-sell-signals">0</span>)
+    </button>
+    <button class="d-tab" data-section="closed-holdings" onclick="switchSection('closed-holdings')">
+      📦 9. Closed Holdings (<span id="count-closed-holdings">0</span>)
+    </button>
+    <button class="d-tab" data-section="notification-history" onclick="switchSection('notification-history')">
+      🔔 14. Notification History (<span id="count-all-alerts">0</span>)
+    </button>
+    <button class="d-tab" data-section="cloud-monitoring" onclick="switchSection('cloud-monitoring')">
+      ☁️ 15. Cloud Status
+    </button>
+  </nav>
+
+  <!-- Scanner Progress Bar -->
   <div class="scan-progress-container" id="scan-progress-bar" style="display: none;">
     <div class="scan-progress-info">
       <span class="spinner-sm"></span>
-      <span id="scan-progress-text">Scanning all Indian stocks across internet & running Gemini Pro deep research...</span>
+      <span id="scan-progress-text">Analyzing multi-timeframe indicators, volume, and AI confluence...</span>
     </div>
     <div class="progress-track">
       <div class="progress-bar-fill" id="progress-fill"></div>
     </div>
   </div>
 
-  <!-- Notification Feed Control Bar -->
-  <section class="feed-controls">
-    <div class="controls-left">
-      <!-- Action Filters -->
-      <div class="filter-tabs action-tabs">
-        <button class="tab-btn active" data-filter-action="ALL" onclick="setActionFilter('ALL')">
-          All (<span id="tab-all-count">0</span>)
-        </button>
-        <button class="tab-btn tab-buy" data-filter-action="BUY" onclick="setActionFilter('BUY')">
-          🟢 BUY (<span id="tab-buy-count">0</span>)
-        </button>
-        <button class="tab-btn tab-sell" data-filter-action="SELL" onclick="setActionFilter('SELL')">
-          🔴 SELL (<span id="tab-sell-count">0</span>)
-        </button>
-      </div>
-
-      <!-- Time Horizon Filters -->
-      <div class="filter-tabs horizon-tabs">
-        <button class="filter-pill active" data-filter-horizon="ALL" onclick="setHorizonFilter('ALL')">
-          All Horizons
-        </button>
-        <button class="filter-pill pill-short" data-filter-horizon="1-DAY" onclick="setHorizonFilter('1-DAY')">
-          ⚡ 1-DAY (Short Term)
-        </button>
-        <button class="filter-pill pill-long" data-filter-horizon="1-MONTH" onclick="setHorizonFilter('1-MONTH')">
-          📅 1-MONTH (Long Term)
-        </button>
-      </div>
-
-      <!-- Market Universe Filters -->
-      <div class="filter-tabs market-tabs">
-        <button class="filter-pill active" data-filter-market="ALL" onclick="setMarketFilter('ALL')">
-          All Markets
-        </button>
-        <button class="filter-pill" data-filter-market="NSE" onclick="setMarketFilter('NSE')">
-          🇮🇳 NSE (India)
-        </button>
-        <button class="filter-pill" data-filter-market="US" onclick="setMarketFilter('US')">
-          🌐 US (Global)
-        </button>
-      </div>
-    </div>
-
-    <div class="controls-right">
-      <label class="unread-toggle">
-        <input type="checkbox" id="unread-only-check" onchange="toggleUnreadOnly()">
-        <span>Unread Only</span>
-      </label>
-      <button class="btn btn-sm btn-outline" onclick="markAllAsRead()">Mark All Read</button>
-      <button class="btn btn-sm btn-ghost" onclick="clearAllNotifications()">Clear Feed</button>
-    </div>
-  </section>
-
-  <!-- Realtime Notification Stream Feed -->
-  <main class="notifications-container">
-    <div id="alerts-feed" class="alerts-grid">
-      <!-- Alert Cards injected dynamically via JS -->
-      <div class="empty-state" id="feed-loading">
-        <div class="spinner"></div>
-        <p>Loading real-time notifications...</p>
-      </div>
+  <!-- Main Dynamic Section View Container -->
+  <main class="dashboard-content" id="main-content-view">
+    <!-- Populated dynamically via app.js depending on active tab -->
+    <div class="empty-state" id="section-loading">
+      <div class="spinner"></div>
+      <p>Loading personal AI stock intelligence and portfolio data...</p>
     </div>
   </main>
 
-  <!-- Deep Gemini Pro Research Modal -->
+  <!-- MODAL: I BOUGHT THIS STOCK (Manual Groww Purchase Entry) -->
+  <div class="modal-backdrop" id="manual-purchase-modal" style="display: none;" onclick="closeModalOnBackdrop(event, 'manual-purchase-modal')">
+    <div class="modal-dialog" style="max-width: 600px;">
+      <div class="modal-header">
+        <div class="modal-title-wrap">
+          <span class="badge badge-success">GROWW MANUAL ENTRY</span>
+          <h2>🛒 Record Stock Purchase</h2>
+        </div>
+        <button class="modal-close" onclick="closeModal('manual-purchase-modal')">&times;</button>
+      </div>
+
+      <form id="manual-purchase-form" onsubmit="submitManualPurchase(event)">
+        <div class="modal-body">
+          <p style="font-size: 13px; color: var(--text-dim); margin-bottom: 16px;">
+            Enter the details of the stock you manually executed in Groww. Your AI application will independently monitor its price and send profit/loss alerts automatically.
+          </p>
+
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+            <div class="form-group">
+              <label for="buy-symbol-input">Stock Symbol *</label>
+              <input type="text" id="buy-symbol-input" required class="form-input" placeholder="e.g. RELIANCE" style="text-transform: uppercase;">
+            </div>
+            <div class="form-group">
+              <label for="buy-name-input">Stock Name</label>
+              <input type="text" id="buy-name-input" class="form-input" placeholder="e.g. Reliance Industries">
+            </div>
+          </div>
+
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+            <div class="form-group">
+              <label for="buy-price-input">Actual Purchase Price (₹) *</label>
+              <input type="number" id="buy-price-input" step="0.05" min="0.05" required class="form-input" placeholder="e.g. 200.00">
+            </div>
+            <div class="form-group">
+              <label for="buy-qty-input">Quantity Purchased *</label>
+              <input type="number" id="buy-qty-input" min="1" step="1" required class="form-input" placeholder="e.g. 10">
+            </div>
+          </div>
+
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+            <div class="form-group">
+              <label for="buy-date-input">Purchase Date *</label>
+              <input type="date" id="buy-date-input" required class="form-input">
+            </div>
+            <div class="form-group">
+              <label for="buy-time-input">Purchase Time</label>
+              <input type="time" id="buy-time-input" class="form-input">
+            </div>
+          </div>
+
+          <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px;">
+            <div class="form-group">
+              <label for="buy-charges-input">Brokerage & Charges (₹)</label>
+              <input type="number" id="buy-charges-input" step="0.05" min="0" value="0.00" class="form-input">
+            </div>
+            <div class="form-group">
+              <label for="buy-target-input">Custom Target (₹)</label>
+              <input type="number" id="buy-target-input" step="0.05" min="0" class="form-input" placeholder="Optional">
+            </div>
+            <div class="form-group">
+              <label for="buy-sl-input">Custom Stop-Loss (₹)</label>
+              <input type="number" id="buy-sl-input" step="0.05" min="0" class="form-input" placeholder="Optional">
+            </div>
+          </div>
+
+          <div style="background: var(--bg-tertiary); padding: 10px 14px; border-radius: 6px; font-size: 12px; border: 1px solid var(--border-color);">
+            💡 <strong>Multi-Purchase Support:</strong> If you already hold shares of this stock, your weighted average buy price will be automatically updated.
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" onclick="closeModal('manual-purchase-modal')">Cancel</button>
+          <button type="submit" class="btn btn-primary" id="btn-submit-purchase">Confirm & Start Monitoring</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL: I SOLD THIS STOCK (Manual Groww Sale Confirmation) -->
+  <div class="modal-backdrop" id="manual-sell-modal" style="display: none;" onclick="closeModalOnBackdrop(event, 'manual-sell-modal')">
+    <div class="modal-dialog" style="max-width: 550px;">
+      <div class="modal-header">
+        <div class="modal-title-wrap">
+          <span class="badge badge-danger">GROWW SALE ENTRY</span>
+          <h2>📤 Record Stock Sale</h2>
+        </div>
+        <button class="modal-close" onclick="closeModal('manual-sell-modal')">&times;</button>
+      </div>
+
+      <form id="manual-sell-form" onsubmit="submitManualSale(event)">
+        <div class="modal-body">
+          <p style="font-size: 13px; color: var(--text-dim); margin-bottom: 16px;">
+            Enter sale execution details from Groww. Realized profit or loss will be calculated and transaction history recorded.
+          </p>
+
+          <div class="form-group">
+            <label for="sell-symbol-display">Stock Symbol</label>
+            <input type="text" id="sell-symbol-display" readonly class="form-input" style="font-weight: 700;">
+          </div>
+
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+            <div class="form-group">
+              <label for="sell-price-input">Actual Selling Price (₹) *</label>
+              <input type="number" id="sell-price-input" step="0.05" min="0.05" required class="form-input" placeholder="e.g. 210.00">
+            </div>
+            <div class="form-group">
+              <label for="sell-qty-input">Quantity Sold *</label>
+              <input type="number" id="sell-qty-input" min="1" step="1" required class="form-input">
+              <span class="form-hint" id="sell-max-qty-hint">Held: 0 shares</span>
+            </div>
+          </div>
+
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+            <div class="form-group">
+              <label for="sell-date-input">Selling Date *</label>
+              <input type="date" id="sell-date-input" required class="form-input">
+            </div>
+            <div class="form-group">
+              <label for="sell-time-input">Selling Time</label>
+              <input type="time" id="sell-time-input" class="form-input">
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="sell-charges-input">Brokerage & Charges (₹)</label>
+            <input type="number" id="sell-charges-input" step="0.05" min="0" value="0.00" class="form-input">
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" onclick="closeModal('manual-sell-modal')">Cancel</button>
+          <button type="submit" class="btn btn-sell" id="btn-submit-sale">Confirm & Close / Update Holding</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL: Deep AI Research Detail Modal -->
   <div class="modal-backdrop" id="research-modal" style="display: none;" onclick="closeModalOnBackdrop(event, 'research-modal')">
     <div class="modal-dialog research-dialog">
       <div class="modal-header">
         <div class="modal-title-wrap">
+          <span class="badge" id="modal-priority-badge">P1</span>
           <span class="badge" id="modal-action-badge">BUY</span>
           <h2 id="modal-stock-title">RELIANCE (NSE)</h2>
           <span class="modal-price" id="modal-stock-price">₹1,196.20</span>
@@ -162,83 +310,105 @@
         <!-- Injected dynamically -->
       </div>
       
-      <div class="modal-footer">
+      <div class="modal-footer" style="display: flex; justify-content: space-between;">
+        <button class="btn btn-primary" id="btn-modal-bought" onclick="openManualPurchaseFromRecommendation()">
+          🛒 I BOUGHT THIS STOCK
+        </button>
         <button class="btn btn-secondary" onclick="closeModal('research-modal')">Close</button>
       </div>
     </div>
   </div>
 
-  <!-- Settings Modal -->
-  <div class="modal-backdrop" id="settings-modal" style="display: none;" onclick="closeModalOnBackdrop(event, 'settings-modal')">
-    <div class="modal-dialog">
+  <!-- MODAL: Test Notification Modal -->
+  <div class="modal-backdrop" id="test-alert-modal" style="display: none;" onclick="closeModalOnBackdrop(event, 'test-alert-modal')">
+    <div class="modal-dialog" style="max-width: 500px;">
       <div class="modal-header">
-        <h2>⚙️ Zed Configuration</h2>
+        <h2>🧪 Test Notification Delivery</h2>
+        <button class="modal-close" onclick="closeModal('test-alert-modal')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p style="font-size: 13px; color: var(--text-dim); margin-bottom: 16px;">
+          Dispatches live test alerts to verify all delivery channels: Web SSE chime, Linux Desktop OS notification, and Android FCM Push.
+        </p>
+        <div style="display: flex; flex-direction: column; gap: 10px;">
+          <button class="btn btn-outline" style="border-color: #10b981; color: #10b981; text-align: left;" onclick="triggerTestAlert('PROFIT_30')">
+            🟢 +₹30 First Profit Alert (Priority P2)
+          </button>
+          <button class="btn btn-outline" style="border-color: #10b981; color: #10b981; text-align: left;" onclick="triggerTestAlert('PROFIT_50')">
+            🟢 +₹50 Second Profit Alert (Priority P2)
+          </button>
+          <button class="btn btn-outline" style="border-color: #ef4444; color: #ef4444; text-align: left;" onclick="triggerTestAlert('LOSS_30')">
+            🔴 -₹30 First Loss Alert (Priority P2)
+          </button>
+          <button class="btn btn-outline" style="border-color: #ef4444; color: #ef4444; text-align: left;" onclick="triggerTestAlert('LOSS_50')">
+            🔴 -₹50 Second Loss Alert (Priority P2)
+          </button>
+          <button class="btn btn-sell" style="text-align: left;" onclick="triggerTestAlert('CRITICAL_12')">
+            🚨 -12% EXTREME LOSS ALERT (Priority P0 with Critical Chime)
+          </button>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeModal('test-alert-modal')">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: Settings & Config Modal -->
+  <div class="modal-backdrop" id="settings-modal" style="display: none;" onclick="closeModalOnBackdrop(event, 'settings-modal')">
+    <div class="modal-dialog" style="max-width: 600px;">
+      <div class="modal-header">
+        <h2>⚙️ Personal AI System Settings</h2>
         <button class="modal-close" onclick="closeModal('settings-modal')">&times;</button>
       </div>
 
       <div class="modal-body">
         <div class="form-group">
-          <label for="pref-horizon-select">Default Time Horizon Preference</label>
-          <select id="pref-horizon-select" class="form-input">
-            <option value="ALL">All Horizons (Both 1-Day Short Term & 1-Month Long Term)</option>
-            <option value="1-DAY">⚡ 1-DAY Preferred (Short Term / Swing 24-48 Hours)</option>
-            <option value="1-MONTH">📅 1-MONTH Preferred (Long Term / Positional 30 Days)</option>
-          </select>
-          <span class="form-hint">Prioritizes short-term quick gain setups or long-term multi-week trend holdings.</span>
+          <label>Google Gemini API Key</label>
+          <input type="password" id="gemini-key-input" placeholder="Configured via environment or database..." class="form-input">
+          <span class="form-hint" id="gemini-key-status">Status: Checking...</span>
         </div>
 
         <div class="form-group">
-          <label for="pref-market-select">Market Universe</label>
-          <select id="pref-market-select" class="form-input">
-            <option value="ALL">All Markets (Indian NSE + US Global Mega-Caps)</option>
-            <option value="NSE">🇮🇳 Indian NSE Stocks Only (Nifty 50 Leaders)</option>
-            <option value="US">🌐 US Global Stocks Only (Nvidia, Apple, Microsoft, Tesla...)</option>
-          </select>
-          <span class="form-hint">Determines which internet universe is monitored during daily scans.</span>
-        </div>
-
-        <div class="form-group">
-          <label for="gemini-key-input">Gemini API Key (Google AI Studio)</label>
-          <input type="password" id="gemini-key-input" placeholder="Enter key (leave blank to keep current)..." class="form-input">
-          <span class="form-hint" id="gemini-key-status">Status: Checking configured key...</span>
-        </div>
-
-        <div class="form-group">
-          <label for="gemini-model-select">Gemini AI Model</label>
-          <select id="gemini-model-select" class="form-input">
-            <option value="gemini-3.5-flash-lite">Gemini 3.5 Flash-Lite (Active & Verified - Ultra Fast 5-Dimension Research)</option>
-            <option value="gemini-3.5-flash">Gemini 3.5 Flash (Deep Research)</option>
-            <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
-            <option value="gemini-1.5-pro">Gemini 1.5 Pro</option>
-          </select>
-        </div>
-
-        <div class="form-group">
-          <label>Test Real-time Notifications</label>
-          <div style="display: flex; gap: 8px;">
-            <button class="btn btn-buy-outline" onclick="sendTestSignal('BUY')">🟢 Test BUY Alert</button>
-            <button class="btn btn-sell-outline" onclick="sendTestSignal('SELL')">🔴 Test SELL Alert</button>
+          <label>Profit Notification Thresholds (INR)</label>
+          <div style="font-size: 12px; color: var(--text-dim); margin-bottom: 6px;">
+            Default active thresholds: <strong>+₹30, +₹50, +₹100, +₹200, +₹500, +₹1000</strong>
           </div>
+          <input type="text" id="threshold-profit-input" class="form-input" value="30, 50, 100, 200, 500, 1000">
         </div>
 
         <div class="form-group">
-          <label>24/7 Cloud Backend (Render)</label>
-          <div class="fcm-box" id="cloud-status-box">
-            Connected to <code>https://personal-ai-stock-backend.onrender.com</code> (Online 24/7)
+          <label>Loss Notification Thresholds (INR)</label>
+          <div style="font-size: 12px; color: var(--text-dim); margin-bottom: 6px;">
+            Default active rupee thresholds: <strong>-₹30, -₹50, -₹100, -₹200, -₹500, -₹1000</strong>
+          </div>
+          <input type="text" id="threshold-loss-input" class="form-input" value="-30, -50, -100, -200, -500, -1000">
+        </div>
+
+        <div class="form-group">
+          <label>Percentage Loss Thresholds (Independent)</label>
+          <div style="font-size: 12px; color: var(--text-dim); margin-bottom: 6px;">
+            Default active percentage thresholds: <strong>-5%, -8%, -10%, -12%</strong>
+          </div>
+          <input type="text" id="threshold-pct-input" class="form-input" value="-5, -8, -10, -12">
+        </div>
+
+        <div class="form-group">
+          <label>Cloud 24/7 Monitoring</label>
+          <div style="background: var(--bg-tertiary); padding: 10px; border-radius: 6px; font-size: 12px;">
+            Continuous worker runs independently on backend server even when laptop is closed.
           </div>
         </div>
       </div>
 
       <div class="modal-footer">
-        <button class="btn btn-secondary" onclick="closeModal('settings-modal')">Cancel</button>
-        <button class="btn btn-primary" onclick="saveSettings()">Save Configuration</button>
+        <button class="btn btn-secondary" onclick="closeModal('settings-modal')">Close</button>
+        <button class="btn btn-primary" onclick="saveSettings()">Save Settings</button>
       </div>
     </div>
   </div>
 
-  <!-- Audio Chime Synthesizer Elements -->
   <div id="toast-container" class="toast-container"></div>
-
   <script src="/static/app.js"></script>
 </body>
 </html>

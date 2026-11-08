@@ -83,12 +83,24 @@ def _scheduled_realtime_market_monitor_job():
 
 
 def _scheduled_position_monitor_job():
-    """Worker function executed by APScheduler to monitor open positions against SL/TP/deadline."""
+    """Worker function executed by APScheduler to monitor open positions against SL/TP/deadline and profit/loss thresholds."""
     db = SessionLocal()
     try:
         PositionMonitor.check_and_update_positions(db=db)
     except Exception as e:
         logger.error(f"Position monitor job failed with exception: {e}")
+    finally:
+        db.close()
+
+
+def _scheduled_notification_retry_job():
+    """Worker function executed by APScheduler to retry pending notifications in queue."""
+    db = SessionLocal()
+    try:
+        from app.notifications.notifier import notifier
+        notifier.process_notification_queue(db=db)
+    except Exception as e:
+        logger.debug(f"Notification queue processor note: {e}")
     finally:
         db.close()
 
@@ -210,6 +222,16 @@ def start_scheduler():
             replace_existing=True,
         )
         logger.info("24/7 Real-Time Market Monitor scheduled every 60 seconds.")
+
+        # Notification queue durable retry job
+        scheduler.add_job(
+            _scheduled_notification_retry_job,
+            trigger=IntervalTrigger(seconds=30),
+            id="recurring_notification_retry",
+            name="Recurring Notification Queue Retry",
+            replace_existing=True,
+        )
+        logger.info("Notification Queue Retry worker scheduled every 30 seconds.")
 
         scheduler.start()
 

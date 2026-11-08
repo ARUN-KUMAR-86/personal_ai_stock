@@ -24,6 +24,9 @@ class StockAlert {
   final bool brokerVerified;
   final String timeHorizon;
   final Map<String, dynamic>? geminiResearch;
+  final double? pnlInr;
+  final double? pnlPct;
+  final String? thresholdKey;
 
   StockAlert({
     required this.id,
@@ -49,6 +52,9 @@ class StockAlert {
     this.brokerVerified = false,
     this.timeHorizon = '1-DAY',
     this.geminiResearch,
+    this.pnlInr,
+    this.pnlPct,
+    this.thresholdKey,
   });
 
   bool get isTradeAlert => alertType == 'TRADE_ALERT';
@@ -79,6 +85,9 @@ class StockAlert {
       brokerVerified: json['broker_verified'] ?? false,
       timeHorizon: json['time_horizon'] ?? '1-DAY',
       geminiResearch: json['gemini_research'] is Map<String, dynamic> ? json['gemini_research'] : null,
+      pnlInr: json['pnl_inr'] != null ? (json['pnl_inr'] as num).toDouble() : null,
+      pnlPct: json['pnl_pct'] != null ? (json['pnl_pct'] as num).toDouble() : null,
+      thresholdKey: json['threshold_key'],
     );
   }
 }

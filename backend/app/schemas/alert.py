@@ -17,6 +17,12 @@ class AlertRead(BaseModel):
     is_read: bool
     sent_to_fcm: bool
     fcm_message_id: Optional[str] = None
+    priority: Optional[str] = "P2"
+    threshold_key: Optional[str] = None
+    pnl_inr: Optional[float] = None
+    pnl_pct: Optional[float] = None
+    delivery_status: Optional[str] = "DELIVERED"
+    position_id: Optional[int] = None
     action: Optional[str] = "BUY"
     suggested_investment: Optional[float] = 100.0
     estimated_quantity: Optional[int] = 1

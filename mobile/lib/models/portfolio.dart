@@ -1,6 +1,7 @@
 class Position {
   final int id;
   final String symbol;
+  final String companyName;
   final String exchange;
   final int quantity;
   final double avgEntryPrice;
@@ -10,19 +11,28 @@ class Position {
   final double unrealizedPnl;
   final double realizedPnl;
   final double fees;
+  final double charges;
   final bool isOpen;
+  final String status;
+  final String priority;
+  final double pnlPct;
+  final double investedAmount;
+  final double currentValue;
   final int holdingPeriodHours;
   final DateTime? exitDeadline;
+  final DateTime? purchaseDate;
   final bool autoSellEnabled;
   final String exitStrategy;
   final bool exitTriggered;
   final String? exitReason;
   final String mode;
   final String? orderId;
+  final List<String> triggeredThresholds;
 
   Position({
     required this.id,
     required this.symbol,
+    this.companyName = '',
     required this.exchange,
     required this.quantity,
     required this.avgEntryPrice,
@@ -32,45 +42,69 @@ class Position {
     required this.unrealizedPnl,
     required this.realizedPnl,
     required this.fees,
+    this.charges = 0.0,
     required this.isOpen,
+    this.status = 'ACTIVE',
+    this.priority = 'P2',
+    this.pnlPct = 0.0,
+    this.investedAmount = 0.0,
+    this.currentValue = 0.0,
     this.holdingPeriodHours = 48,
     this.exitDeadline,
+    this.purchaseDate,
     this.autoSellEnabled = false,
-    this.exitStrategy = 'TARGET_OR_STOPLOSS_OR_EXPIRY',
+    this.exitStrategy = 'MANUAL_GROWW_MONITOR',
     this.exitTriggered = false,
     this.exitReason,
-    this.mode = 'PAPER',
+    this.mode = 'GROWW_MANUAL',
     this.orderId,
+    this.triggeredThresholds = const [],
   });
 
   factory Position.fromJson(Map<String, dynamic> json) {
+    final avgPrice = (json['avg_entry_price'] as num?)?.toDouble() ?? 0.0;
+    final currPrice = (json['current_price'] as num?)?.toDouble() ?? 0.0;
+    final qty = json['quantity'] ?? 0;
+    final unPnl = (json['unrealized_pnl'] as num?)?.toDouble() ?? ((currPrice - avgPrice) * qty);
+    final calculatedPct = avgPrice > 0 ? ((currPrice - avgPrice) / avgPrice * 100) : 0.0;
+
     return Position(
       id: json['id'] ?? 0,
       symbol: json['symbol'] ?? '',
+      companyName: json['company_name'] ?? json['symbol'] ?? '',
       exchange: json['exchange'] ?? 'NSE',
-      quantity: json['quantity'] ?? 0,
-      avgEntryPrice: (json['avg_entry_price'] as num).toDouble(),
-      currentPrice: (json['current_price'] as num).toDouble(),
+      quantity: qty,
+      avgEntryPrice: avgPrice,
+      currentPrice: currPrice,
       stopLoss: json['stop_loss'] != null ? (json['stop_loss'] as num).toDouble() : null,
       target: json['target'] != null ? (json['target'] as num).toDouble() : null,
-      unrealizedPnl: (json['unrealized_pnl'] as num).toDouble(),
-      realizedPnl: (json['realized_pnl'] as num).toDouble(),
-      fees: (json['fees'] as num).toDouble(),
-      isOpen: json['is_open'] ?? true,
+      unrealizedPnl: unPnl,
+      realizedPnl: (json['realized_pnl'] as num?)?.toDouble() ?? 0.0,
+      fees: (json['fees'] as num?)?.toDouble() ?? 0.0,
+      charges: (json['charges'] as num?)?.toDouble() ?? 0.0,
+      isOpen: json['is_open'] ?? (json['status'] == 'ACTIVE'),
+      status: json['status'] ?? 'ACTIVE',
+      priority: json['priority'] ?? 'P2',
+      pnlPct: (json['pnl_pct'] as num?)?.toDouble() ?? calculatedPct,
+      investedAmount: (json['invested_amount'] as num?)?.toDouble() ?? (avgPrice * qty),
+      currentValue: (json['current_value'] as num?)?.toDouble() ?? (currPrice * qty),
       holdingPeriodHours: json['holding_period_hours'] ?? 48,
       exitDeadline: json['exit_deadline'] != null ? DateTime.tryParse(json['exit_deadline']) : null,
+      purchaseDate: json['purchase_date'] != null ? DateTime.tryParse(json['purchase_date']) : null,
       autoSellEnabled: json['auto_sell_enabled'] ?? false,
-      exitStrategy: json['exit_strategy'] ?? 'TARGET_OR_STOPLOSS_OR_EXPIRY',
+      exitStrategy: json['exit_strategy'] ?? 'MANUAL_GROWW_MONITOR',
       exitTriggered: json['exit_triggered'] ?? false,
       exitReason: json['exit_reason'],
-      mode: json['mode'] ?? 'PAPER',
+      mode: json['mode'] ?? 'GROWW_MANUAL',
       orderId: json['order_id'],
+      triggeredThresholds: (json['triggered_thresholds'] as List?)?.map((e) => e.toString()).toList() ?? [],
     );
   }
 
   Map<String, dynamic> toJson() => {
         'id': id,
         'symbol': symbol,
+        'company_name': companyName,
         'exchange': exchange,
         'quantity': quantity,
         'avg_entry_price': avgEntryPrice,
@@ -80,15 +114,23 @@ class Position {
         'unrealized_pnl': unrealizedPnl,
         'realized_pnl': realizedPnl,
         'fees': fees,
+        'charges': charges,
         'is_open': isOpen,
+        'status': status,
+        'priority': priority,
+        'pnl_pct': pnlPct,
+        'invested_amount': investedAmount,
+        'current_value': currentValue,
         'holding_period_hours': holdingPeriodHours,
         'exit_deadline': exitDeadline?.toIso8601String(),
+        'purchase_date': purchaseDate?.toIso8601String(),
         'auto_sell_enabled': autoSellEnabled,
         'exit_strategy': exitStrategy,
         'exit_triggered': exitTriggered,
         'exit_reason': exitReason,
         'mode': mode,
         'order_id': orderId,
+        'triggered_thresholds': triggeredThresholds,
       };
 }
 

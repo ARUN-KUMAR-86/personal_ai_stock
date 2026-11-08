@@ -41,6 +41,6 @@
         <!-- Notification Channel Metadata for Android 8.0+ -->
         <meta-data
             android:name="com.google.firebase.messaging.default_notification_channel_id"
-            android:value="stock_intelligence_alerts" />
+            android:value="stock_intelligence_alerts_v2" />
     </application>
 </manifest>

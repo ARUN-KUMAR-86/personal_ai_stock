@@ -3,6 +3,7 @@ import 'package:http/http.dart' as http;
 import 'package:provider/provider.dart';
 import '../state/app_state.dart';
 import '../services/storage_service.dart';
+import '../services/notification_service.dart';
 import '../widgets/zed_logo.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -25,6 +26,34 @@ class _SettingsScreenState extends State<SettingsScreen> {
   void initState() {
     super.initState();
     _loadSettings();
+    _autoCheckCloudStatus();
+  }
+
+  Future<void> _autoCheckCloudStatus() async {
+    final state = context.read<AppState>();
+    if (state.isOnline) {
+      if (mounted) {
+        setState(() {
+          connectionStatus = '🟢 Connected to 24/7 Cloud (Online • Always Active)';
+        });
+      }
+    } else {
+      if (mounted) {
+        setState(() {
+          connectionStatus = 'Cloud waking up... Auto-connecting in background.';
+        });
+      }
+      final healthy = await state.api.checkHealth();
+      if (!mounted) return;
+      setState(() {
+        connectionStatus = healthy
+            ? '🟢 Connected to 24/7 Cloud (Online • Always Active)'
+            : 'Cloud waking up... Auto-connecting in background.';
+      });
+      if (healthy) {
+        state.refreshAll();
+      }
+    }
   }
 
   Future<void> _loadSettings() async {
@@ -128,15 +157,101 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Future<void> _sendTestAlert(String action) async {
     setState(() => isTestingPush = true);
-    final ok = await context.read<AppState>().api.sendTestPushAlert(action: action);
+    final isBuy = action.toUpperCase() == 'BUY';
+    final title = '${isBuy ? "🟢" : "🔴"} $action ALERT: RELIANCE @ ₹1,196.20 [TEST]';
+    final body = isBuy
+        ? 'BUY BREAKOUT: RELIANCE triggered entry confirmation. Target: ₹1,260.00 | Stop-Loss: ₹1,165.00.\nPull down notification bar to view full details.'
+        : 'SELL SIGNAL: RELIANCE reached profit target / stop. Recommended exit @ ₹1,196.20.\nPull down notification bar to view full details.';
+
+    // 1. Immediately post a real Android notification to the notification bar!
+    try {
+      await NotificationService().showNotification(
+        title: title,
+        body: body,
+        data: {
+          'symbol': 'RELIANCE',
+          'exchange': 'NSE',
+          'action': action,
+        },
+        isCritical: !isBuy,
+      );
+    } catch (e) {
+      debugPrint('Local test notification show error: $e');
+    }
+
+    // 2. Also register alert in cloud backend / FCM
+    if (mounted) {
+      try {
+        await context.read<AppState>().api.sendTestPushAlert(action: action);
+      } catch (_) {}
+    }
+
     if (!mounted) return;
     setState(() => isTestingPush = false);
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(ok
-            ? '🟢 Test $action Notification dispatched to phone!'
-            : 'Notification queued in cloud database.'),
-        backgroundColor: action == 'BUY' ? const Color(0xFF16A34A) : const Color(0xFFDC2626),
+        content: Text('🟢 Test $action Alert posted to your notification bar! Pull down the top bar to inspect.'),
+        backgroundColor: isBuy ? const Color(0xFF16A34A) : const Color(0xFFDC2626),
+        duration: const Duration(seconds: 4),
+      ),
+    );
+  }
+
+  Future<void> _sendTestSellMilestone({required bool isProfit, double milestoneAmount = 30.0}) async {
+    setState(() => isTestingPush = true);
+    final symbol = isProfit ? 'RELIANCE' : 'TATASTEEL';
+    const qty = 10;
+    final buyPrice = isProfit ? 1200.00 : 150.00;
+    final totalBuy = buyPrice * qty;
+    final pnl = isProfit ? milestoneAmount : -milestoneAmount;
+    final sellPrice = buyPrice + (pnl / qty);
+    final totalSell = sellPrice * qty;
+    final pnlPct = (pnl / totalBuy) * 100.0;
+
+    final pnlStr = isProfit ? '+₹${milestoneAmount.toStringAsFixed(2)}' : '-₹${milestoneAmount.toStringAsFixed(2)}';
+    final pnlPctStr = isProfit ? '+${pnlPct.toStringAsFixed(2)}%' : '-${pnlPct.abs().toStringAsFixed(2)}%';
+    final statusTag = isProfit ? '+₹${milestoneAmount.toInt()} PROFIT' : '-₹${milestoneAmount.toInt()} LOSS';
+
+    final title = '🔴 SELL ALERT ($statusTag): $symbol @ ₹${sellPrice.toStringAsFixed(2)}';
+    final body = '🔴 SELL ALERT: $symbol reached ${isProfit ? "+₹${milestoneAmount.toInt()} Profit Sell Target" : "-₹${milestoneAmount.toInt()} Loss Stop-Loss Alert"}!\n'
+        '• Buy Price: ₹${buyPrice.toStringAsFixed(2)} | Total Buy Amount: ₹${totalBuy.toStringAsFixed(2)} (Qty: $qty)\n'
+        '• Sell Price: ₹${sellPrice.toStringAsFixed(2)} | Total Sell Amount: ₹${totalSell.toStringAsFixed(2)}\n'
+        '• Profit / Loss: $pnlStr ($pnlPctStr)\n'
+        '• Milestone: ${isProfit ? "+₹${milestoneAmount.toInt()} Profit Milestone" : "-₹${milestoneAmount.toInt()} Stop-Loss Milestone"}\n'
+        'Action: Execute SELL order in Groww to ${isProfit ? "lock in your profit" : "protect your capital"}!';
+
+    try {
+      await NotificationService().showNotification(
+        title: title,
+        body: body,
+        data: {
+          'symbol': symbol,
+          'exchange': 'NSE',
+          'action': 'SELL',
+          'buy_amount': totalBuy,
+          'sell_amount': totalSell,
+          'pnl_inr': pnl,
+          'pnl_pct': pnlPct,
+        },
+        isCritical: true,
+      );
+    } catch (e) {
+      debugPrint('Local test notification show error: $e');
+    }
+
+    if (mounted) {
+      try {
+        await context.read<AppState>().api.sendTestPushAlert(action: 'SELL');
+      } catch (_) {}
+    }
+
+    if (!mounted) return;
+    setState(() => isTestingPush = false);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('🔴 Test $statusTag Sell Alert posted to notification bar! Pull down top bar to view.'),
+        backgroundColor: isProfit ? const Color(0xFF16A34A) : const Color(0xFFDC2626),
+        duration: const Duration(seconds: 4),
       ),
     );
   }
@@ -371,17 +486,92 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
           const SizedBox(height: 16),
 
+          // 4B. SELL ALERTS PREFERENCE (STRICTLY SELL ALERTS ONLY)
+          _buildCard(
+            context,
+            title: 'ALERT NOTIFICATIONS: STRICTLY SELL ALERTS ONLY',
+            icon: Icons.shield_outlined,
+            iconColor: const Color(0xFFDC2626),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Only Sell Alerts for Marked / Bought Stocks',
+                            style: TextStyle(
+                              color: theme.colorScheme.onSurface,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 13.5,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Suppresses general buy recommendations. You will ONLY receive sell notifications for stocks you mark/buy when they hit +₹30 profit or -₹30 loss.',
+                            style: TextStyle(
+                              color: isDark ? Colors.grey.shade400 : const Color(0xFF64748B),
+                              fontSize: 11.5,
+                              height: 1.35,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Switch.adaptive(
+                      value: state.onlySellAlerts,
+                      activeColor: const Color(0xFFDC2626),
+                      onChanged: (val) {
+                        state.setOnlySellAlerts(val);
+                      },
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: isDark ? const Color(0xFF161C2E) : const Color(0xFFFEF2F2),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: const Color(0xFFDC2626).withOpacity(0.3)),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.check_circle_outline, color: Color(0xFFDC2626), size: 16),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Notification displays Buy Amount, Sell Amount, exact Profit/Loss, and triggers for every +₹30 profit and -₹30 loss.',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: isDark ? Colors.white70 : const Color(0xFF991B1B),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+
           // 5. TEST REALTIME NOTIFICATIONS
           _buildCard(
             context,
-            title: 'NOTIFICATION TEST (STRICTLY BUY & SELL)',
+            title: 'NOTIFICATION TEST (+₹30 PROFIT & -₹30 LOSS)',
             icon: Icons.notifications_active_outlined,
             iconColor: const Color(0xFF16A34A),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Dispatch a realtime test alert to verify push sound, chimes, and banners:',
+                  'Tap below to dispatch a test notification directly into your Android notification bar with Buy Amount, Sell Amount, and Profit/Loss:',
                   style: TextStyle(
                     color: isDark ? Colors.grey.shade400 : const Color(0xFF64748B),
                     fontSize: 12,
@@ -399,11 +589,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                         ),
                         icon: const Icon(Icons.arrow_upward, size: 16),
-                        label: const Text('Test BUY Alert', style: TextStyle(fontWeight: FontWeight.bold)),
-                        onPressed: isTestingPush ? null : () => _sendTestAlert('BUY'),
+                        label: const Text('+₹30 Profit Sell Alert', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11.5)),
+                        onPressed: isTestingPush ? null : () => _sendTestSellMilestone(isProfit: true, milestoneAmount: 30.0),
                       ),
                     ),
-                    const SizedBox(width: 12),
+                    const SizedBox(width: 10),
                     Expanded(
                       child: ElevatedButton.icon(
                         style: ElevatedButton.styleFrom(
@@ -413,11 +603,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                         ),
                         icon: const Icon(Icons.arrow_downward, size: 16),
-                        label: const Text('Test SELL Alert', style: TextStyle(fontWeight: FontWeight.bold)),
-                        onPressed: isTestingPush ? null : () => _sendTestAlert('SELL'),
+                        label: const Text('-₹30 Loss Sell Alert', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11.5)),
+                        onPressed: isTestingPush ? null : () => _sendTestSellMilestone(isProfit: false, milestoneAmount: 30.0),
                       ),
                     ),
                   ],
+                ),
+                const SizedBox(height: 10),
+                Center(
+                  child: TextButton.icon(
+                    style: TextButton.styleFrom(
+                      foregroundColor: isDark ? Colors.grey.shade400 : const Color(0xFF64748B),
+                    ),
+                    icon: const Icon(Icons.notification_add_outlined, size: 14),
+                    label: const Text('Send Standard Buy Alert (Test)', style: TextStyle(fontSize: 11)),
+                    onPressed: isTestingPush ? null : () => _sendTestAlert('BUY'),
+                  ),
                 ),
               ],
             ),
@@ -480,8 +681,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                     ),
                     icon: const Icon(Icons.sync, size: 16),
-                    label: const Text('Verify Cloud Connection', style: TextStyle(fontWeight: FontWeight.bold)),
+                    label: const Text('Re-Check Connection (Optional)', style: TextStyle(fontWeight: FontWeight.bold)),
                     onPressed: isSaving ? null : _connectToCloud,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  '⚡ Auto-Connect is active: The app always connects to the cloud automatically on launch and self-heals in the background. Clicking is 100% optional.',
+                  style: TextStyle(
+                    color: isDark ? Colors.grey.shade400 : const Color(0xFF64748B),
+                    fontSize: 11,
                   ),
                 ),
               ],

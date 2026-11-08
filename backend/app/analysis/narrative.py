@@ -215,7 +215,7 @@ class AINarrativeGenerator:
             },
         }
 
-        with httpx.Client(timeout=25.0) as client:
+        with httpx.Client(timeout=4.0) as client:
             for model_name in models_to_try:
                 try:
                     url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={api_key}"
@@ -227,10 +227,14 @@ class AINarrativeGenerator:
                         parsed["model_used"] = f"Gemini Pro ({model_name})"
                         parsed["generated_at"] = datetime.now(timezone.utc).isoformat()
                         return parsed
+                    elif resp.status_code in (400, 401, 403, 404):
+                        logger.debug(f"Gemini API returned status {resp.status_code}. Halting model fallback loop.")
+                        break
                     else:
-                        logger.warning(f"Gemini API model {model_name} returned status {resp.status_code}")
+                        logger.debug(f"Gemini API model {model_name} returned status {resp.status_code}")
                 except Exception as e:
-                    logger.warning(f"Error querying Gemini model {model_name}: {e}")
+                    logger.debug(f"Error querying Gemini model {model_name}: {e}")
+                    break
             return None
 
     def _generate_deterministic(

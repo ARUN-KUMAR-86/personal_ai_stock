@@ -21,6 +21,14 @@ class AlertHistory(Base):
     sent_to_fcm = Column(Boolean, default=False)
     fcm_message_id = Column(String(150), nullable=True)
 
+    # Priority & Threshold fields (P0 to P4)
+    priority = Column(String(10), default="P2", index=True)  # P0, P1, P2, P3, P4
+    threshold_key = Column(String(50), nullable=True, index=True)  # e.g. "PROFIT_INR_30", "LOSS_PCT_12"
+    pnl_inr = Column(Float, nullable=True)
+    pnl_pct = Column(Float, nullable=True)
+    delivery_status = Column(String(30), default="DELIVERED", index=True)  # DELIVERED, QUEUED, SENT, FAILED
+    position_id = Column(Integer, ForeignKey("portfolio_positions.id"), nullable=True)
+
     # Interactive Trade Alert Approval Fields
     action = Column(String(10), default="BUY", nullable=False)  # BUY, SELL
     suggested_investment = Column(Float, default=100.0)
@@ -39,6 +47,23 @@ class AlertHistory(Base):
     execution_result = Column(JSON, nullable=True)
 
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
+
+
+class NotificationQueue(Base):
+    __tablename__ = "notification_queue"
+
+    id = Column(Integer, primary_key=True, index=True)
+    alert_id = Column(Integer, ForeignKey("alert_history.id"), nullable=True, index=True)
+    channel = Column(String(30), nullable=False)  # "FCM", "SSE", "DESKTOP", "TERMINAL"
+    status = Column(String(20), default="PENDING", index=True)  # PENDING, SENT, FAILED
+    priority = Column(String(10), default="P2")
+    retry_count = Column(Integer, default=0)
+    max_retries = Column(Integer, default=3)
+    last_attempt = Column(DateTime, nullable=True)
+    last_error = Column(Text, nullable=True)
+    payload = Column(JSON, nullable=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
 
 class DeviceToken(Base):

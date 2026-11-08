@@ -27,16 +27,17 @@ class NotificationService {
   bool get isFirebaseAvailable => _isFirebaseAvailable;
 
   static const AndroidNotificationChannel _channel = AndroidNotificationChannel(
-    'stock_intelligence_alerts',
-    'Stock Intelligence Alerts',
-    description: 'High-priority stock breakout and risk management alerts',
-    importance: Importance.high,
+    'stock_intelligence_alerts_v2',
+    'Personal AI Stock Alerts',
+    description: 'High-priority real-time stock breakout and risk management alerts',
+    importance: Importance.max,
     playSound: true,
     enableVibration: true,
+    showBadge: true,
   );
 
   /// Initializes Firebase and notification listeners with graceful local fallback
-  Future<void> initialize({required ApiService apiService}) async {
+  Future<void> initialize({ApiService? apiService}) async {
     if (_isInitialized) return;
 
     try {
@@ -67,9 +68,16 @@ class NotificationService {
       );
 
       // Create notification channel for Android 8.0+
-      await _localNotifications
-          .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
-          ?.createNotificationChannel(_channel);
+      final androidPlatform = _localNotifications
+          .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
+      await androidPlatform?.createNotificationChannel(_channel);
+
+      // Explicitly request notification permissions (required on Android 13+)
+      try {
+        await androidPlatform?.requestNotificationsPermission();
+      } catch (permErr) {
+        debugPrint('Local notifications permission request notice: $permErr');
+      }
 
       // 3. Configure FCM if Firebase is active
       if (_isFirebaseAvailable) {
@@ -82,7 +90,7 @@ class NotificationService {
           sound: true,
           provisional: false,
         );
-        debugPrint('Notification permission status: ${settings.authorizationStatus}');
+        debugPrint('FCM Notification permission status: ${settings.authorizationStatus}');
 
         // Register background handler
         FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
@@ -93,8 +101,9 @@ class NotificationService {
           if (token != null && token.isNotEmpty) {
             await StorageService.setFcmToken(token);
             debugPrint('FCM Token retrieved: ${token.substring(0, 10)}...');
-            // Register with backend
-            await apiService.registerDeviceToken(token);
+            if (apiService != null) {
+              await apiService.registerDeviceToken(token);
+            }
           }
         } catch (tokenError) {
           debugPrint('Error fetching FCM device token: $tokenError');
@@ -103,7 +112,9 @@ class NotificationService {
         // Listen for token updates
         messaging.onTokenRefresh.listen((newToken) async {
           await StorageService.setFcmToken(newToken);
-          await apiService.registerDeviceToken(newToken);
+          if (apiService != null) {
+            await apiService.registerDeviceToken(newToken);
+          }
         });
 
         // Foreground push message listener
@@ -127,9 +138,67 @@ class NotificationService {
         }
       }
 
+      // Check if local notification opened app from terminated state
+      final appLaunchDetails = await _localNotifications.getNotificationAppLaunchDetails();
+      if (appLaunchDetails != null &&
+          appLaunchDetails.didNotificationLaunchApp &&
+          appLaunchDetails.notificationResponse?.payload != null) {
+        Future.delayed(const Duration(milliseconds: 500), () {
+          _handlePayload(appLaunchDetails.notificationResponse!.payload!);
+        });
+      }
+
       _isInitialized = true;
     } catch (e) {
       debugPrint('NotificationService initialization exception: $e');
+    }
+  }
+
+  /// Displays an instant heads-up notification in the Android system notification bar
+  Future<void> showNotification({
+    required String title,
+    required String body,
+    Map<String, dynamic>? data,
+    int? id,
+    bool isCritical = false,
+  }) async {
+    try {
+      if (!_isInitialized) {
+        await initialize();
+      }
+
+      final androidDetails = AndroidNotificationDetails(
+        _channel.id,
+        _channel.name,
+        channelDescription: _channel.description,
+        importance: Importance.max,
+        priority: Priority.max,
+        icon: '@mipmap/ic_launcher',
+        ticker: 'Personal AI Stock Alert',
+        styleInformation: BigTextStyleInformation(
+          body,
+          contentTitle: title,
+          summaryText: 'Personal AI Stock',
+        ),
+        playSound: true,
+        enableVibration: true,
+        channelShowBadge: true,
+        visibility: NotificationVisibility.public,
+      );
+
+      final notificationDetails = NotificationDetails(android: androidDetails);
+      final notificationId = id ?? (DateTime.now().millisecondsSinceEpoch % 100000);
+
+      await _localNotifications.show(
+        notificationId,
+        title,
+        body,
+        notificationDetails,
+        payload: data != null ? jsonEncode(data) : null,
+      );
+      debugPrint('Local notification dispatched to notification bar: #$notificationId - $title');
+    } catch (e) {
+      debugPrint('Error showing local notification: $e');
     }
   }
 
@@ -139,21 +208,24 @@ class NotificationService {
     final title = notification?.title ?? message.data['title'] ?? 'AI Stock Intelligence Alert';
     final body = notification?.body ?? message.data['body'] ?? 'Review latest stock recommendation.';
 
-    final androidDetails = AndroidNotificationDetails(
-      _channel.id,
-      _channel.name,
-      channelDescription: _channel.description,
-      importance: Importance.high,
-      priority: Priority.high,
-      icon: '@mipmap/ic_launcher',
-    );
+    // Check if user has strictly enabled only sell alerts
+    try {
+      final onlySell = await StorageService.getOnlySellAlerts();
+      final action = (message.data['action'] ?? '').toString().toUpperCase();
+      final isSell = action == 'SELL' ||
+          title.toUpperCase().contains('SELL') ||
+          body.toUpperCase().contains('SELL');
+      if (onlySell && !isSell) {
+        debugPrint('FCM message suppressed because user requested ONLY sell alerts: $title');
+        return;
+      }
+    } catch (_) {}
 
-    await _localNotifications.show(
-      message.hashCode,
-      title,
-      body,
-      NotificationDetails(android: androidDetails),
-      payload: jsonEncode(message.data),
+    await showNotification(
+      title: title,
+      body: body,
+      data: message.data,
+      id: message.hashCode,
     );
   }
 

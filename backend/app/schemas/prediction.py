@@ -19,7 +19,7 @@ class PredictionRead(BaseModel):
     company_name: Optional[str] = None
     price_at_prediction: float
     predicted_direction: str  # BULLISH, BEARISH, NEUTRAL
-    predicted_action: str     # STRONG BUY, BUY, HOLD, SELL
+    predicted_action: str     # STRONG BUY, BUY, HOLD, SELL, NO TRADE
     target_price: float
     expected_gain_pct: float
     stop_loss: Optional[float] = None
@@ -32,7 +32,20 @@ class PredictionRead(BaseModel):
     key_catalysts: Optional[List[str]] = None
     risk_assessment: Optional[List[str]] = None
     invalidation_trigger: Optional[str] = None
-    model_used: Optional[str] = "Gemini 3.5 Flash"
+    model_used: Optional[str] = "Institutional AI Ensemble"
+    
+    prob_up: Optional[float] = None
+    prob_down: Optional[float] = None
+    prob_sideways: Optional[float] = None
+    market_regime: Optional[str] = None
+    candlestick_patterns: Optional[List[str]] = None
+    dimension_scores: Optional[Dict[str, float]] = None
+    approval_status: Optional[str] = None
+    outcome_status: Optional[str] = None
+    actual_future_price: Optional[float] = None
+    actual_return_pct: Optional[float] = None
+    model_version: Optional[str] = None
+    
     created_at: Optional[datetime] = None
 
     model_config = ConfigDict(from_attributes=True)
