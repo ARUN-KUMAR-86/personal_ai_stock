@@ -4,8 +4,8 @@ APK="/home/arun/personal-ai-stock/app-arm64-v8a-release.apk"
 
 echo "Checking phone connection status..."
 for i in {1..120}; do
-  LINE=$($ADB devices | grep -E "ZLSK7PHADM55MNJR|[0-9a-zA-Z]+\s+device")
-  if echo "$LINE" | grep -q "device$"; then
+  LINE=$($ADB devices | grep -v "List of" | grep -w "device" | head -n1)
+  if [ -n "$LINE" ]; then
     DEV_ID=$(echo "$LINE" | awk '{print $1}')
     echo "Device detected ($DEV_ID)! Installing upgraded APK: $APK"
     $ADB -s "$DEV_ID" install -r "$APK"
