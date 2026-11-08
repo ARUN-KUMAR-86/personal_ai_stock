@@ -217,6 +217,15 @@ class ApiService {
     );
   }
 
+  Future<void> markAllAlertsRead() async {
+    final url = await _getUrl('/alerts/mark-all-read');
+    final headers = await _headers();
+    await http.post(
+      Uri.parse(url),
+      headers: headers,
+    );
+  }
+
   Future<bool> sendTestPushAlert({String action = 'BUY'}) async {
     final url = await _getUrl('/alerts/test-push');
     final headers = await _headers();

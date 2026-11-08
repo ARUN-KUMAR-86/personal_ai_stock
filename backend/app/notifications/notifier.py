@@ -233,6 +233,9 @@ class FCMNotifier:
         db.commit()
         db.refresh(alert_record)
 
+        # Enforce strict FIFO queue of 100 notifications maximum
+        self._enforce_fifo_capacity(db, max_capacity=100)
+
         # 5. Enqueue in persistent notification queue if FCM failed or needs verification
         queue_item = NotificationQueue(
             alert_id=alert_record.id,
@@ -275,6 +278,32 @@ class FCMNotifier:
             logger.warning(f"SSE broadcast error: {be}")
 
         return alert_record
+
+    def _enforce_fifo_capacity(self, db: Session, max_capacity: int = 100) -> None:
+        """
+        Enforces FIFO (First In, First Out) retention policy:
+        Keeps strictly at most max_capacity (default 100) newest notifications.
+        Any older notifications beyond 100 are pruned.
+        """
+        try:
+            total = db.query(AlertHistory).count()
+            if total > max_capacity:
+                excess = total - max_capacity
+                oldest_ids = [
+                    row[0] for row in (
+                        db.query(AlertHistory.id)
+                        .order_by(AlertHistory.created_at.asc(), AlertHistory.id.asc())
+                        .limit(excess)
+                        .all()
+                    )
+                ]
+                if oldest_ids:
+                    db.query(NotificationQueue).filter(NotificationQueue.alert_id.in_(oldest_ids)).delete(synchronize_session=False)
+                    db.query(AlertHistory).filter(AlertHistory.id.in_(oldest_ids)).delete(synchronize_session=False)
+                    db.commit()
+                    logger.info(f"FIFO notification queue: pruned {len(oldest_ids)} oldest alerts to maintain capacity of {max_capacity}.")
+        except Exception as e:
+            logger.warning(f"Error enforcing notification FIFO capacity: {e}")
 
     def send_threshold_alert(
         self,

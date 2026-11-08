@@ -84,7 +84,7 @@ def get_alert_history(
     if unread_only:
         query = query.filter(AlertHistory.is_read == False)
 
-    alerts = query.all()
+    alerts = query.order_by(AlertHistory.created_at.desc()).limit(limit).all()
     priority_order = {"P0": 0, "P1": 1, "P2": 2, "P3": 3, "P4": 4}
     # Always sort: P0 first, then P1, P2, P3, P4, then latest first
     alerts.sort(
@@ -137,6 +137,16 @@ def mark_alerts_read(request: AlertMarkReadRequest, db: Session = Depends(get_db
     )
     db.commit()
     return {"message": f"Marked {len(request.alert_ids)} alerts as read."}
+
+
+@router.post("/mark-all-read")
+def mark_all_alerts_read(db: Session = Depends(get_db)):
+    """Marks all notifications as read in the database."""
+    updated = db.query(AlertHistory).filter(AlertHistory.is_read == False).update(
+        {AlertHistory.is_read: True}, synchronize_session=False
+    )
+    db.commit()
+    return {"status": "SUCCESS", "marked_read_count": updated}
 
 
 @router.post("/test-push")

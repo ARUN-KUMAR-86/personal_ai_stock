@@ -363,7 +363,8 @@ class AppState extends ChangeNotifier {
         _hasInitialAlertsLoaded = true;
         _seenAlertIds.addAll(fetchedAlerts.map((a) => a.id));
       }
-      alerts = fetchedAlerts;
+      // Enforce FIFO queue: strictly retain at most 100 newest notifications
+      alerts = fetchedAlerts.take(100).toList();
       
       final fetchedPortfolio = results[4] as PortfolioSummary;
       if (fetchedPortfolio.positions.isNotEmpty || (portfolio == null || portfolio!.positions.isEmpty)) {
@@ -1339,6 +1340,21 @@ class AppState extends ChangeNotifier {
       }
       notifyListeners();
     } catch (_) {}
+  }
+
+  Future<void> markAllAlertsRead() async {
+    try {
+      await api.markAllAlertsRead();
+    } catch (_) {
+      final unreadIds = alerts.where((a) => !a.isRead).map((a) => a.id).toList();
+      if (unreadIds.isNotEmpty) {
+        await api.markAlertsRead(unreadIds);
+      }
+    }
+    for (final a in alerts) {
+      a.isRead = true;
+    }
+    notifyListeners();
   }
 
   Future<void> toggleEmergencyStop(bool enabled) async {
