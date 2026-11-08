@@ -88,6 +88,23 @@ class AppState extends ChangeNotifier {
   String activeMarket = 'INDIA'; // 'INDIA' or 'US'
   Map<String, dynamic>? marketOverview;
   bool isLoadingMarketOverview = false;
+  String selectedScannerHorizon = '1-DAY';
+
+  Future<void> fetchUniverseForHorizon(String horizon) async {
+    selectedScannerHorizon = horizon;
+    try {
+      final updated = await api.getStockUniverse(
+        exchange: activeExchangeDefault,
+        timeHorizon: horizon,
+      );
+      if (updated.isNotEmpty) {
+        stocks = updated;
+        notifyListeners();
+      }
+    } catch (e) {
+      debugPrint('Error fetching horizon universe: $e');
+    }
+  }
   List<Map<String, dynamic>> trendingStocks = [];
   List<Map<String, dynamic>> topGainers = [];
   List<Map<String, dynamic>> topLosers = [];
@@ -290,7 +307,7 @@ class AppState extends ChangeNotifier {
               marketOpenTime: '',
               marketCloseTime: '',
             )),
-        api.getStockUniverse(exchange: activeExchangeDefault).catchError((_) => <StockSummary>[]),
+        api.getStockUniverse(exchange: activeExchangeDefault, timeHorizon: selectedScannerHorizon).catchError((_) => <StockSummary>[]),
         api.getLatestSignals(limit: 15).catchError((_) => <StockSignal>[]),
         api.getAlerts().catchError((_) => <StockAlert>[]),
         api.getPortfolioSummary().catchError((_) => portfolio ?? PortfolioSummary(

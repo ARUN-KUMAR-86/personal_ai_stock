@@ -17,6 +17,7 @@ class StockSummary {
   final String? predictedDirection;
   final double? predictedTarget;
   final double? predictedConfidence;
+  final String timeHorizon;
 
   StockSummary({
     required this.symbol,
@@ -37,19 +38,36 @@ class StockSummary {
     this.predictedDirection,
     this.predictedTarget,
     this.predictedConfidence,
+    this.timeHorizon = '1-DAY',
   });
 
   String get priority {
     if (explicitPriority != null && explicitPriority!.isNotEmpty) {
-      return explicitPriority!.toUpperCase();
+      final p = explicitPriority!.toUpperCase();
+      if (p == 'P0' || p == 'P1' || p.contains('CRITICAL') || p.contains('VERY HIGH')) return 'HIGH';
+      if (p == 'P2' || p.contains('HIGH')) return 'HIGH';
+      if (p == 'P3' || p.contains('MEDIUM')) return 'MEDIUM';
+      if (p == 'P4' || p.contains('LOW')) return 'LOW';
+      return p;
     }
-    if ((predictedConfidence ?? signalStrength) >= 75.0) return 'HIGH';
-    if ((predictedConfidence ?? signalStrength) >= 50.0) return 'MEDIUM';
+    final score = predictedConfidence ?? signalStrength;
+    if (score >= 75.0) return 'HIGH';
+    if (score >= 50.0) return 'MEDIUM';
     return 'LOW';
   }
 
-  bool get isHighPriority => priority == 'HIGH';
-  bool get isMediumPriority => priority == 'MEDIUM';
+  int get priorityRank {
+    final p = (explicitPriority ?? priority).toUpperCase();
+    if (p == 'P0' || p.contains('CRITICAL')) return 0;
+    if (p == 'P1' || p.contains('VERY HIGH')) return 1;
+    if (p == 'P2' || p == 'HIGH' || p.contains('HIGH')) return 2;
+    if (p == 'P3' || p == 'MEDIUM' || p.contains('MEDIUM')) return 3;
+    return 4; // P4, LOW, WATCH
+  }
+
+  bool get isHighPriority => priorityRank <= 2;
+  bool get isMediumPriority => priorityRank == 3;
+  bool get isLowPriority => priorityRank >= 4;
 
   bool get isBullish => predictedDirection?.toUpperCase() == 'BULLISH';
   bool get isBearish => predictedDirection?.toUpperCase() == 'BEARISH';
@@ -75,6 +93,7 @@ class StockSummary {
       predictedDirection: json['predicted_direction'] as String?,
       predictedTarget: json['predicted_target'] != null ? (json['predicted_target'] as num).toDouble() : null,
       predictedConfidence: json['predicted_confidence'] != null ? (json['predicted_confidence'] as num).toDouble() : null,
+      timeHorizon: json['time_horizon'] ?? '1-DAY',
     );
   }
 
@@ -97,5 +116,6 @@ class StockSummary {
         'predicted_direction': predictedDirection,
         'predicted_target': predictedTarget,
         'predicted_confidence': predictedConfidence,
+        'time_horizon': timeHorizon,
       };
 }

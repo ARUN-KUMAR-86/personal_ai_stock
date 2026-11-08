@@ -59,8 +59,12 @@ class ApiService {
     throw Exception('Failed to load market status (${res.statusCode})');
   }
 
-  Future<List<StockSummary>> getStockUniverse({String exchange = 'NSE', String? signalType}) async {
-    var query = '?exchange=$exchange';
+  Future<List<StockSummary>> getStockUniverse({
+    String exchange = 'NSE',
+    String? signalType,
+    String timeHorizon = '1-DAY',
+  }) async {
+    var query = '?exchange=$exchange&time_horizon=${Uri.encodeComponent(timeHorizon)}';
     if (signalType != null && signalType.isNotEmpty) {
       query += '&signal_type=${Uri.encodeComponent(signalType)}';
     }

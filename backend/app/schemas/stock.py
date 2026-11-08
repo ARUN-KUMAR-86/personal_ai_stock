@@ -45,6 +45,7 @@ class StockSummary(BaseModel):
     predicted_direction: Optional[str] = None
     predicted_target: Optional[float] = None
     predicted_confidence: Optional[float] = None
+    time_horizon: Optional[str] = "1-DAY"
     priority: Optional[str] = "P2"
     entry_zone: Optional[str] = None
     stop_loss: Optional[float] = None

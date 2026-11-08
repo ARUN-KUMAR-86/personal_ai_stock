@@ -35,9 +35,14 @@ def get_stock_universe(
     exchange: str = "NSE",
     sector: Optional[str] = None,
     signal_type: Optional[str] = None,
+    time_horizon: str = "1-DAY",
     db: Session = Depends(get_db),
 ):
     """Retrieves supported stock universe enriched with real-time quotes, signals, and Gemini AI predictions."""
+    is_month = "MONTH" in (time_horizon or "1-DAY").upper()
+    horizon_clean = "1-MONTH" if is_month else "1-DAY"
+    horizon_pattern = "%MONTH%" if is_month else "%1-DAY%"
+
     query = db.query(Stock).filter(Stock.is_active == True)
     if exchange != "ALL":
         if exchange.upper() in ("US", "NASDAQ", "NYSE"):
@@ -82,13 +87,27 @@ def get_stock_universe(
             .first()
         )
 
-        # Latest Gemini prediction
+        # Latest Gemini prediction matching the requested horizon
         latest_pred = (
             db.query(StockPrediction)
-            .filter(StockPrediction.symbol == stock.symbol, StockPrediction.exchange == stock.exchange)
+            .filter(
+                StockPrediction.symbol == stock.symbol,
+                StockPrediction.exchange == stock.exchange,
+                StockPrediction.time_horizon.like(horizon_pattern),
+            )
             .order_by(StockPrediction.created_at.desc())
             .first()
         )
+        if not latest_pred:
+            latest_pred = (
+                db.query(StockPrediction)
+                .filter(
+                    StockPrediction.symbol == stock.symbol,
+                    StockPrediction.exchange == stock.exchange,
+                )
+                .order_by(StockPrediction.created_at.desc())
+                .first()
+            )
 
         # Filter by signal_type if requested
         if signal_type and (not latest_signal or latest_signal.signal_type != signal_type):
@@ -106,9 +125,22 @@ def get_stock_universe(
         pred_dir = latest_pred.predicted_direction if latest_pred else (
             "BULLISH" if latest_signal and "BUY" in latest_signal.signal_type else None
         )
-        pred_target = latest_pred.target_price if latest_pred else (
-            latest_signal.target if latest_signal else None
-        )
+
+        # Calibrate target based on horizon if needed
+        pred_target = None
+        if latest_pred and latest_pred.target_price:
+            pred_target = latest_pred.target_price
+            if is_month and "DAY" in (latest_pred.time_horizon or "").upper() and current_price:
+                pred_target = round(current_price * 1.12 if pred_dir == "BULLISH" else current_price * 0.90, 2)
+            elif not is_month and "MONTH" in (latest_pred.time_horizon or "").upper() and current_price:
+                pred_target = round(current_price * 1.035 if pred_dir == "BULLISH" else current_price * 0.97, 2)
+        elif latest_signal and latest_signal.target:
+            pred_target = latest_signal.target
+            if is_month and current_price:
+                pred_target = round(current_price * 1.12 if pred_dir == "BULLISH" else current_price * 0.90, 2)
+        elif current_price:
+            pred_target = round(current_price * (1.12 if is_month else 1.035) if pred_dir == "BULLISH" else current_price * (0.90 if is_month else 0.97), 2)
+
         pred_conf = latest_pred.confidence_score if latest_pred else (
             latest_signal.strength if latest_signal else 50.0
         )
@@ -117,13 +149,13 @@ def get_stock_universe(
         raw_pri = (latest_signal.priority if latest_signal else None) or ""
         if raw_pri.upper() in ("P0", "P1", "P2", "P3", "P4"):
             sig_priority = raw_pri.upper()
-        elif "CRITICAL" in raw_pri.upper() or pred_conf >= 95.0:
+        elif "CRITICAL" in raw_pri.upper() or pred_conf >= 90.0:
             sig_priority = "P0"
-        elif raw_pri.upper() in ("VERY HIGH", "HIGH") or pred_conf >= 85.0:
+        elif raw_pri.upper() in ("VERY HIGH", "HIGH") or pred_conf >= 80.0:
             sig_priority = "P1"
-        elif pred_conf >= 75.0:
+        elif pred_conf >= 70.0:
             sig_priority = "P2"
-        elif pred_conf >= 60.0:
+        elif pred_conf >= 55.0:
             sig_priority = "P3"
         else:
             sig_priority = "P4"
@@ -155,6 +187,7 @@ def get_stock_universe(
                 predicted_direction=pred_dir,
                 predicted_target=pred_target,
                 predicted_confidence=pred_conf,
+                time_horizon=horizon_clean,
                 priority=sig_priority,
                 entry_zone=entry_zone_str,
                 stop_loss=latest_signal.stop_loss if latest_signal else (current_price * 0.97 if current_price else None),
@@ -572,10 +605,27 @@ def get_prediction_history(limit: int = 50, db: Session = Depends(get_db)):
 
 
 @router.get("/predictions/top", response_model=List[PredictionRead])
-def get_top_predictions(limit: int = 10, db: Session = Depends(get_db)):
+def get_top_predictions(
+    limit: int = 10,
+    exchange: Optional[str] = None,
+    time_horizon: Optional[str] = None,
+    db: Session = Depends(get_db),
+):
     """Retrieves top real-time AI predictions sorted by highest confidence."""
+    query = db.query(StockPrediction)
+    if exchange and exchange != "ALL":
+        if exchange.upper() in ("US", "NASDAQ", "NYSE"):
+            query = query.filter(StockPrediction.exchange.in_(["US", "NASDAQ", "NYSE"]))
+        elif exchange.upper() in ("NSE", "BSE", "INDIA"):
+            query = query.filter(StockPrediction.exchange.in_(["NSE", "BSE"]))
+        else:
+            query = query.filter(StockPrediction.exchange == exchange.upper())
+    if time_horizon:
+        is_month = "MONTH" in time_horizon.upper()
+        pat = "%MONTH%" if is_month else "%1-DAY%"
+        query = query.filter(StockPrediction.time_horizon.like(pat))
     preds = (
-        db.query(StockPrediction)
+        query
         .order_by(StockPrediction.confidence_score.desc(), StockPrediction.created_at.desc())
         .limit(limit)
         .all()
