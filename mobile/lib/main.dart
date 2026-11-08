@@ -2,11 +2,12 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'state/app_state.dart';
+import 'theme/app_theme.dart';
 import 'screens/live_monitoring_screen.dart';
-import 'screens/notifications_screen.dart';
 import 'screens/scanner_screen.dart';
+import 'screens/portfolio_screen.dart';
+import 'screens/notifications_screen.dart';
 import 'screens/settings_screen.dart';
-
 import 'services/notification_service.dart';
 
 void main() async {
@@ -56,68 +57,12 @@ class PersonalStockApp extends StatelessWidget {
   Widget build(BuildContext context) {
     final state = context.watch<AppState>();
 
-    // White & Blue Theme (Default)
-    final lightTheme = ThemeData(
-      brightness: Brightness.light,
-      scaffoldBackgroundColor: const Color(0xFFF1F5F9), // Clean soft slate
-      primaryColor: const Color(0xFF2563EB),           // Royal Blue
-      cardColor: Colors.white,
-      canvasColor: const Color(0xFFF1F5F9),
-      dividerColor: const Color(0xFFE2E8F0),
-      colorScheme: const ColorScheme.light(
-        primary: Color(0xFF2563EB),
-        secondary: Color(0xFF0284C7),
-        surface: Colors.white,
-        onSurface: Color(0xFF0F172A),
-      ),
-      appBarTheme: const AppBarTheme(
-        backgroundColor: Colors.white,
-        foregroundColor: Color(0xFF0F172A),
-        elevation: 0.5,
-        iconTheme: IconThemeData(color: Color(0xFF0F172A)),
-      ),
-      bottomNavigationBarTheme: const BottomNavigationBarThemeData(
-        backgroundColor: Colors.white,
-        selectedItemColor: Color(0xFF2563EB),
-        unselectedItemColor: Color(0xFF64748B),
-        elevation: 8,
-      ),
-    );
-
-    // Dark Mode Theme
-    final darkTheme = ThemeData(
-      brightness: Brightness.dark,
-      scaffoldBackgroundColor: const Color(0xFF0B0F19), // Deep dark navy
-      primaryColor: const Color(0xFF3B82F6),           // Bright blue
-      cardColor: const Color(0xFF111827),
-      canvasColor: const Color(0xFF0B0F19),
-      dividerColor: const Color(0xFF1F2937),
-      colorScheme: const ColorScheme.dark(
-        primary: Color(0xFF3B82F6),
-        secondary: Color(0xFF38BDF8),
-        surface: Color(0xFF111827),
-        onSurface: Color(0xFFF8FAFC),
-      ),
-      appBarTheme: const AppBarTheme(
-        backgroundColor: Color(0xFF111827),
-        foregroundColor: Color(0xFFF8FAFC),
-        elevation: 0,
-        iconTheme: IconThemeData(color: Color(0xFFF8FAFC)),
-      ),
-      bottomNavigationBarTheme: const BottomNavigationBarThemeData(
-        backgroundColor: Color(0xFF111827),
-        selectedItemColor: Color(0xFF3B82F6),
-        unselectedItemColor: Color(0xFF94A3B8),
-        elevation: 0,
-      ),
-    );
-
     return MaterialApp(
       navigatorKey: NotificationService.navigatorKey,
-      title: 'Zed',
+      title: 'Zed Terminal',
       debugShowCheckedModeBanner: false,
-      theme: lightTheme,
-      darkTheme: darkTheme,
+      theme: AppTheme.lightTheme,
+      darkTheme: AppTheme.darkTheme,
       themeMode: state.isDarkMode ? ThemeMode.dark : ThemeMode.light,
       home: const MainNavigationShell(),
     );
@@ -136,8 +81,9 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
 
   final List<Widget> _screens = const [
     LiveMonitoringScreen(),
-    NotificationsScreen(),
     ScannerScreen(),
+    PortfolioScreen(),
+    NotificationsScreen(),
     SettingsScreen(),
   ];
 
@@ -146,55 +92,173 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
     final state = context.watch<AppState>();
     final unreadCount = state.alerts.where((a) => !a.isRead).length;
     final isDark = state.isDarkMode;
+    final isTabletOrDesktop = MediaQuery.of(context).size.width >= 800;
+
+    if (isTabletOrDesktop) {
+      return Scaffold(
+        body: Row(
+          children: [
+            NavigationRail(
+              selectedIndex: _currentIndex,
+              onDestinationSelected: (idx) => setState(() => _currentIndex = idx),
+              labelType: NavigationRailLabelType.all,
+              backgroundColor: isDark ? const Color(0xFF0B101D) : Colors.white,
+              selectedIconTheme: IconThemeData(
+                color: isDark ? AppTheme.accentCyan : const Color(0xFF1D4ED8),
+              ),
+              unselectedIconTheme: IconThemeData(
+                color: AppTheme.textMuted(isDark),
+              ),
+              selectedLabelTextStyle: TextStyle(
+                color: isDark ? AppTheme.accentCyan : const Color(0xFF1D4ED8),
+                fontWeight: FontWeight.w800,
+                fontSize: 11,
+              ),
+              unselectedLabelTextStyle: TextStyle(
+                color: AppTheme.textMuted(isDark),
+                fontWeight: FontWeight.w600,
+                fontSize: 11,
+              ),
+              leading: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                child: Container(
+                  width: 38,
+                  height: 38,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(10),
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFF00F0FF), Color(0xFF2563EB)],
+                    ),
+                  ),
+                  child: const Center(
+                    child: Text(
+                      'Z',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w900,
+                        fontSize: 20,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              destinations: [
+                const NavigationRailDestination(
+                  icon: Icon(Icons.sensors_outlined),
+                  selectedIcon: Icon(Icons.sensors, color: Color(0xFF00E676)),
+                  label: Text('Live Feed'),
+                ),
+                const NavigationRailDestination(
+                  icon: Icon(Icons.radar_outlined),
+                  selectedIcon: Icon(Icons.radar),
+                  label: Text('Scanner'),
+                ),
+                const NavigationRailDestination(
+                  icon: Icon(Icons.account_balance_wallet_outlined),
+                  selectedIcon: Icon(Icons.account_balance_wallet),
+                  label: Text('Portfolio'),
+                ),
+                NavigationRailDestination(
+                  icon: unreadCount > 0
+                      ? Badge(label: Text('$unreadCount'), child: const Icon(Icons.notifications_none))
+                      : const Icon(Icons.notifications_none),
+                  selectedIcon: unreadCount > 0
+                      ? Badge(label: Text('$unreadCount'), child: const Icon(Icons.notifications))
+                      : const Icon(Icons.notifications),
+                  label: Text('Alerts ($unreadCount)'),
+                ),
+                const NavigationRailDestination(
+                  icon: Icon(Icons.settings_outlined),
+                  selectedIcon: Icon(Icons.settings),
+                  label: Text('Settings'),
+                ),
+              ],
+            ),
+            const VerticalDivider(thickness: 1, width: 1),
+            Expanded(
+              child: IndexedStack(
+                index: _currentIndex,
+                children: _screens,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
 
     return Scaffold(
       body: IndexedStack(
         index: _currentIndex,
         children: _screens,
       ),
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _currentIndex,
-        onTap: (index) {
-          setState(() => _currentIndex = index);
-        },
-        type: BottomNavigationBarType.fixed,
-        backgroundColor: isDark ? const Color(0xFF111827) : Colors.white,
-        selectedItemColor: isDark ? const Color(0xFF3B82F6) : const Color(0xFF2563EB),
-        unselectedItemColor: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
-        selectedFontSize: 12,
-        unselectedFontSize: 12,
-        items: [
-          const BottomNavigationBarItem(
-            icon: Icon(Icons.sensors),
-            activeIcon: Icon(Icons.sensors, color: Color(0xFF10B981)),
-            label: 'Live Monitor',
+      bottomNavigationBar: Container(
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF0B101D) : Colors.white,
+          border: Border(
+            top: BorderSide(
+              color: isDark ? const Color(0xFF1E293B) : const Color(0xFFE2E8F0),
+              width: 1.0,
+            ),
           ),
-          BottomNavigationBarItem(
-            icon: unreadCount > 0
-                ? Badge(
-                    label: Text('$unreadCount'),
-                    child: const Icon(Icons.notifications_none),
-                  )
-                : const Icon(Icons.notifications_none),
-            activeIcon: unreadCount > 0
-                ? Badge(
-                    label: Text('$unreadCount'),
-                    child: const Icon(Icons.notifications),
-                  )
-                : const Icon(Icons.notifications),
-            label: 'Notifications',
-          ),
-          const BottomNavigationBarItem(
-            icon: Icon(Icons.radar),
-            activeIcon: Icon(Icons.radar, color: Colors.blueAccent),
-            label: 'AI Scanner',
-          ),
-          const BottomNavigationBarItem(
-            icon: Icon(Icons.settings_outlined),
-            activeIcon: Icon(Icons.settings),
-            label: 'Settings',
-          ),
-        ],
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(isDark ? 0.4 : 0.06),
+              blurRadius: 10,
+              offset: const Offset(0, -2),
+            ),
+          ],
+        ),
+        child: BottomNavigationBar(
+          currentIndex: _currentIndex,
+          onTap: (index) {
+            setState(() => _currentIndex = index);
+          },
+          type: BottomNavigationBarType.fixed,
+          backgroundColor: isDark ? const Color(0xFF0B101D) : Colors.white,
+          selectedItemColor: isDark ? AppTheme.accentCyan : const Color(0xFF1D4ED8),
+          unselectedItemColor: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
+          selectedFontSize: 11,
+          unselectedFontSize: 10.5,
+          selectedLabelStyle: const TextStyle(fontWeight: FontWeight.w800, letterSpacing: 0.2),
+          unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w600),
+          items: [
+            const BottomNavigationBarItem(
+              icon: Icon(Icons.sensors),
+              activeIcon: Icon(Icons.sensors, color: Color(0xFF00E676)),
+              label: 'Live Feed',
+            ),
+            const BottomNavigationBarItem(
+              icon: Icon(Icons.radar),
+              activeIcon: Icon(Icons.radar, color: Color(0xFF00F0FF)),
+              label: 'AI Scanner',
+            ),
+            const BottomNavigationBarItem(
+              icon: Icon(Icons.account_balance_wallet_outlined),
+              activeIcon: Icon(Icons.account_balance_wallet, color: Color(0xFF38BDF8)),
+              label: 'Portfolio',
+            ),
+            BottomNavigationBarItem(
+              icon: unreadCount > 0
+                  ? Badge(
+                      label: Text('$unreadCount'),
+                      child: const Icon(Icons.notifications_none),
+                    )
+                  : const Icon(Icons.notifications_none),
+              activeIcon: unreadCount > 0
+                  ? Badge(
+                      label: Text('$unreadCount'),
+                      child: const Icon(Icons.notifications),
+                    )
+                  : const Icon(Icons.notifications),
+              label: 'Alerts',
+            ),
+            const BottomNavigationBarItem(
+              icon: Icon(Icons.settings_outlined),
+              activeIcon: Icon(Icons.settings),
+              label: 'Terminal',
+            ),
+          ],
+        ),
       ),
     );
   }

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../theme/app_theme.dart';
 
 class SignalPill extends StatelessWidget {
   final String signalType;
@@ -12,45 +13,41 @@ class SignalPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    Color bg;
-    Color text;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final upper = signalType.toUpperCase();
 
-    switch (signalType.toUpperCase()) {
-      case 'BUY WATCH':
-        bg = Colors.green.shade900.withOpacity(0.4);
-        text = Colors.greenAccent;
-        break;
-      case 'HOLD':
-        bg = Colors.blue.shade900.withOpacity(0.4);
-        text = Colors.lightBlueAccent;
-        break;
-      case 'SELL/EXIT WATCH':
-        bg = Colors.red.shade900.withOpacity(0.4);
-        text = Colors.redAccent;
-        break;
-      default:
-        bg = Colors.grey.shade800;
-        text = Colors.grey.shade400;
-        break;
+    Color color;
+    IconData? icon;
+
+    if (upper.contains('BUY')) {
+      color = AppTheme.profit(isDark);
+      icon = Icons.trending_up;
+    } else if (upper.contains('SELL') || upper.contains('EXIT')) {
+      color = AppTheme.loss(isDark);
+      icon = Icons.trending_down;
+    } else if (upper.contains('HOLD') || upper.contains('WATCH')) {
+      color = isDark ? AppTheme.accentCyan : const Color(0xFF0284C7);
+      icon = Icons.visibility_outlined;
+    } else {
+      color = AppTheme.textMuted(isDark);
+      icon = Icons.remove_circle_outline;
     }
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(
-        color: bg,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: text.withOpacity(0.5), width: 1.0),
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: AppTheme.terminalBadge(color: color, radius: 8),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
+          Icon(icon, size: 12, color: color),
+          const SizedBox(width: 4),
           Text(
             signalType,
             style: TextStyle(
-              color: text,
-              fontWeight: FontWeight.bold,
-              fontSize: 11,
-              letterSpacing: 0.5,
+              color: color,
+              fontWeight: FontWeight.w800,
+              fontSize: 10.5,
+              letterSpacing: 0.3,
             ),
           ),
           if (strength != null && strength! > 0) ...[
@@ -58,9 +55,10 @@ class SignalPill extends StatelessWidget {
             Text(
               '${strength!.toInt()}%',
               style: TextStyle(
-                color: text.withOpacity(0.8),
+                color: color.withOpacity(0.85),
                 fontSize: 10,
-                fontWeight: FontWeight.w600,
+                fontWeight: FontWeight.w700,
+                fontFamily: 'monospace',
               ),
             ),
           ],

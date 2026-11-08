@@ -2,8 +2,10 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../state/app_state.dart';
+import '../theme/app_theme.dart';
 import '../widgets/signal_pill.dart';
 import '../widgets/priority_badge.dart';
+import '../widgets/mini_sparkline.dart';
 import '../widgets/zed_logo.dart';
 import '../models/stock_summary.dart';
 import 'stock_recommendation_screen.dart';
@@ -1016,28 +1018,42 @@ class _ScannerScreenState extends State<ScannerScreen> {
                 ],
               ],
             ),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
+            Row(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                Text(
-                  stock.latestPrice != null
-                      ? '$curr${stock.latestPrice!.toStringAsFixed(2)}'
-                      : '---',
-                  style: TextStyle(
-                    color: theme.colorScheme.onSurface,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 15,
+                if (stock.latestPrice != null) ...[
+                  MiniSparkline.fromTrend(
+                    price: stock.latestPrice!,
+                    changePct: stock.percentChange,
+                    width: 44,
+                    height: 22,
                   ),
-                ),
-                if (stock.latestPrice != null && (stock.change != 0 || stock.percentChange != 0))
-                  Text(
-                    '${stock.percentChange >= 0 ? "+" : ""}${stock.percentChange.toStringAsFixed(2)}%',
-                    style: TextStyle(
-                      color: stock.percentChange >= 0 ? Colors.greenAccent : Colors.redAccent,
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
+                  const SizedBox(width: 8),
+                ],
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      stock.latestPrice != null
+                          ? '$curr${stock.latestPrice!.toStringAsFixed(2)}'
+                          : '---',
+                      style: AppTheme.mono(
+                        fontSize: 14.5,
+                        fontWeight: FontWeight.w700,
+                        color: theme.colorScheme.onSurface,
+                      ),
                     ),
-                  ),
+                    if (stock.latestPrice != null && (stock.change != 0 || stock.percentChange != 0))
+                      Text(
+                        '${stock.percentChange >= 0 ? "+" : ""}${stock.percentChange.toStringAsFixed(2)}%',
+                        style: AppTheme.mono(
+                          fontSize: 10.5,
+                          fontWeight: FontWeight.w700,
+                          color: stock.percentChange >= 0 ? AppTheme.profit(isDark) : AppTheme.loss(isDark),
+                        ),
+                      ),
+                  ],
+                ),
               ],
             ),
           ],
