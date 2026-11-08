@@ -8,6 +8,7 @@ class ManualPurchaseDialog extends StatefulWidget {
   final double? currentPrice;
   final double? targetPrice;
   final double? stopLossPrice;
+  final String? exchange;
 
   const ManualPurchaseDialog({
     super.key,
@@ -16,6 +17,7 @@ class ManualPurchaseDialog extends StatefulWidget {
     this.currentPrice,
     this.targetPrice,
     this.stopLossPrice,
+    this.exchange,
   });
 
   static Future<bool?> show(
@@ -25,6 +27,7 @@ class ManualPurchaseDialog extends StatefulWidget {
     double? currentPrice,
     double? targetPrice,
     double? stopLossPrice,
+    String? exchange,
   }) {
     return showDialog<bool>(
       context: context,
@@ -34,6 +37,7 @@ class ManualPurchaseDialog extends StatefulWidget {
         currentPrice: currentPrice,
         targetPrice: targetPrice,
         stopLossPrice: stopLossPrice,
+        exchange: exchange,
       ),
     );
   }
@@ -160,8 +164,10 @@ class _ManualPurchaseDialogState extends State<ManualPurchaseDialog> {
 
     try {
       final state = context.read<AppState>();
+      final effectiveEx = widget.exchange ?? state.activeExchangeDefault;
       final res = await state.recordManualPurchase(
         symbol: symbol,
+        exchange: effectiveEx,
         companyName: name,
         actualPrice: price,
         quantity: quantity,

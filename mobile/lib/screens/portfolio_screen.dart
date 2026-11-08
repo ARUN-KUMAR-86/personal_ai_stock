@@ -447,9 +447,18 @@ class PortfolioScreen extends StatelessWidget {
                         children: [
                           Row(
                             children: [
-                              Text(
-                                pos.symbol,
-                                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    pos.symbol,
+                                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
+                                  ),
+                                  Text(
+                                    pos.marketTag,
+                                    style: const TextStyle(color: Colors.cyanAccent, fontWeight: FontWeight.w600, fontSize: 9.5),
+                                  ),
+                                ],
                               ),
                               const SizedBox(width: 8),
                               Container(
@@ -494,7 +503,7 @@ class PortfolioScreen extends StatelessWidget {
                           Row(
                             children: [
                               Text(
-                                '${isProfit ? '+' : ''}₹${pos.unrealizedPnl.toStringAsFixed(2)}',
+                                '${isProfit ? '+' : ''}${pos.currencySymbol}${pos.unrealizedPnl.toStringAsFixed(2)}',
                                 style: TextStyle(
                                   color: isProfit ? Colors.greenAccent : Colors.redAccent,
                                   fontSize: 15,
@@ -513,10 +522,10 @@ class PortfolioScreen extends StatelessWidget {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          _buildPosMetric('Avg Price', '₹${pos.avgEntryPrice.toStringAsFixed(2)}'),
-                          _buildPosMetric('Current Price', '₹${pos.currentPrice.toStringAsFixed(2)}'),
-                          _buildPosMetric('Stop Loss', pos.stopLoss != null ? '₹${pos.stopLoss}' : 'None', color: Colors.redAccent),
-                          _buildPosMetric('Target', pos.target != null ? '₹${pos.target}' : 'None', color: Colors.greenAccent),
+                          _buildPosMetric('Avg Price', '${pos.currencySymbol}${pos.avgEntryPrice.toStringAsFixed(2)}'),
+                          _buildPosMetric('Current Price', '${pos.currencySymbol}${pos.currentPrice.toStringAsFixed(2)}'),
+                          _buildPosMetric('Stop Loss', pos.stopLoss != null ? '${pos.currencySymbol}${pos.stopLoss}' : 'None', color: Colors.redAccent),
+                          _buildPosMetric('Target', pos.target != null ? '${pos.currencySymbol}${pos.target}' : 'None', color: Colors.greenAccent),
                         ],
                       ),
                       const Divider(color: Colors.white10, height: 16),
@@ -688,9 +697,18 @@ class PortfolioScreen extends StatelessWidget {
                                 ),
                               ),
                               const SizedBox(width: 8),
-                              Text(
-                                pt.symbol,
-                                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15),
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    pt.symbol,
+                                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15),
+                                  ),
+                                  Text(
+                                    pt.marketTag,
+                                    style: const TextStyle(color: Colors.cyanAccent, fontWeight: FontWeight.w600, fontSize: 9.5),
+                                  ),
+                                ],
                               ),
                               const SizedBox(width: 8),
                               Text(
@@ -700,7 +718,7 @@ class PortfolioScreen extends StatelessWidget {
                             ],
                           ),
                           Text(
-                            '₹${pt.price.toStringAsFixed(2)}',
+                            '${pt.currencySymbol}${pt.price.toStringAsFixed(2)}',
                             style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
                           ),
                         ],
@@ -733,9 +751,9 @@ class PortfolioScreen extends StatelessWidget {
                                 const SizedBox(width: 6),
                               ],
                               if (pt.target != null)
-                                Text('TP: ₹${pt.target!.toStringAsFixed(1)} ', style: const TextStyle(color: Colors.greenAccent, fontSize: 10)),
+                                Text('TP: ${pt.currencySymbol}${pt.target!.toStringAsFixed(1)} ', style: const TextStyle(color: Colors.greenAccent, fontSize: 10)),
                               if (pt.stopLoss != null)
-                                Text('SL: ₹${pt.stopLoss!.toStringAsFixed(1)}', style: const TextStyle(color: Colors.redAccent, fontSize: 10)),
+                                Text('SL: ${pt.currencySymbol}${pt.stopLoss!.toStringAsFixed(1)}', style: const TextStyle(color: Colors.redAccent, fontSize: 10)),
                             ],
                           ),
                           Text(

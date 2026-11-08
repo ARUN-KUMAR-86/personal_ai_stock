@@ -132,6 +132,11 @@ class Position {
         'order_id': orderId,
         'triggered_thresholds': triggeredThresholds,
       };
+
+  bool get isUS => (exchange.toUpperCase() == 'US' || exchange.toUpperCase() == 'NASDAQ' || exchange.toUpperCase() == 'NYSE');
+  String get currency => isUS ? 'USD' : 'INR';
+  String get currencySymbol => isUS ? '\$' : '₹';
+  String get marketTag => '$symbol – ${exchange.toUpperCase()} – $currency';
 }
 
 class PaperTrade {
@@ -208,6 +213,11 @@ class PaperTrade {
         'holding_period_hours': holdingPeriodHours,
         'auto_sell_enabled': autoSellEnabled,
       };
+
+  bool get isUS => (exchange.toUpperCase() == 'US' || exchange.toUpperCase() == 'NASDAQ' || exchange.toUpperCase() == 'NYSE');
+  String get currency => isUS ? 'USD' : 'INR';
+  String get currencySymbol => isUS ? '\$' : '₹';
+  String get marketTag => '$symbol – ${exchange.toUpperCase()} – $currency';
 }
 
 class PortfolioSummary {

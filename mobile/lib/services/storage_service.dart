@@ -208,4 +208,39 @@ class StorageService {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(keyAutoTakeProfit, enabled);
   }
+
+  // ────────────────────────────────────────────────────────────
+  // Dual-Market Architecture: Indian & US Stock Market Settings
+  // ────────────────────────────────────────────────────────────
+  static const String keyActiveMarket = 'user_selected_market'; // 'INDIA' or 'US'
+
+  static Future<String> getActiveMarket() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(keyActiveMarket) ?? 'INDIA';
+  }
+
+  static Future<void> setActiveMarket(String market) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(keyActiveMarket, market.toUpperCase());
+  }
+
+  static Future<List<String>> getRecentlyAnalyzed(String market) async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getStringList('recently_analyzed_${market.toUpperCase()}') ?? [];
+  }
+
+  static Future<void> addRecentlyAnalyzed(String symbol, String market) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final key = 'recently_analyzed_${market.toUpperCase()}';
+      final list = prefs.getStringList(key) ?? [];
+      final sym = symbol.toUpperCase().trim();
+      list.remove(sym);
+      list.insert(0, sym);
+      if (list.length > 15) {
+        list.removeRange(15, list.length);
+      }
+      await prefs.setStringList(key, list);
+    } catch (_) {}
+  }
 }

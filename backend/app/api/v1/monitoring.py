@@ -74,17 +74,31 @@ def get_live_monitoring_feed(
     # Query active stocks
     query = db.query(Stock).filter(Stock.is_active == True)
     if exchange != "ALL":
-        query = query.filter(Stock.exchange == exchange)
+        if exchange.upper() in ("US", "NASDAQ", "NYSE"):
+            query = query.filter(Stock.exchange.in_(["US", "NASDAQ", "NYSE"]))
+        elif exchange.upper() in ("NSE", "BSE", "INDIA"):
+            query = query.filter(Stock.exchange.in_(["NSE", "BSE"]))
+        else:
+            query = query.filter(Stock.exchange == exchange)
     active_stocks = query.all()
 
     # Auto seed if empty
     if not active_stocks:
         scanner_engine.sync_universe(db, exchange=exchange)
+        query = db.query(Stock).filter(Stock.is_active == True)
+        if exchange != "ALL":
+            if exchange.upper() in ("US", "NASDAQ", "NYSE"):
+                query = query.filter(Stock.exchange.in_(["US", "NASDAQ", "NYSE"]))
+            elif exchange.upper() in ("NSE", "BSE", "INDIA"):
+                query = query.filter(Stock.exchange.in_(["NSE", "BSE"]))
+            else:
+                query = query.filter(Stock.exchange == exchange)
         active_stocks = query.all()
 
     symbols = [s.symbol for s in active_stocks]
     # Fetch real-time quotes in bulk
-    quotes = provider.get_bulk_quotes(symbols, exchange="NSE" if exchange == "ALL" else exchange)
+    ex_for_quotes = "US" if exchange.upper() in ("US", "NASDAQ", "NYSE") else ("NSE" if exchange == "ALL" else exchange)
+    quotes = provider.get_bulk_quotes(symbols, exchange=ex_for_quotes)
 
     # Fetch latest signals in one query
     signals = (
@@ -155,6 +169,8 @@ def get_live_monitoring_feed(
             "name": stock.name or sym,
             "exchange": stock.exchange,
             "sector": stock.sector or "General",
+            "currency": "USD" if stock.exchange.upper() in ("US", "NASDAQ", "NYSE") else "INR",
+            "currency_symbol": "$" if stock.exchange.upper() in ("US", "NASDAQ", "NYSE") else "₹",
             "price": current_price,
             "previous_close": q.previous_close if q else None,
             "change": q.change if q else 0.0,

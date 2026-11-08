@@ -301,20 +301,23 @@ class FCMNotifier:
 
         total_sell = round(current_price * qty, 2)
         is_profit = pnl_inr >= 0
-        pnl_inr_str = f"+₹{pnl_inr:.2f}" if is_profit else f"-₹{abs(pnl_inr):.2f}"
+        cur_sym = "$" if exchange.upper() in ("US", "NASDAQ", "NYSE") else "₹"
+        cur_code = "USD" if cur_sym == "$" else "INR"
+        pnl_inr_str = f"+{cur_sym}{pnl_inr:.2f}" if is_profit else f"-{cur_sym}{abs(pnl_inr):.2f}"
         pnl_pct_str = f"+{pnl_pct:.2f}%" if is_profit else f"-{abs(pnl_pct):.2f}%"
-        status_tag = f"+₹{int(abs(pnl_inr))} PROFIT" if is_profit else f"-₹{int(abs(pnl_inr))} LOSS"
+        status_tag = f"+{cur_sym}{int(abs(pnl_inr))} PROFIT" if is_profit else f"-{cur_sym}{int(abs(pnl_inr))} LOSS"
 
-        # Explicit SELL ALERT title with profit/loss amount
-        title = f"🔴 SELL ALERT ({status_tag}): {symbol} @ ₹{current_price:,.2f}"
+        market_tag = f"{symbol} – {exchange} – {cur_code}"
+        title = f"🔴 SELL ALERT ({status_tag}): {market_tag} @ {cur_sym}{current_price:,.2f}"
 
+        broker_name = "US Broker" if cur_sym == "$" else "Groww"
         body = (
-            f"🔴 SELL ALERT: {symbol} reached {threshold_name}!\n"
-            f"• Buy Price: ₹{avg_buy:,.2f} | Total Buy Amount: ₹{total_inv:,.2f} (Qty: {qty})\n"
-            f"• Sell Price: ₹{current_price:,.2f} | Total Sell Amount: ₹{total_sell:,.2f}\n"
+            f"🔴 SELL ALERT: {market_tag} reached {threshold_name}!\n"
+            f"• Buy Price: {cur_sym}{avg_buy:,.2f} | Total Buy Amount: {cur_sym}{total_inv:,.2f} (Qty: {qty})\n"
+            f"• Sell Price: {cur_sym}{current_price:,.2f} | Total Sell Amount: {cur_sym}{total_sell:,.2f}\n"
             f"• Profit / Loss: {pnl_inr_str} ({pnl_pct_str})\n"
             f"• Milestone: {threshold_name}\n"
-            f"Action: Execute SELL order in Groww to {'lock in your profit' if is_profit else 'protect your capital'}!"
+            f"Action: Execute SELL order in {broker_name} to {'lock in your profit' if is_profit else 'protect your capital'}!"
         )
 
         return self.send_notification(

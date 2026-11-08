@@ -84,6 +84,22 @@ class AppState extends ChangeNotifier {
   bool isPredicting = false;
   String? lastPredictedSymbol;
 
+  // ── Dual-Market Architecture (Indian & US Stock Markets) ──────
+  String activeMarket = 'INDIA'; // 'INDIA' or 'US'
+  Map<String, dynamic>? marketOverview;
+  bool isLoadingMarketOverview = false;
+  List<Map<String, dynamic>> trendingStocks = [];
+  List<Map<String, dynamic>> topGainers = [];
+  List<Map<String, dynamic>> topLosers = [];
+  List<Map<String, dynamic>> marketIndices = [];
+  List<String> recentAnalyzedStocks = [];
+
+  bool get isIndianMarket => activeMarket == 'INDIA';
+  bool get isUSMarket => activeMarket == 'US';
+  String get activeCurrency => isUSMarket ? 'USD' : 'INR';
+  String get activeCurrencySymbol => isUSMarket ? '\$' : '₹';
+  String get activeExchangeDefault => isUSMarket ? 'US' : 'NSE';
+
   // Live Monitoring Engine
   List<Map<String, dynamic>> liveFeed = [];
   Map<String, dynamic>? liveMonitoringStatus;
@@ -100,11 +116,13 @@ class AppState extends ChangeNotifier {
     // 1. Immediately load cached paper trades & portfolio from device storage
     // This ensures trades are NEVER blank or lost when app is closed / reopened!
     await _loadCachedData();
-    // 2. Refresh live data from backend
+    // 2. Fetch market overview for selected market (India or US)
+    await fetchMarketOverview(silent: true);
+    // 3. Refresh live data from backend for active market
     await refreshAll();
-    // 3. Fetch initial live monitoring feed
-    await fetchLiveFeed();
-    // 4. Start ultra-low latency continuous live sync loop (every 3s)
+    // 4. Fetch initial live monitoring feed for active market
+    await fetchLiveFeed(exchange: activeExchangeDefault);
+    // 5. Start ultra-low latency continuous live sync loop (every 3s)
     startUltraSyncLoop();
   }
 
@@ -119,12 +137,92 @@ class AppState extends ChangeNotifier {
       autoTakeProfit = await StorageService.getAutoTakeProfit();
       isDarkMode = await StorageService.getIsDarkMode();
       onlySellAlerts = await StorageService.getOnlySellAlerts();
+      activeMarket = await StorageService.getActiveMarket();
+      recentAnalyzedStocks = await StorageService.getRecentlyAnalyzed(activeMarket);
       final cachedWatch = await StorageService.getWatchlist();
       watchlistSymbols = cachedWatch.map((s) => s.toUpperCase()).toSet();
       notifyListeners();
     } catch (e) {
       debugPrint('Error loading cached data: $e');
     }
+  }
+
+  Future<void> selectMarket(String market) async {
+    final clean = market.toUpperCase().trim();
+    if (activeMarket == clean) return;
+    activeMarket = clean;
+    await StorageService.setActiveMarket(clean);
+    recentAnalyzedStocks = await StorageService.getRecentlyAnalyzed(clean);
+    
+    // Clear old market data so items from another market never linger
+    stocks = [];
+    liveFeed = [];
+    trendingStocks = [];
+    topGainers = [];
+    topLosers = [];
+    marketIndices = [];
+    notifyListeners();
+
+    // Fetch market-specific overview, live feed & stock universe
+    await fetchMarketOverview();
+    await fetchLiveFeed(exchange: activeExchangeDefault);
+    await refreshAll();
+  }
+
+  Future<void> fetchMarketOverview({bool silent = false}) async {
+    if (!silent) {
+      isLoadingMarketOverview = true;
+      notifyListeners();
+    }
+    try {
+      final overview = await api.getMarketOverview(activeMarket);
+      if (overview.isNotEmpty) {
+        marketOverview = overview;
+        final rawTrending = overview['trending'] ?? overview['trending_stocks'];
+        if (rawTrending is List) {
+          trendingStocks = List<Map<String, dynamic>>.from(rawTrending);
+        }
+        final rawGainers = overview['gainers'] ?? overview['top_gainers'];
+        if (rawGainers is List) {
+          topGainers = List<Map<String, dynamic>>.from(rawGainers);
+        }
+        final rawLosers = overview['losers'] ?? overview['top_losers'];
+        if (rawLosers is List) {
+          topLosers = List<Map<String, dynamic>>.from(rawLosers);
+        }
+        if (overview['indices'] is List) {
+          marketIndices = List<Map<String, dynamic>>.from(overview['indices']);
+        }
+      }
+    } catch (e) {
+      debugPrint('fetchMarketOverview error: $e');
+    } finally {
+      isLoadingMarketOverview = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> addRecentlyAnalyzed(String symbol) async {
+    final sym = symbol.toUpperCase().trim();
+    await StorageService.addRecentlyAnalyzed(sym, activeMarket);
+    recentAnalyzedStocks.remove(sym);
+    recentAnalyzedStocks.insert(0, sym);
+    if (recentAnalyzedStocks.length > 15) {
+      recentAnalyzedStocks.removeRange(15, recentAnalyzedStocks.length);
+    }
+    notifyListeners();
+  }
+
+  Future<Map<String, dynamic>> getCompleteStockAnalysis(
+    String symbol, {
+    String? market,
+    String? exchange,
+    String timeHorizon = '1-DAY',
+  }) async {
+    final m = (market ?? activeMarket).toUpperCase();
+    final ex = exchange ?? (m == 'US' ? 'US' : 'NSE');
+    await addRecentlyAnalyzed(symbol);
+    return await api.getCompleteStockAnalysis(symbol, market: m, exchange: ex, timeHorizon: timeHorizon);
   }
 
   Future<void> setOnlySellAlerts(bool enabled) async {
@@ -183,8 +281,8 @@ class AppState extends ChangeNotifier {
       }
 
       final results = await Future.wait([
-        api.getMarketStatus().catchError((_) => MarketStatus(
-              exchange: 'NSE',
+        api.getMarketStatus(exchange: activeExchangeDefault).catchError((_) => MarketStatus(
+              exchange: activeExchangeDefault,
               status: 'UNKNOWN',
               reason: 'Connection error',
               serverTimeIst: '',
@@ -192,7 +290,7 @@ class AppState extends ChangeNotifier {
               marketOpenTime: '',
               marketCloseTime: '',
             )),
-        api.getStockUniverse().catchError((_) => <StockSummary>[]),
+        api.getStockUniverse(exchange: activeExchangeDefault).catchError((_) => <StockSummary>[]),
         api.getLatestSignals(limit: 15).catchError((_) => <StockSignal>[]),
         api.getAlerts().catchError((_) => <StockAlert>[]),
         api.getPortfolioSummary().catchError((_) => portfolio ?? PortfolioSummary(
@@ -405,14 +503,15 @@ class AppState extends ChangeNotifier {
   }
 
   /// Refreshes the real-time live monitoring tick feed
-  Future<void> fetchLiveFeed({String exchange = 'ALL', bool silent = false}) async {
+  Future<void> fetchLiveFeed({String? exchange, bool silent = false}) async {
     try {
-      final feed = await api.getLiveMonitoringFeed(exchange: exchange);
+      final targetExchange = exchange ?? activeExchangeDefault;
+      final feed = await api.getLiveMonitoringFeed(exchange: targetExchange);
       if (feed['items'] is List) {
         liveFeed = List<Map<String, dynamic>>.from(feed['items']);
         lastLiveFeedUpdate = DateTime.now();
       }
-      final status = await api.getLiveMonitoringStatus(exchange: exchange == 'ALL' ? 'NSE' : exchange);
+      final status = await api.getLiveMonitoringStatus(exchange: targetExchange);
       liveMonitoringStatus = status;
       if (!silent) {
         notifyListeners();
@@ -428,7 +527,7 @@ class AppState extends ChangeNotifier {
     notifyListeners();
     try {
       await api.triggerQuickScan();
-      await fetchLiveFeed();
+      await fetchLiveFeed(exchange: activeExchangeDefault);
       await refreshAll();
     } catch (e) {
       debugPrint('executeQuickScan error: $e');
@@ -458,7 +557,7 @@ class AppState extends ChangeNotifier {
       } catch (_) {}
     }
 
-    // 2. Client-Side Evaluation & Stepped Sell Notifications (+₹30 Profit / -₹30 Loss):
+    // 2. Client-Side Evaluation & Stepped Sell Notifications (+30 Profit / -30 Loss):
     // Evaluates every marked position and dispatches heads-up SELL alerts with Buy Amount, Sell Amount, and PnL
     final positionsCopy = List<Position>.from(portfolio!.positions);
     for (final pos in positionsCopy) {
@@ -466,65 +565,69 @@ class AppState extends ChangeNotifier {
       final buyPrice = pos.avgEntryPrice;
       final currPrice = pos.currentPrice > 0 ? pos.currentPrice : buyPrice;
       final qty = pos.quantity > 0 ? pos.quantity : 1;
-      final pnlInr = pos.unrealizedPnl != 0.0 ? pos.unrealizedPnl : (currPrice - buyPrice) * qty;
+      final pnlVal = pos.unrealizedPnl != 0.0 ? pos.unrealizedPnl : (currPrice - buyPrice) * qty;
       final pnlPct = buyPrice > 0 ? ((currPrice - buyPrice) / buyPrice) * 100.0 : 0.0;
+      final symCur = pos.currencySymbol;
+      final tag = pos.marketTag;
 
       final posKey = '${pos.symbol}_${pos.id}';
       final milestones = _clientTriggeredMilestones.putIfAbsent(posKey, () => <String>{});
 
-      // Stepping logic: Every +₹30 profit milestone (+30, +60, +90, +120...)
-      if (pnlInr > 0) {
+      // Stepping logic: Every +30 profit milestone (+30, +60, +90, +120...)
+      if (pnlVal > 0) {
         milestones.removeWhere((k) => k.startsWith('LOSS_'));
-        final stepProfit = (pnlInr ~/ 30) * 30;
+        final stepProfit = (pnlVal ~/ 30) * 30;
         if (stepProfit >= 30) {
           for (int milestone = 30; milestone <= stepProfit; milestone += 30) {
-            final tKey = 'PROFIT_INR_$milestone';
+            final tKey = 'PROFIT_${pos.currency}_$milestone';
             if (!milestones.contains(tKey)) {
               milestones.add(tKey);
               final totalBuy = buyPrice * qty;
               final totalSell = currPrice * qty;
-              final title = '🔴 SELL ALERT (+₹$milestone PROFIT): ${pos.symbol} @ ₹${currPrice.toStringAsFixed(2)}';
-              final body = '🔴 SELL ALERT: ${pos.symbol} reached +₹$milestone Profit Target!\n'
-                  '• Buy Price: ₹${buyPrice.toStringAsFixed(2)} | Total Buy Amount: ₹${totalBuy.toStringAsFixed(2)} (Qty: $qty)\n'
-                  '• Sell Price: ₹${currPrice.toStringAsFixed(2)} | Total Sell Amount: ₹${totalSell.toStringAsFixed(2)}\n'
-                  '• Profit / Loss: +₹${pnlInr.toStringAsFixed(2)} (+${pnlPct.toStringAsFixed(2)}%)\n'
-                  '• Milestone: +₹$milestone Profit Target Reached\n'
-                  'Action: Execute SELL order in Groww to lock in your profit!';
+              final title = '🔴 SELL ALERT (+$symCur$milestone PROFIT): $tag @ $symCur${currPrice.toStringAsFixed(2)}';
+              final body = '🔴 SELL ALERT: $tag reached +$symCur$milestone Profit Target!\n'
+                  '• Market: $tag\n'
+                  '• Buy Price: $symCur${buyPrice.toStringAsFixed(2)} | Total Buy Amount: $symCur${totalBuy.toStringAsFixed(2)} (Qty: $qty)\n'
+                  '• Sell Price: $symCur${currPrice.toStringAsFixed(2)} | Total Sell Amount: $symCur${totalSell.toStringAsFixed(2)}\n'
+                  '• Profit / Loss: +$symCur${pnlVal.toStringAsFixed(2)} (+${pnlPct.toStringAsFixed(2)}%)\n'
+                  '• Milestone: +$symCur$milestone Profit Target Reached\n'
+                  'Action: Execute SELL order to lock in your profit!';
               NotificationService().showNotification(
                 title: title,
                 body: body,
-                data: {'symbol': pos.symbol, 'exchange': 'NSE', 'action': 'SELL'},
+                data: {'symbol': pos.symbol, 'exchange': pos.exchange, 'action': 'SELL'},
                 isCritical: true,
               );
-              debugPrint('Dispatched stepped profit SELL alert for ${pos.symbol}: +₹$milestone');
+              debugPrint('Dispatched stepped profit SELL alert for ${pos.symbol}: +$symCur$milestone');
             }
           }
         }
-      } else if (pnlInr < 0) {
+      } else if (pnlVal < 0) {
         milestones.removeWhere((k) => k.startsWith('PROFIT_'));
-        final absLoss = pnlInr.abs();
+        final absLoss = pnlVal.abs();
         final stepLoss = (absLoss ~/ 30) * 30;
         if (stepLoss >= 30) {
           for (int milestone = 30; milestone <= stepLoss; milestone += 30) {
-            final tKey = 'LOSS_INR_$milestone';
+            final tKey = 'LOSS_${pos.currency}_$milestone';
             if (!milestones.contains(tKey)) {
               milestones.add(tKey);
               final totalBuy = buyPrice * qty;
               final totalSell = currPrice * qty;
-              final title = '🔴 SELL ALERT (-₹$milestone LOSS): ${pos.symbol} @ ₹${currPrice.toStringAsFixed(2)}';
-              final body = '🔴 SELL ALERT: ${pos.symbol} reached -₹$milestone Stop-Loss Milestone!\n'
-                  '• Buy Price: ₹${buyPrice.toStringAsFixed(2)} | Total Buy Amount: ₹${totalBuy.toStringAsFixed(2)} (Qty: $qty)\n'
-                  '• Sell Price: ₹${currPrice.toStringAsFixed(2)} | Total Sell Amount: ₹${totalSell.toStringAsFixed(2)}\n'
-                  '• Profit / Loss: -₹${absLoss.toStringAsFixed(2)} (-${pnlPct.abs().toStringAsFixed(2)}%)\n'
-                  '• Milestone: -₹$milestone Loss Stop-Loss Milestone\n'
-                  'Action: Execute SELL order in Groww to protect your capital!';
+              final title = '🔴 SELL ALERT (-$symCur$milestone LOSS): $tag @ $symCur${currPrice.toStringAsFixed(2)}';
+              final body = '🔴 SELL ALERT: $tag reached -$symCur$milestone Stop-Loss Milestone!\n'
+                  '• Market: $tag\n'
+                  '• Buy Price: $symCur${buyPrice.toStringAsFixed(2)} | Total Buy Amount: $symCur${totalBuy.toStringAsFixed(2)} (Qty: $qty)\n'
+                  '• Sell Price: $symCur${currPrice.toStringAsFixed(2)} | Total Sell Amount: $symCur${totalSell.toStringAsFixed(2)}\n'
+                  '• Profit / Loss: -$symCur${absLoss.toStringAsFixed(2)} (-${pnlPct.abs().toStringAsFixed(2)}%)\n'
+                  '• Milestone: -$symCur$milestone Loss Stop-Loss Milestone\n'
+                  'Action: Execute SELL order to protect your capital!';
               NotificationService().showNotification(
                 title: title,
                 body: body,
-                data: {'symbol': pos.symbol, 'exchange': 'NSE', 'action': 'SELL'},
+                data: {'symbol': pos.symbol, 'exchange': pos.exchange, 'action': 'SELL'},
                 isCritical: true,
               );
-              debugPrint('Dispatched stepped loss SELL alert for ${pos.symbol}: -₹$milestone');
+              debugPrint('Dispatched stepped loss SELL alert for ${pos.symbol}: -$symCur$milestone');
             }
           }
         }
@@ -536,10 +639,10 @@ class AppState extends ChangeNotifier {
 
       if (pos.target != null && price >= pos.target! && (pos.autoSellEnabled || autoTakeProfit)) {
         shouldAutoSell = true;
-        reason = 'AUTO TAKE PROFIT: Target ₹${pos.target!.toStringAsFixed(2)} reached';
+        reason = 'AUTO TAKE PROFIT: Target $symCur${pos.target!.toStringAsFixed(2)} reached';
       } else if (pos.stopLoss != null && price <= pos.stopLoss! && pos.autoSellEnabled) {
         shouldAutoSell = true;
-        reason = 'AUTO STOP-LOSS: Stop-loss ₹${pos.stopLoss!.toStringAsFixed(2)} hit';
+        reason = 'AUTO STOP-LOSS: Stop-loss $symCur${pos.stopLoss!.toStringAsFixed(2)} hit';
       }
 
       if (shouldAutoSell) {
@@ -620,9 +723,10 @@ class AppState extends ChangeNotifier {
     return await api.getStockPrediction(symbol, timeframe: timeframe, exchange: exchange);
   }
 
-  Future<List<Map<String, dynamic>>> searchOnlineStocks(String query, {String exchange = 'NSE'}) async {
+  Future<List<Map<String, dynamic>>> searchOnlineStocks(String query, {String? exchange}) async {
     try {
-      return await api.searchStocks(query, exchange: exchange);
+      final targetExchange = exchange ?? activeExchangeDefault;
+      return await api.searchStocksByMarket(query, market: activeMarket, exchange: targetExchange);
     } catch (e) {
       debugPrint('Search error: $e');
       return [];
@@ -800,16 +904,18 @@ class AppState extends ChangeNotifier {
     double? target,
     int holdingPeriodHours = 48,
     bool autoSellEnabled = true,
+    String? exchange,
   }) async {
     final cleanAction = action.toUpperCase().trim();
     final effectivePrice = price ?? 100.0;
     final totalAmount = effectivePrice * quantity;
+    final effectiveExchange = exchange ?? (activeMarket == 'US' ? 'US' : 'NSE');
 
     // 1. Create a local PaperTrade record immediately
     final localTrade = PaperTrade(
       id: DateTime.now().millisecondsSinceEpoch,
       symbol: symbol.toUpperCase(),
-      exchange: 'NSE',
+      exchange: effectiveExchange,
       action: cleanAction,
       quantity: quantity,
       price: effectivePrice,
@@ -854,7 +960,7 @@ class AppState extends ChangeNotifier {
         updatedPositions.insert(0, Position(
           id: DateTime.now().millisecondsSinceEpoch,
           symbol: symbol.toUpperCase(),
-          exchange: 'NSE',
+          exchange: effectiveExchange,
           quantity: quantity,
           avgEntryPrice: effectivePrice,
           currentPrice: effectivePrice,
@@ -972,7 +1078,7 @@ class AppState extends ChangeNotifier {
 
   Future<Map<String, dynamic>> recordManualPurchase({
     required String symbol,
-    String exchange = 'NSE',
+    String? exchange,
     required double actualPrice,
     required int quantity,
     String? purchaseDate,
@@ -982,9 +1088,10 @@ class AppState extends ChangeNotifier {
     double? customStopLoss,
     String? companyName,
   }) async {
+    final effectiveExchange = exchange ?? activeExchangeDefault;
     final result = await api.recordManualPurchase(
       symbol: symbol,
-      exchange: exchange,
+      exchange: effectiveExchange,
       actualPrice: actualPrice,
       quantity: quantity,
       purchaseDate: purchaseDate,

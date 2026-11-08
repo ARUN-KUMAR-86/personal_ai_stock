@@ -150,8 +150,8 @@ def test_scenario_08_09_exact_profit_notifications():
     assert any(a["threshold"] == "PROFIT_INR_30" for a in alerts1)
     alert_db1 = db.query(AlertHistory).filter(AlertHistory.threshold_key == "PROFIT_INR_30").first()
     assert alert_db1 is not None
-    assert "FIRST PROFIT ALERT" in alert_db1.title
-    assert "+₹30.00" in alert_db1.title
+    assert "SELL ALERT (+₹30 PROFIT)" in alert_db1.title
+    assert "RELIANCE" in alert_db1.title
 
     # 2. Price moves to ₹205.00 -> Profit = (205 - 200) * 10 = +₹50.00
     # Should trigger SECOND PROFIT ALERT (+₹50)
@@ -164,8 +164,8 @@ def test_scenario_08_09_exact_profit_notifications():
     assert any(a["threshold"] == "PROFIT_INR_50" for a in alerts2)
     alert_db2 = db.query(AlertHistory).filter(AlertHistory.threshold_key == "PROFIT_INR_50").first()
     assert alert_db2 is not None
-    assert "SECOND PROFIT ALERT" in alert_db2.title
-    assert "+₹50.00" in alert_db2.title
+    assert "SELL ALERT (+₹50 PROFIT)" in alert_db2.title
+    assert "RELIANCE" in alert_db2.title
 
 
 # ==============================================================================
@@ -192,8 +192,8 @@ def test_scenario_10_11_exact_loss_notifications():
     assert any(a["threshold"] == "LOSS_INR_30" for a in alerts1)
     alert_db1 = db.query(AlertHistory).filter(AlertHistory.threshold_key == "LOSS_INR_30").first()
     assert alert_db1 is not None
-    assert "FIRST LOSS ALERT" in alert_db1.title
-    assert "-₹30.00" in alert_db1.title
+    assert "SELL ALERT (-₹30 LOSS)" in alert_db1.title
+    assert "RELIANCE" in alert_db1.title
 
     # 2. Price drops to ₹195.00 -> Loss = (195 - 200) * 10 = -₹50.00
     res2 = PositionMonitor.check_and_update_positions(
@@ -205,7 +205,8 @@ def test_scenario_10_11_exact_loss_notifications():
     assert any(a["threshold"] == "LOSS_INR_50" for a in alerts2)
     alert_db2 = db.query(AlertHistory).filter(AlertHistory.threshold_key == "LOSS_INR_50").first()
     assert alert_db2 is not None
-    assert "SECOND LOSS ALERT" in alert_db2.title
+    assert "SELL ALERT (-₹50 LOSS)" in alert_db2.title
+    assert "RELIANCE" in alert_db2.title
 
 
 # ==============================================================================
@@ -237,9 +238,10 @@ def test_scenario_12_extreme_loss_12_pct_alert():
 
     alert_record = db.query(AlertHistory).filter(AlertHistory.threshold_key == "LOSS_PCT_12").first()
     assert alert_record is not None
-    assert "EXTREME LOSS ALERT" in alert_record.title
+    assert "SELL ALERT" in alert_record.title
+    assert "RELIANCE" in alert_record.title
     assert alert_record.priority == "P0"
-    assert "Action: Review position in Groww" in alert_record.message
+    assert "Extreme Loss Alert" in alert_record.message
 
 
 # ==============================================================================

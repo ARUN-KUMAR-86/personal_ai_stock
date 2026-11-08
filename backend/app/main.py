@@ -30,6 +30,7 @@ from app.api.v1.safety import router as safety_router
 from app.api.v1.watchlist import router as watchlist_router
 from app.api.v1.trading_control import router as trading_control_router
 from app.api.v1.monitoring import router as monitoring_router
+from app.api.v1.market import router as market_router
 
 
 
@@ -82,6 +83,7 @@ app.include_router(orders_router, prefix=settings.API_V1_STR)
 app.include_router(safety_router, prefix=settings.API_V1_STR)
 app.include_router(watchlist_router, prefix=settings.API_V1_STR)
 app.include_router(trading_control_router, prefix=settings.API_V1_STR)
+app.include_router(market_router, prefix=settings.API_V1_STR)
 
 
 # Mount Static Files & Web Dashboard

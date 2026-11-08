@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../state/app_state.dart';
 import '../models/alert.dart';
-import '../services/notification_service.dart';
 import '../widgets/trade_alert_card.dart';
 import '../widgets/zed_logo.dart';
 
@@ -17,83 +16,6 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   String selectedFilter = 'ALL';   // 'ALL', 'BUY', 'SELL'
   String selectedHorizon = 'ALL';  // 'ALL', '1-DAY', '1-MONTH'
   bool unreadOnly = false;
-
-  Future<void> _sendTestSellMilestoneAlert({bool isProfit = true}) async {
-    final symbol = isProfit ? 'RELIANCE' : 'TATASTEEL';
-    const qty = 10;
-    final buyPrice = isProfit ? 1200.00 : 150.00;
-    final totalBuy = buyPrice * qty;
-    final pnl = isProfit ? 30.0 : -30.0;
-    final sellPrice = buyPrice + (pnl / qty);
-    final totalSell = sellPrice * qty;
-    final pnlPct = (pnl / totalBuy) * 100.0;
-
-    final pnlStr = isProfit ? '+₹30.00' : '-₹30.00';
-    final pnlPctStr = isProfit ? '+${pnlPct.toStringAsFixed(2)}%' : '-${pnlPct.abs().toStringAsFixed(2)}%';
-    final statusTag = isProfit ? '+₹30 PROFIT' : '-₹30 LOSS';
-
-    final title = '🔴 SELL ALERT ($statusTag): $symbol @ ₹${sellPrice.toStringAsFixed(2)}';
-    final body = '🔴 SELL ALERT: $symbol reached ${isProfit ? "+₹30 Profit Sell Target" : "-₹30 Loss Stop-Loss Alert"}!\n'
-        '• Buy Price: ₹${buyPrice.toStringAsFixed(2)} | Total Buy Amount: ₹${totalBuy.toStringAsFixed(2)} (Qty: $qty)\n'
-        '• Sell Price: ₹${sellPrice.toStringAsFixed(2)} | Total Sell Amount: ₹${totalSell.toStringAsFixed(2)}\n'
-        '• Profit / Loss: $pnlStr ($pnlPctStr)\n'
-        '• Milestone: ${isProfit ? "+₹30 Profit Milestone" : "-₹30 Loss Milestone"}\n'
-        'Action: Execute SELL order in Groww to ${isProfit ? "lock in your profit" : "protect your capital"}!';
-
-    try {
-      await NotificationService().showNotification(
-        title: title,
-        body: body,
-        data: {'symbol': symbol, 'exchange': 'NSE', 'action': 'SELL'},
-        isCritical: true,
-      );
-    } catch (_) {}
-
-    if (!mounted) return;
-    try {
-      await context.read<AppState>().api.sendTestPushAlert(action: 'SELL');
-    } catch (_) {}
-
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('🔴 Test $statusTag Sell Alert posted to notification bar! Pull down top bar to inspect.'),
-        backgroundColor: isProfit ? const Color(0xFF16A34A) : const Color(0xFFDC2626),
-        duration: const Duration(seconds: 4),
-      ),
-    );
-  }
-
-  Future<void> _sendTestAlert(String action) async {
-    final isBuy = action.toUpperCase() == 'BUY';
-    final title = '${isBuy ? "🟢" : "🔴"} $action ALERT: RELIANCE @ ₹1,196.20 [TEST]';
-    final body = isBuy
-        ? 'BUY BREAKOUT: RELIANCE triggered entry signal. Target: ₹1,260.00 | Stop-Loss: ₹1,165.00.\nPull down notification bar to view.'
-        : 'SELL SIGNAL: RELIANCE reached profit target / stop. Recommended exit @ ₹1,196.20.\nPull down notification bar to view.';
-
-    try {
-      await NotificationService().showNotification(
-        title: title,
-        body: body,
-        data: {'symbol': 'RELIANCE', 'exchange': 'NSE', 'action': action},
-        isCritical: !isBuy,
-      );
-    } catch (_) {}
-
-    if (!mounted) return;
-    try {
-      await context.read<AppState>().api.sendTestPushAlert(action: action);
-    } catch (_) {}
-
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('🟢 Test $action Alert posted to your notification bar! Pull down the top bar to inspect.'),
-        backgroundColor: isBuy ? const Color(0xFF16A34A) : const Color(0xFFDC2626),
-        duration: const Duration(seconds: 4),
-      ),
-    );
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -143,11 +65,6 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           ],
         ),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.notifications_active_outlined, color: Color(0xFFDC2626)),
-            tooltip: 'Test +₹30 Profit Sell Alert in Top Bar',
-            onPressed: () => _sendTestSellMilestoneAlert(isProfit: true),
-          ),
           IconButton(
             icon: Icon(Icons.refresh, color: theme.primaryColor),
             tooltip: 'Refresh Notifications',
@@ -259,16 +176,16 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                           style: TextStyle(color: isDark ? Colors.grey.shade600 : const Color(0xFF94A3B8), fontSize: 12),
                         ),
                         const SizedBox(height: 16),
-                        ElevatedButton.icon(
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF16A34A),
-                            foregroundColor: Colors.white,
+                        OutlinedButton.icon(
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: theme.primaryColor,
+                            side: BorderSide(color: theme.primaryColor.withOpacity(0.5)),
                             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                           ),
-                          icon: const Icon(Icons.notifications_active, size: 16),
-                          label: const Text('Test Top Notification Bar', style: TextStyle(fontWeight: FontWeight.bold)),
-                          onPressed: () => _sendTestAlert('BUY'),
+                          icon: const Icon(Icons.refresh, size: 16),
+                          label: const Text('Refresh Alerts', style: TextStyle(fontWeight: FontWeight.bold)),
+                          onPressed: () => state.refreshAll(),
                         ),
                       ],
                     ),

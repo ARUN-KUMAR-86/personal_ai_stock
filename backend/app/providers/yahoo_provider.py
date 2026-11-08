@@ -66,19 +66,9 @@ NIFTY_50_UNIVERSE = [
     {"symbol": "TRENT", "name": "Trent Ltd", "exchange": "NSE", "sector": "Consumer Services"},
 ]
 
-# Foreign / US Mega-Cap Stock Universe (Global Leaders)
-GLOBAL_US_UNIVERSE = [
-    {"symbol": "NVDA", "name": "NVIDIA Corporation", "exchange": "US", "sector": "Semiconductors"},
-    {"symbol": "AAPL", "name": "Apple Inc.", "exchange": "US", "sector": "Consumer Electronics"},
-    {"symbol": "MSFT", "name": "Microsoft Corporation", "exchange": "US", "sector": "Cloud & Software"},
-    {"symbol": "TSLA", "name": "Tesla Inc.", "exchange": "US", "sector": "Automobile & Clean Energy"},
-    {"symbol": "AMZN", "name": "Amazon.com Inc.", "exchange": "US", "sector": "E-Commerce & Cloud"},
-    {"symbol": "GOOGL", "name": "Alphabet Inc.", "exchange": "US", "sector": "Internet & AI"},
-    {"symbol": "META", "name": "Meta Platforms Inc.", "exchange": "US", "sector": "Social Media & AI"},
-    {"symbol": "AMD", "name": "Advanced Micro Devices", "exchange": "US", "sector": "Semiconductors"},
-    {"symbol": "NFLX", "name": "Netflix Inc.", "exchange": "US", "sector": "Streaming Media"},
-    {"symbol": "PLTR", "name": "Palantir Technologies", "exchange": "US", "sector": "Enterprise AI"},
-]
+# Foreign / US Mega-Cap Stock Universe (Global Leaders - NYSE & NASDAQ)
+from app.providers.us_market_service import US_STOCKS_UNIVERSE
+GLOBAL_US_UNIVERSE = US_STOCKS_UNIVERSE
 
 
 class YahooMarketDataProvider(BaseMarketDataProvider):

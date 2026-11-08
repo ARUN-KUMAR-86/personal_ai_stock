@@ -288,7 +288,7 @@ class _ScannerScreenState extends State<ScannerScreen> {
                           if (price != null)
                             Padding(
                               padding: const EdgeInsets.only(right: 8),
-                              child: Text('₹${price.toStringAsFixed(2)}', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)),
+                              child: Text('${(item['exchange'] == 'US' || item['exchange'] == 'NASDAQ' || item['exchange'] == 'NYSE' || state.isUSMarket) ? '\$' : '₹'}${price.toStringAsFixed(2)}', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)),
                             ),
                           ElevatedButton(
                             style: ElevatedButton.styleFrom(
@@ -532,7 +532,7 @@ class _ScannerScreenState extends State<ScannerScreen> {
                                       const Icon(Icons.auto_awesome, color: Colors.purpleAccent, size: 10),
                                       const SizedBox(width: 4),
                                       Text(
-                                        '🤖 ${stock.predictedDirection} target ₹${stock.predictedTarget?.toStringAsFixed(1) ?? "--"} (${stock.predictedConfidence?.toStringAsFixed(0) ?? "75"}%)',
+                                        '🤖 ${stock.predictedDirection} target $curr${stock.predictedTarget?.toStringAsFixed(1) ?? "--"} (${stock.predictedConfidence?.toStringAsFixed(0) ?? "75"}%)',
                                         style: TextStyle(
                                           color: stock.isBullish ? Colors.greenAccent : Colors.redAccent,
                                           fontSize: 10,

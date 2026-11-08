@@ -14,6 +14,9 @@ from app.schemas.stock import StockRead, StockSummary
 from app.schemas.candle import QuoteRead
 from app.schemas.prediction import PredictionRead, PredictionRequest
 from app.providers.factory import get_market_data_provider
+from app.providers.indian_market_service import IndianMarketDataService
+from app.providers.us_market_service import USMarketDataService
+from app.analysis.complete_analyzer import CompleteStockAnalyzer
 from app.scanner.engine import scanner_engine
 from app.analysis.gemini_predictor import gemini_stock_predictor
 
@@ -37,7 +40,12 @@ def get_stock_universe(
     """Retrieves supported stock universe enriched with real-time quotes, signals, and Gemini AI predictions."""
     query = db.query(Stock).filter(Stock.is_active == True)
     if exchange != "ALL":
-        query = query.filter(Stock.exchange == exchange)
+        if exchange.upper() in ("US", "NASDAQ", "NYSE"):
+            query = query.filter(Stock.exchange.in_(["US", "NASDAQ", "NYSE"]))
+        elif exchange.upper() in ("NSE", "BSE", "INDIA"):
+            query = query.filter(Stock.exchange.in_(["NSE", "BSE"]))
+        else:
+            query = query.filter(Stock.exchange == exchange)
     if sector:
         query = query.filter(Stock.sector == sector)
     stocks = query.all()
@@ -45,13 +53,24 @@ def get_stock_universe(
     # If empty, auto-seed
     if not stocks:
         scanner_engine.sync_universe(db, exchange=exchange)
+        query = db.query(Stock).filter(Stock.is_active == True)
+        if exchange != "ALL":
+            if exchange.upper() in ("US", "NASDAQ", "NYSE"):
+                query = query.filter(Stock.exchange.in_(["US", "NASDAQ", "NYSE"]))
+            elif exchange.upper() in ("NSE", "BSE", "INDIA"):
+                query = query.filter(Stock.exchange.in_(["NSE", "BSE"]))
+            else:
+                query = query.filter(Stock.exchange == exchange)
+        if sector:
+            query = query.filter(Stock.sector == sector)
         stocks = query.all()
 
     provider = get_market_data_provider()
     symbols = [s.symbol for s in stocks]
     
     # Bulk fetch live quotes
-    bulk_quotes = provider.get_bulk_quotes(symbols=symbols, exchange=exchange if exchange != "ALL" else "NSE")
+    ex_for_quotes = "US" if exchange.upper() in ("US", "NASDAQ", "NYSE") else ("NSE" if exchange == "ALL" else exchange)
+    bulk_quotes = provider.get_bulk_quotes(symbols=symbols, exchange=ex_for_quotes)
 
     summaries = []
     for stock in stocks:
@@ -110,11 +129,12 @@ def get_stock_universe(
             sig_priority = "P4"
 
         # Calculate entry zone
+        cur_sym = "$" if stock.exchange.upper() in ("US", "NASDAQ", "NYSE") else "₹"
         entry_zone_str = None
         if latest_signal and latest_signal.entry_range_low and latest_signal.entry_range_high:
-            entry_zone_str = f"₹{latest_signal.entry_range_low:.2f} - ₹{latest_signal.entry_range_high:.2f}"
+            entry_zone_str = f"{cur_sym}{latest_signal.entry_range_low:.2f} - {cur_sym}{latest_signal.entry_range_high:.2f}"
         elif current_price:
-            entry_zone_str = f"₹{current_price * 0.995:.2f} - ₹{current_price * 1.005:.2f}"
+            entry_zone_str = f"{cur_sym}{current_price * 0.995:.2f} - {cur_sym}{current_price * 1.005:.2f}"
 
         summaries.append(
             StockSummary(
@@ -165,23 +185,34 @@ def get_stock_universe(
 def search_stocks(
     q: str = Query(..., description="Stock symbol or company name"),
     exchange: str = "NSE",
+    market: Optional[str] = Query(None, description="Optional market filter: INDIA or US"),
     db: Session = Depends(get_db),
 ):
     """
-    Dynamically searches local database and internet / Yahoo Finance for any stock or IPO.
-    Returns matched instruments with real-time price and universe inclusion status.
+    Dynamically searches stocks strictly within the selected market (India or US).
+    Never mixes Indian and US stocks.
     """
-    provider = get_market_data_provider()
-    found = provider.search_stocks(query=q, exchange=exchange)
+    m = (market or "").upper().strip()
+    if m == "US" or exchange.upper() in ("US", "NASDAQ", "NYSE"):
+        found = USMarketDataService.search_stocks(query=q)
+        active_exchange = "US"
+    elif m in ("INDIA", "NSE", "BSE") or exchange.upper() in ("NSE", "BSE"):
+        found = IndianMarketDataService.search_stocks(query=q)
+        active_exchange = "NSE"
+    else:
+        provider = get_market_data_provider()
+        found = provider.search_stocks(query=q, exchange=exchange)
+        active_exchange = exchange
 
     # Check which ones are already in local DB
     existing_symbols = {
         s.symbol.upper(): s for s in db.query(Stock).filter(Stock.is_active == True).all()
     }
 
+    provider = get_market_data_provider()
     results = []
     symbols_to_quote = [item["symbol"] for item in found[:10]]
-    quotes_map = provider.get_bulk_quotes(symbols_to_quote, exchange=exchange)
+    quotes_map = provider.get_bulk_quotes(symbols_to_quote, exchange=active_exchange)
 
     for item in found:
         sym = item["symbol"].upper()
@@ -191,8 +222,11 @@ def search_stocks(
         results.append({
             "symbol": sym,
             "name": item.get("name", sym),
-            "exchange": item.get("exchange", exchange),
+            "exchange": item.get("exchange", active_exchange),
             "sector": item.get("sector", "General"),
+            "market": item.get("market", "US" if active_exchange == "US" else "INDIA"),
+            "currency": item.get("currency", "USD" if active_exchange == "US" else "INR"),
+            "currency_symbol": item.get("currency_symbol", "$" if active_exchange == "US" else "₹"),
             "price": quote.price if quote else None,
             "change": quote.change if quote else 0.0,
             "percent_change": quote.percent_change if quote else 0.0,
@@ -200,6 +234,81 @@ def search_stocks(
         })
 
     return results
+
+
+@router.get("/{symbol}/complete-analysis")
+def get_complete_stock_analysis(
+    symbol: str,
+    market: str = Query("INDIA", description="Market code: INDIA or US"),
+    exchange: Optional[str] = Query(None, description="Optional exchange: NSE, BSE, NASDAQ, NYSE, US"),
+    time_horizon: str = Query("1-DAY", description="1-DAY or 1-MONTH horizon"),
+    db: Session = Depends(get_db),
+):
+    """
+    Performs complete independent 15-dimension research for the selected stock.
+    Does not mix Indian and US market data or predictions.
+    Stores and updates prediction history in database.
+    """
+    analysis = CompleteStockAnalyzer.analyze_stock(
+        symbol=symbol,
+        market=market,
+        exchange=exchange,
+        time_horizon=time_horizon,
+    )
+
+    # Persist or update in StockPrediction table
+    try:
+        sym = symbol.upper().strip()
+        ex = analysis["exchange"]
+        existing = (
+            db.query(StockPrediction)
+            .filter(StockPrediction.symbol == sym, StockPrediction.exchange == ex)
+            .first()
+        )
+        if not existing:
+            existing = StockPrediction(
+                symbol=sym,
+                exchange=ex,
+                company_name=analysis["company_name"],
+                price_at_prediction=analysis["current_price"],
+                predicted_direction=analysis["expected_price_movement"]["direction"],
+                predicted_action=analysis["signal"],
+                target_price=analysis["target_1"],
+                expected_gain_pct=analysis["expected_price_movement"]["change_pct"],
+                stop_loss=analysis["stop_loss"],
+                confidence_score=analysis["confidence_score"],
+                time_horizon=time_horizon,
+                algorithm_name="Dual-Market Complete AI Analyzer",
+                working_algorithm="\n".join(analysis["reasons_supporting_prediction"]),
+                algorithm_metrics=analysis["technical_indicators"],
+                ai_prediction_summary=analysis["short_term_prediction"],
+                key_catalysts=analysis["reasons_supporting_prediction"],
+                risk_assessment=analysis["risk_factors"],
+                invalidation_trigger=analysis["invalidation_condition"],
+                created_at=datetime.now(timezone.utc),
+            )
+            db.add(existing)
+        else:
+            existing.price_at_prediction = analysis["current_price"]
+            existing.predicted_direction = analysis["expected_price_movement"]["direction"]
+            existing.predicted_action = analysis["signal"]
+            existing.target_price = analysis["target_1"]
+            existing.expected_gain_pct = analysis["expected_price_movement"]["change_pct"]
+            existing.stop_loss = analysis["stop_loss"]
+            existing.confidence_score = analysis["confidence_score"]
+            existing.working_algorithm = "\n".join(analysis["reasons_supporting_prediction"])
+            existing.algorithm_metrics = analysis["technical_indicators"]
+            existing.ai_prediction_summary = analysis["short_term_prediction"]
+            existing.key_catalysts = analysis["reasons_supporting_prediction"]
+            existing.risk_assessment = analysis["risk_factors"]
+            existing.invalidation_trigger = analysis["invalidation_condition"]
+            existing.updated_at = datetime.now(timezone.utc)
+        db.commit()
+    except Exception as save_err:
+        logger.warning(f"Note: Could not save prediction to db: {save_err}")
+        db.rollback()
+
+    return analysis
 
 
 @router.post("/add", response_model=StockSummary)

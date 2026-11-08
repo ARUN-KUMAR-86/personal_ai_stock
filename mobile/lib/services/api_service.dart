@@ -1082,4 +1082,51 @@ class ApiService {
     }
     return {};
   }
+
+  Future<Map<String, dynamic>> getMarketOverview(String market) async {
+    try {
+      final url = await _getUrl('/market/overview?market=$market');
+      final res = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 12));
+      if (res.statusCode == 200) {
+        return jsonDecode(res.body) as Map<String, dynamic>;
+      }
+    } catch (e) {
+      debugPrint('getMarketOverview error: $e');
+    }
+    return {};
+  }
+
+  Future<Map<String, dynamic>> getCompleteStockAnalysis(
+    String symbol, {
+    String market = 'INDIA',
+    String? exchange,
+    String timeHorizon = '1-DAY',
+  }) async {
+    final exParam = exchange != null ? '&exchange=$exchange' : '';
+    final url = await _getUrl('/stocks/$symbol/complete-analysis?market=$market$exParam&time_horizon=$timeHorizon');
+    final res = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 30));
+    if (res.statusCode == 200) {
+      return jsonDecode(res.body) as Map<String, dynamic>;
+    }
+    throw Exception('Failed to load complete analysis for $symbol: ${res.body}');
+  }
+
+  Future<List<Map<String, dynamic>>> searchStocksByMarket(
+    String query, {
+    String market = 'INDIA',
+    String? exchange,
+  }) async {
+    try {
+      final exParam = exchange != null ? '&exchange=$exchange' : '';
+      final url = await _getUrl('/stocks/search?q=${Uri.encodeComponent(query)}&market=$market$exParam');
+      final res = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 10));
+      if (res.statusCode == 200) {
+        final List raw = jsonDecode(res.body);
+        return raw.cast<Map<String, dynamic>>();
+      }
+    } catch (e) {
+      debugPrint('searchStocksByMarket error: $e');
+    }
+    return [];
+  }
 }
