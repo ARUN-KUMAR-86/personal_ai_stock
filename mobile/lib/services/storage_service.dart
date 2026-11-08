@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
+import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/portfolio.dart';
 
@@ -27,18 +28,45 @@ class StorageService {
     return cloudProductionUrl;
   }
 
+  static String? _cachedActiveBaseUrl;
+  static DateTime? _lastHealthCheckTime;
+
   static Future<String> getBaseUrl() async {
     final prefs = await SharedPreferences.getInstance();
-    final saved = prefs.getString(keyBaseUrl);
-    // Always prioritize the live cloud URL
+    final saved = prefs.getString(keyBaseUrl)?.trim();
+
+    // 1. If user explicitly entered a custom URL (that is NOT the default cloud URL), respect it
     if (saved != null &&
-        saved.trim().isNotEmpty &&
+        saved.isNotEmpty &&
+        saved != cloudProductionUrl &&
         !saved.contains('10.0.2.2') &&
-        !saved.contains('192.168.') &&
-        !saved.contains('localhost') &&
-        !saved.contains('127.0.0.1')) {
-      return saved.trim();
+        !saved.contains('192.168.')) {
+      return saved;
     }
+
+    // Cache active URL for 15 seconds to minimize network checks
+    final now = DateTime.now();
+    if (_cachedActiveBaseUrl != null &&
+        _lastHealthCheckTime != null &&
+        now.difference(_lastHealthCheckTime!).inSeconds < 15) {
+      return _cachedActiveBaseUrl!;
+    }
+
+    // 2. Check if local ADB reverse port 8000 daemon is active on the device
+    try {
+      final res = await http
+          .get(Uri.parse('http://127.0.0.1:8000/api/v1/market-status'))
+          .timeout(const Duration(milliseconds: 350));
+      if (res.statusCode == 200) {
+        _cachedActiveBaseUrl = 'http://127.0.0.1:8000';
+        _lastHealthCheckTime = now;
+        return _cachedActiveBaseUrl!;
+      }
+    } catch (_) {}
+
+    // 3. Fallback to 24/7 Cloud Production Backend
+    _cachedActiveBaseUrl = cloudProductionUrl;
+    _lastHealthCheckTime = now;
     return cloudProductionUrl;
   }
 

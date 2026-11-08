@@ -2629,8 +2629,31 @@ class _StockRecommendationScreenState extends State<StockRecommendationScreen> {
     final t1 = (comp['target_1'] as num?)?.toDouble();
     final t2 = (comp['target_2'] as num?)?.toDouble();
     final sl = (comp['stop_loss'] as num?)?.toDouble();
-    final supports = comp['support_levels'] as Map<String, dynamic>? ?? {};
-    final resistances = comp['resistance_levels'] as Map<String, dynamic>? ?? {};
+
+    // Handle support levels (either List or Map)
+    final dynamic rawSupports = comp['support_levels'];
+    String s1Str = '-';
+    String s2Str = '-';
+    if (rawSupports is List && rawSupports.isNotEmpty) {
+      s1Str = rawSupports[0].toString();
+      if (rawSupports.length > 1) s2Str = rawSupports[1].toString();
+    } else if (rawSupports is Map) {
+      s1Str = (rawSupports['s1'] ?? rawSupports['S1'] ?? '-').toString();
+      s2Str = (rawSupports['s2'] ?? rawSupports['S2'] ?? '-').toString();
+    }
+
+    // Handle resistance levels (either List or Map)
+    final dynamic rawResistances = comp['resistance_levels'];
+    String r1Str = '-';
+    String r2Str = '-';
+    if (rawResistances is List && rawResistances.isNotEmpty) {
+      r1Str = rawResistances[0].toString();
+      if (rawResistances.length > 1) r2Str = rawResistances[1].toString();
+    } else if (rawResistances is Map) {
+      r1Str = (rawResistances['r1'] ?? rawResistances['R1'] ?? '-').toString();
+      r2Str = (rawResistances['r2'] ?? rawResistances['R2'] ?? '-').toString();
+    }
+
     final shortPred = comp['short_term_prediction']?.toString() ?? '';
     final medPred = comp['medium_term_prediction']?.toString() ?? '';
     final longPred = comp['long_term_outlook']?.toString() ?? '';
@@ -2639,7 +2662,7 @@ class _StockRecommendationScreenState extends State<StockRecommendationScreen> {
     final invalidation = comp['invalidation_condition']?.toString() ?? '';
     final tech = comp['technical_indicators'] as Map<String, dynamic>? ?? {};
     final funds = comp['company_fundamentals'] as Map<String, dynamic>? ?? {};
-    final news = (comp['news_headlines'] as List?)?.cast<Map<String, dynamic>>() ?? [];
+    final news = (comp['news_headlines'] as List?)?.map((e) => e is Map ? Map<String, dynamic>.from(e) : <String, dynamic>{}).toList() ?? [];
     final macro = comp['market_macro_intelligence'] as Map<String, dynamic>? ?? {};
     final isLive = comp['is_live_data'] == true;
 
@@ -2875,11 +2898,11 @@ class _StockRecommendationScreenState extends State<StockRecommendationScreen> {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text(
-                      'S1: $curSym${supports["s1"] ?? "-"}  |  S2: $curSym${supports["s2"] ?? "-"}',
+                      'S1: $curSym$s1Str  |  S2: $curSym$s2Str',
                       style: const TextStyle(color: Colors.greenAccent, fontSize: 10.5, fontFamily: 'monospace'),
                     ),
                     Text(
-                      'R1: $curSym${resistances["r1"] ?? "-"}  |  R2: $curSym${resistances["r2"] ?? "-"}',
+                      'R1: $curSym$r1Str  |  R2: $curSym$r2Str',
                       style: const TextStyle(color: Colors.redAccent, fontSize: 10.5, fontFamily: 'monospace'),
                     ),
                   ],

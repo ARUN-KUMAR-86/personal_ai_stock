@@ -10,6 +10,13 @@ import 'services/notification_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  FlutterError.onError = (details) {
+    FlutterError.presentError(details);
+    debugPrint('FLUTTER_ERROR_EXACT: ${details.exception}');
+    debugPrint('FLUTTER_STACK_EXACT: ${details.stack}');
+  };
+
   final appState = AppState();
 
   runApp(

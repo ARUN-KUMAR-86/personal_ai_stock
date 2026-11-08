@@ -78,7 +78,7 @@ class ApiService {
     final res = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 8));
     if (res.statusCode == 200) {
       final List list = jsonDecode(res.body);
-      return list.cast<Map<String, dynamic>>();
+      return list.map((item) => Map<String, dynamic>.from(item as Map)).toList();
     }
     return [];
   }
@@ -400,7 +400,7 @@ class ApiService {
       final res = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 8));
       if (res.statusCode == 200) {
         final List raw = jsonDecode(res.body);
-        return raw.cast<Map<String, dynamic>>();
+        return raw.map((item) => Map<String, dynamic>.from(item as Map)).toList();
       }
     } catch (_) {}
     return [];
@@ -1044,7 +1044,7 @@ class ApiService {
     final res = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 10));
     if (res.statusCode == 200) {
       final List raw = jsonDecode(res.body);
-      return raw.cast<Map<String, dynamic>>();
+      return raw.map((item) => Map<String, dynamic>.from(item as Map)).toList();
     }
     return [];
   }
@@ -1122,7 +1122,7 @@ class ApiService {
       final res = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 10));
       if (res.statusCode == 200) {
         final List raw = jsonDecode(res.body);
-        return raw.cast<Map<String, dynamic>>();
+        return raw.map((item) => Map<String, dynamic>.from(item as Map)).toList();
       }
     } catch (e) {
       debugPrint('searchStocksByMarket error: $e');
