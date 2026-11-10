@@ -121,4 +121,34 @@ class StockSignal {
       aiThesis: json['ai_thesis'] != null ? Map<String, dynamic>.from(json['ai_thesis']) : null,
     );
   }
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'symbol': symbol,
+        'exchange': exchange,
+        'timestamp': timestamp.toIso8601String(),
+        'signal_type': signalType,
+        'strategy_name': strategyName,
+        'price': price,
+        'stop_loss': stopLoss,
+        'target': target,
+        'risk_reward': riskReward,
+        'strength': strength,
+        'priority': priority,
+        'company_name': companyName,
+        'entry_range_low': entryRangeLow,
+        'entry_range_high': entryRangeHigh,
+        'holding_period_hours': holdingPeriodHours,
+        'data_source': dataSource,
+        'data_freshness': dataFreshness,
+        'entry_condition': entryCondition,
+        'invalidation_condition': invalidationCondition,
+        'indicator_summary': indicatorSummary,
+        'liquidity_summary': liquiditySummary,
+        'financial_news': financialNews,
+        'risk_factors': riskFactors,
+        'score_breakdown': scoreBreakdown,
+        'explanation': explanation,
+        'ai_thesis': aiThesis,
+      };
 }

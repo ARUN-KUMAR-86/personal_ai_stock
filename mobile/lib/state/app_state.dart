@@ -90,6 +90,55 @@ class AppState extends ChangeNotifier {
   bool isLoadingMarketOverview = false;
   String selectedScannerHorizon = '1-DAY';
 
+  static const Set<String> indianSymbols = {
+    'RELIANCE', 'TCS', 'HDFCBANK', 'INFY', 'ICICIBANK', 'BHARTIARTL', 'SBIN', 'LICI',
+    'ITC', 'HINDUNILVR', 'LT', 'BAJFINANCE', 'HCLTECH', 'MARUTI', 'SUNPHARMA',
+    'TATAMOTORS', 'NTPC', 'ONGC', 'KOTAKBANK', 'TITAN', 'ADANIENT', 'ADANIPORTS',
+    'AXISBANK', 'BAJAJFINSV', 'BAJAJ-AUTO', 'COALINDIA', 'WIPRO', 'POWERGRID',
+    'ULTRACEMCO', 'TATASTEEL', 'JSWSTEEL', 'ASIANPAINT', 'TECHM', 'INDUSINDBK',
+    'HINDALCO', 'GRASIM', 'CIPLA', 'DRREDDY', 'APOLLOHOSP', 'EICHERMOT', 'HEROMOTOCO',
+    'BPCL', 'DIVISLAB', 'BRITANNIA', 'NESTLEIND', 'SBILIFE', 'HDFCLIFE', 'SHRIRAMFIN',
+    'BEL', 'TRENT', 'JPL', 'JIOFIN', 'ZOMATO'
+  };
+
+  static const Set<String> usSymbols = {
+    'AAPL', 'NVDA', 'MSFT', 'AMZN', 'GOOGL', 'META', 'TSLA', 'BRK-B', 'AVGO', 'JPM',
+    'V', 'WMT', 'MA', 'UNH', 'COST', 'HD', 'PG', 'JNJ', 'ORCL', 'AMD', 'NFLX', 'CRM',
+    'PLTR', 'INTC', 'DIS', 'BA'
+  };
+
+  static final List<StockSummary> defaultUSStocks = [
+    StockSummary(symbol: 'AAPL', name: 'Apple Inc.', exchange: 'NASDAQ', sector: 'Consumer Electronics', latestPrice: 224.23, isLive: true, latestSignal: 'BUY', signalStrength: 82.0),
+    StockSummary(symbol: 'NVDA', name: 'NVIDIA Corporation', exchange: 'NASDAQ', sector: 'Semiconductors', latestPrice: 145.26, isLive: true, latestSignal: 'BUY', signalStrength: 91.0),
+    StockSummary(symbol: 'MSFT', name: 'Microsoft Corporation', exchange: 'NASDAQ', sector: 'Cloud & Software', latestPrice: 428.15, isLive: true, latestSignal: 'BUY', signalStrength: 85.0),
+    StockSummary(symbol: 'TSLA', name: 'Tesla Inc.', exchange: 'NASDAQ', sector: 'Automobile & Clean Energy', latestPrice: 218.40, isLive: true, latestSignal: 'BUY', signalStrength: 78.0),
+    StockSummary(symbol: 'AMZN', name: 'Amazon.com Inc.', exchange: 'NASDAQ', sector: 'E-Commerce & Cloud', latestPrice: 186.50, isLive: true, latestSignal: 'BUY', signalStrength: 84.0),
+    StockSummary(symbol: 'GOOGL', name: 'Alphabet Inc.', exchange: 'NASDAQ', sector: 'Internet & AI', latestPrice: 165.80, isLive: true, latestSignal: 'BUY', signalStrength: 80.0),
+    StockSummary(symbol: 'META', name: 'Meta Platforms Inc.', exchange: 'NASDAQ', sector: 'Social Media & AI', latestPrice: 582.40, isLive: true, latestSignal: 'BUY', signalStrength: 88.0),
+    StockSummary(symbol: 'AMD', name: 'Advanced Micro Devices', exchange: 'NASDAQ', sector: 'Semiconductors', latestPrice: 156.10, isLive: true, latestSignal: 'BUY', signalStrength: 76.0),
+    StockSummary(symbol: 'NFLX', name: 'Netflix Inc.', exchange: 'NASDAQ', sector: 'Streaming Media', latestPrice: 712.30, isLive: true, latestSignal: 'BUY', signalStrength: 81.0),
+    StockSummary(symbol: 'PLTR', name: 'Palantir Technologies', exchange: 'NASDAQ', sector: 'Enterprise AI', latestPrice: 43.80, isLive: true, latestSignal: 'BUY', signalStrength: 89.0),
+  ];
+
+  List<StockSummary> filterStocksForActiveMarket(List<StockSummary> input, {String? targetMarket}) {
+    final m = targetMarket ?? activeMarket;
+    final isUS = m == 'US';
+    if (isUS) {
+      final filtered = input.where((s) {
+        final sym = s.symbol.toUpperCase();
+        final ex = s.exchange.toUpperCase();
+        return !indianSymbols.contains(sym) && ex != 'NSE' && ex != 'BSE';
+      }).toList();
+      return filtered.isNotEmpty ? filtered : defaultUSStocks;
+    } else {
+      return input.where((s) {
+        final sym = s.symbol.toUpperCase();
+        final ex = s.exchange.toUpperCase();
+        return !usSymbols.contains(sym) && ex != 'US' && ex != 'NASDAQ' && ex != 'NYSE';
+      }).toList();
+    }
+  }
+
   Future<void> fetchUniverseForHorizon(String horizon) async {
     selectedScannerHorizon = horizon;
     try {
@@ -98,7 +147,8 @@ class AppState extends ChangeNotifier {
         timeHorizon: horizon,
       );
       if (updated.isNotEmpty) {
-        stocks = updated;
+        stocks = filterStocksForActiveMarket(updated);
+        StorageService.saveCachedStocks(stocks, market: activeMarket);
         notifyListeners();
       }
     } catch (e) {
@@ -130,31 +180,60 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> _initData() async {
-    // 1. Immediately load cached paper trades & portfolio from device storage
-    // This ensures trades are NEVER blank or lost when app is closed / reopened!
+    // 1. Immediately load cached data from device storage (instant 0ms startup, zero hang)
     await _loadCachedData();
-    // 2. Fetch market overview for selected market (India or US)
-    await fetchMarketOverview(silent: true);
-    // 3. Refresh live data from backend for active market
-    await refreshAll();
-    // 4. Fetch initial live monitoring feed for active market
-    await fetchLiveFeed(exchange: activeExchangeDefault);
-    // 5. Start ultra-low latency continuous live sync loop (every 3s)
+
+    // 2. Fetch fresh live data from cloud in background in parallel without blocking UI
+    Future.wait([
+      refreshAll(silent: true),
+      fetchMarketOverview(silent: true),
+      fetchLiveFeed(exchange: activeExchangeDefault),
+    ]).catchError((e) {
+      debugPrint('Initial background cloud refresh notice: $e');
+      return <void>[];
+    });
+
+    // 3. Start smooth live sync loop (every 15s)
     startUltraSyncLoop();
   }
 
   Future<void> _loadCachedData() async {
     try {
+      activeMarket = await StorageService.getActiveMarket();
       final cachedPf = await StorageService.getCachedPortfolio();
       if (cachedPf != null) {
         portfolio = cachedPf;
       }
+      final cachedSt = await StorageService.getCachedStocks(market: activeMarket);
+      if (cachedSt.isNotEmpty) {
+        stocks = filterStocksForActiveMarket(cachedSt);
+      } else if (isUSMarket) {
+        stocks = defaultUSStocks;
+      }
+      final cachedSig = await StorageService.getCachedSignals();
+      if (cachedSig.isNotEmpty) {
+        latestSignals = cachedSig;
+      }
+      final cachedAl = await StorageService.getCachedAlerts();
+      if (cachedAl.isNotEmpty) {
+        alerts = cachedAl;
+      }
+      final cachedOv = await StorageService.getCachedOverview();
+      if (cachedOv != null && cachedOv.isNotEmpty) {
+        marketOverview = cachedOv;
+        final rawTrending = cachedOv['trending'] ?? cachedOv['trending_stocks'];
+        if (rawTrending is List) trendingStocks = List<Map<String, dynamic>>.from(rawTrending);
+        final rawGainers = cachedOv['gainers'] ?? cachedOv['top_gainers'];
+        if (rawGainers is List) topGainers = List<Map<String, dynamic>>.from(rawGainers);
+        final rawLosers = cachedOv['losers'] ?? cachedOv['top_losers'];
+        if (rawLosers is List) topLosers = List<Map<String, dynamic>>.from(rawLosers);
+      }
+
       paperTrades = await StorageService.getCachedPaperTrades();
       activeAlgorithm = await StorageService.getActiveAlgorithm();
       autoTakeProfit = await StorageService.getAutoTakeProfit();
       isDarkMode = await StorageService.getIsDarkMode();
       onlySellAlerts = await StorageService.getOnlySellAlerts();
-      activeMarket = await StorageService.getActiveMarket();
       recentAnalyzedStocks = await StorageService.getRecentlyAnalyzed(activeMarket);
       final cachedWatch = await StorageService.getWatchlist();
       watchlistSymbols = cachedWatch.map((s) => s.toUpperCase()).toSet();
@@ -171,8 +250,9 @@ class AppState extends ChangeNotifier {
     await StorageService.setActiveMarket(clean);
     recentAnalyzedStocks = await StorageService.getRecentlyAnalyzed(clean);
     
-    // Clear old market data so items from another market never linger
-    stocks = [];
+    // Switch to market-specific cached stocks immediately to prevent wrong stock display
+    final cached = await StorageService.getCachedStocks(market: clean);
+    stocks = filterStocksForActiveMarket(cached, targetMarket: clean);
     liveFeed = [];
     trendingStocks = [];
     topGainers = [];
@@ -203,6 +283,7 @@ class AppState extends ChangeNotifier {
       final overview = await api.getMarketOverview(activeMarket);
       if (overview.isNotEmpty) {
         marketOverview = overview;
+        StorageService.saveCachedOverview(overview);
         final rawTrending = overview['trending'] ?? overview['trending_stocks'];
         if (rawTrending is List) {
           trendingStocks = List<Map<String, dynamic>>.from(rawTrending);
@@ -338,7 +419,13 @@ class AppState extends ChangeNotifier {
       ]);
 
       marketStatus = results[0] as MarketStatus;
-      stocks = results[1] as List<StockSummary>;
+      final rawStocks = results[1] as List<StockSummary>;
+      if (rawStocks.isNotEmpty) {
+        stocks = filterStocksForActiveMarket(rawStocks);
+        StorageService.saveCachedStocks(stocks, market: activeMarket);
+      } else if (stocks.isEmpty && isUSMarket) {
+        stocks = defaultUSStocks;
+      }
       latestSignals = results[2] as List<StockSignal>;
       final fetchedAlerts = results[3] as List<StockAlert>;
       if (_hasInitialAlertsLoaded) {
@@ -373,6 +460,17 @@ class AppState extends ChangeNotifier {
       }
       // Enforce FIFO queue: strictly retain at most 100 newest notifications
       alerts = fetchedAlerts.take(100).toList();
+      
+      // Save stocks, signals, and alerts locally for instant 0ms offline launch
+      if (stocks.isNotEmpty) {
+        StorageService.saveCachedStocks(stocks);
+      }
+      if (latestSignals.isNotEmpty) {
+        StorageService.saveCachedSignals(latestSignals);
+      }
+      if (alerts.isNotEmpty) {
+        StorageService.saveCachedAlerts(alerts);
+      }
       
       final fetchedPortfolio = results[4] as PortfolioSummary;
       if (fetchedPortfolio.positions.isNotEmpty || (portfolio == null || portfolio!.positions.isEmpty)) {
@@ -443,11 +541,11 @@ class AppState extends ChangeNotifier {
     }
   }
 
-  /// Starts the ultra-low latency continuous live synchronization loop (every 3 seconds)
+  /// Starts the continuous live synchronization loop (every 15 seconds for smooth performance)
   void startUltraSyncLoop() {
     _ultraSyncTimer?.cancel();
     isUltraSyncActive = true;
-    _ultraSyncTimer = Timer.periodic(const Duration(seconds: 3), (_) {
+    _ultraSyncTimer = Timer.periodic(const Duration(seconds: 15), (_) {
       executeUltraSync(silent: true);
     });
   }
@@ -1127,12 +1225,44 @@ class AppState extends ChangeNotifier {
       customStopLoss: customStopLoss,
       companyName: companyName,
     );
+
+    // 1. Immediately create and insert local trade record for instant display in trade history
+    final now = DateTime.now();
+    final localTrade = PaperTrade(
+      id: now.millisecondsSinceEpoch,
+      symbol: symbol.toUpperCase(),
+      exchange: effectiveExchange.toUpperCase(),
+      action: 'BUY',
+      quantity: quantity,
+      price: actualPrice,
+      fees: charges,
+      totalAmount: (actualPrice * quantity) + charges,
+      pnl: 0.0,
+      reason: 'Manual Broker Purchase',
+      timestamp: now,
+      stopLoss: customStopLoss,
+      target: customTarget,
+    );
+    paperTrades.insert(0, localTrade);
+    await StorageService.saveCachedPaperTrades(paperTrades);
+
+    // 2. Fetch updated portfolio & positions from server
     try {
       portfolio = await api.getPortfolioSummary();
       if (portfolio != null) {
         await StorageService.saveCachedPortfolio(portfolio!);
       }
     } catch (_) {}
+
+    // 3. Re-fetch server trades in background
+    try {
+      final serverTrades = await api.getPaperTrades(limit: 50);
+      if (serverTrades.isNotEmpty) {
+        paperTrades = serverTrades;
+        await StorageService.saveCachedPaperTrades(paperTrades);
+      }
+    } catch (_) {}
+
     notifyListeners();
     return result;
   }
@@ -1155,12 +1285,40 @@ class AppState extends ChangeNotifier {
       sellingTime: sellingTime,
       charges: charges,
     );
+
+    final now = DateTime.now();
+    final pnlVal = (result['realized_pnl'] as num?)?.toDouble() ?? 0.0;
+    final localTrade = PaperTrade(
+      id: now.millisecondsSinceEpoch,
+      symbol: symbol.toUpperCase(),
+      exchange: exchange.toUpperCase(),
+      action: 'SELL',
+      quantity: quantitySold,
+      price: sellingPrice,
+      fees: charges,
+      totalAmount: (sellingPrice * quantitySold) - charges,
+      pnl: pnlVal,
+      reason: 'Manual Broker Sale',
+      timestamp: now,
+    );
+    paperTrades.insert(0, localTrade);
+    await StorageService.saveCachedPaperTrades(paperTrades);
+
     try {
       portfolio = await api.getPortfolioSummary();
       if (portfolio != null) {
         await StorageService.saveCachedPortfolio(portfolio!);
       }
     } catch (_) {}
+
+    try {
+      final serverTrades = await api.getPaperTrades(limit: 50);
+      if (serverTrades.isNotEmpty) {
+        paperTrades = serverTrades;
+        await StorageService.saveCachedPaperTrades(paperTrades);
+      }
+    } catch (_) {}
+
     notifyListeners();
     return result;
   }

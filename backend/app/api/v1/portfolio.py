@@ -1,7 +1,7 @@
 import time
 from datetime import datetime, timezone
 from typing import List, Dict, Any, Optional
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, BackgroundTasks
 from sqlalchemy.orm import Session
 
 from app.core.logging import logger
@@ -84,16 +84,126 @@ def get_closed_positions(limit: int = 50, db: Session = Depends(get_db)):
     )
 
 
+def run_post_purchase_research(
+    symbol: str,
+    exchange: str,
+    company_name: Optional[str],
+    position_id: int,
+):
+    """
+    Background worker:
+    1. Runs Gemini AI research on the purchased stock.
+    2. Saves/updates stock prediction with catalysts and risk assessment.
+    3. Fills in intelligent target / stop loss if not manually set.
+    4. Runs position monitor pass.
+    """
+    from app.database.session import SessionLocal
+    from app.analysis.gemini_predictor import gemini_stock_predictor
+    from app.models.prediction import StockPrediction
+    from app.models.portfolio import Position
+    from app.portfolio.monitor import PositionMonitor
+
+    db = SessionLocal()
+    try:
+        sym = symbol.upper().strip()
+        ex = (exchange or "NSE").upper().strip()
+        comp_name = company_name or sym
+        pred_dict = gemini_stock_predictor.predict_stock(
+            symbol=sym,
+            company_name=comp_name,
+            exchange=ex,
+        )
+
+        existing = (
+            db.query(StockPrediction)
+            .filter(
+                StockPrediction.symbol == sym,
+                StockPrediction.exchange == ex,
+            )
+            .first()
+        )
+        if not existing:
+            pred_record = StockPrediction(
+                symbol=sym,
+                exchange=ex,
+                company_name=comp_name,
+                time_horizon="1-DAY",
+                price_at_prediction=pred_dict["price_at_prediction"],
+                predicted_direction=pred_dict["predicted_direction"],
+                predicted_action=pred_dict["predicted_action"],
+                target_price=pred_dict["target_price"],
+                stop_loss=pred_dict["stop_loss"],
+                confidence_score=pred_dict["confidence_score"],
+                working_algorithm=pred_dict.get("working_algorithm", ""),
+                algorithm_metrics=pred_dict.get("algorithm_metrics", {}),
+                ai_prediction_summary=pred_dict.get("ai_prediction_summary"),
+                key_catalysts=pred_dict.get("key_catalysts", []),
+                risk_assessment=pred_dict.get("risk_assessment", []),
+                prob_up=pred_dict.get("prob_up", 0.0),
+                prob_down=pred_dict.get("prob_down", 0.0),
+                prob_sideways=pred_dict.get("prob_sideways", 0.0),
+                market_regime=pred_dict.get("market_regime", "NORMAL"),
+                candlestick_patterns=pred_dict.get("candlestick_patterns", []),
+                dimension_scores=pred_dict.get("dimension_scores", {}),
+                approval_status=pred_dict.get("approval_status", "APPROVED"),
+                outcome_status="PENDING",
+                model_version=pred_dict.get("model_version", "v2.0-ensemble"),
+            )
+            db.add(pred_record)
+        else:
+            existing.price_at_prediction = pred_dict["price_at_prediction"]
+            existing.predicted_direction = pred_dict["predicted_direction"]
+            existing.predicted_action = pred_dict["predicted_action"]
+            existing.target_price = pred_dict["target_price"]
+            existing.stop_loss = pred_dict["stop_loss"]
+            existing.confidence_score = pred_dict["confidence_score"]
+            existing.working_algorithm = pred_dict.get("working_algorithm", "")
+            existing.algorithm_metrics = pred_dict.get("algorithm_metrics", {})
+            existing.ai_prediction_summary = pred_dict.get("ai_prediction_summary")
+            existing.key_catalysts = pred_dict.get("key_catalysts", [])
+            existing.risk_assessment = pred_dict.get("risk_assessment", [])
+            existing.prob_up = pred_dict.get("prob_up", 0.0)
+            existing.prob_down = pred_dict.get("prob_down", 0.0)
+            existing.prob_sideways = pred_dict.get("prob_sideways", 0.0)
+            existing.market_regime = pred_dict.get("market_regime", "NORMAL")
+            existing.candlestick_patterns = pred_dict.get("candlestick_patterns", [])
+            existing.dimension_scores = pred_dict.get("dimension_scores", {})
+            existing.approval_status = pred_dict.get("approval_status", "APPROVED")
+
+        pos = db.query(Position).filter(Position.id == position_id).first()
+        if pos:
+            if not pos.target or pos.target <= 0:
+                pos.target = round(float(pred_dict["target_price"]), 2)
+            if not pos.stop_loss or pos.stop_loss <= 0:
+                pos.stop_loss = round(float(pred_dict["stop_loss"]), 2)
+
+            custom_t = pos.custom_thresholds or {}
+            if isinstance(custom_t, dict):
+                custom_t["ai_summary"] = pred_dict.get("ai_prediction_summary")
+                custom_t["confidence"] = pred_dict.get("confidence_score")
+                pos.custom_thresholds = custom_t
+
+        db.commit()
+        PositionMonitor.check_and_update_positions(db=db)
+        logger.info(f"AI research successfully attached to manual purchase {sym} (#{position_id})")
+    except Exception as e:
+        logger.error(f"Error executing AI research for manual purchase {symbol}: {e}")
+    finally:
+        db.close()
+
+
 @router.post("/manual-purchase")
 def record_manual_purchase(
     request: ManualPurchaseRequest,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
 ):
     """
     I BOUGHT THIS STOCK — Workflow.
-    Manually records a purchase executed through Groww:
+    Manually records a purchase executed through Groww or US Broker:
     - Auto-calculates weighted average price on multiple purchases.
     - Adds to portfolio and activates continuous profit & loss monitoring.
+    - Triggers institutional AI research asynchronously.
     - Immediately refreshes live price and triggers threshold check.
     """
     try:
@@ -111,6 +221,17 @@ def record_manual_purchase(
             custom_thresholds=request.custom_thresholds,
             company_name=request.company_name,
         )
+
+        # Trigger Institutional AI research in background
+        pos_id = res.get("position", {}).get("id")
+        if pos_id:
+            background_tasks.add_task(
+                run_post_purchase_research,
+                request.symbol,
+                request.exchange or "NSE",
+                request.company_name,
+                pos_id,
+            )
 
         # Run an immediate monitoring pass
         PositionMonitor.check_and_update_positions(db=db)

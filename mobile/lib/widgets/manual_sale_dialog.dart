@@ -122,6 +122,7 @@ class _ManualSaleDialogState extends State<ManualSaleDialog> {
       final state = context.read<AppState>();
       final res = await state.recordManualSale(
         symbol: widget.position.symbol,
+        exchange: widget.position.exchange,
         sellingPrice: sellPrice,
         quantitySold: qtySold,
         sellingDate: dateStr,
@@ -133,6 +134,7 @@ class _ManualSaleDialogState extends State<ManualSaleDialog> {
         Navigator.pop(context, true);
         final pnl = res['realized_pnl'] ?? _calculatedRealizedPnl;
         final isProfit = pnl >= 0;
+        final curSym = widget.position.currencySymbol;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             backgroundColor: isProfit ? Colors.green.shade800 : Colors.red.shade800,
@@ -142,7 +144,7 @@ class _ManualSaleDialogState extends State<ManualSaleDialog> {
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    'Sale recorded for ${widget.position.symbol}! Realized P/L: ${isProfit ? '+' : ''}₹${pnl.toStringAsFixed(2)}',
+                    'Sale recorded for ${widget.position.symbol}! Realized P/L: ${isProfit ? '+' : ''}$curSym${pnl.toStringAsFixed(2)}',
                     style: const TextStyle(fontWeight: FontWeight.bold),
                   ),
                 ),
@@ -238,13 +240,13 @@ class _ManualSaleDialogState extends State<ManualSaleDialog> {
                         children: [
                           const Text('Estimated Realized P/L:', style: TextStyle(color: Colors.white70, fontSize: 11)),
                           Text(
-                            'Buy Avg: ₹${pos.avgEntryPrice.toStringAsFixed(2)}',
+                            'Buy Avg: ${pos.currencySymbol}${pos.avgEntryPrice.toStringAsFixed(2)}',
                             style: const TextStyle(color: Colors.grey, fontSize: 10),
                           ),
                         ],
                       ),
                       Text(
-                        '${isProfit ? '+' : ''}₹${pnl.toStringAsFixed(2)}',
+                        '${isProfit ? '+' : ''}${pos.currencySymbol}${pnl.toStringAsFixed(2)}',
                         style: TextStyle(
                           color: isProfit ? Colors.greenAccent : Colors.redAccent,
                           fontSize: 18,
@@ -264,11 +266,11 @@ class _ManualSaleDialogState extends State<ManualSaleDialog> {
                         controller: _priceController,
                         keyboardType: const TextInputType.numberWithOptions(decimal: true),
                         style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-                        decoration: const InputDecoration(
-                          labelText: 'Actual Selling Price (₹)*',
-                          labelStyle: TextStyle(color: Colors.grey),
+                        decoration: InputDecoration(
+                          labelText: 'Actual Selling Price (${pos.currencySymbol})*',
+                          labelStyle: const TextStyle(color: Colors.grey),
                           filled: true,
-                          fillColor: Color(0xFF131722),
+                          fillColor: const Color(0xFF131722),
                         ),
                         validator: (v) {
                           if (v == null || v.trim().isEmpty) return 'Required';
@@ -362,11 +364,11 @@ class _ManualSaleDialogState extends State<ManualSaleDialog> {
                   controller: _chargesController,
                   keyboardType: const TextInputType.numberWithOptions(decimal: true),
                   style: const TextStyle(color: Colors.white70),
-                  decoration: const InputDecoration(
-                    labelText: 'Brokerage & Transaction Charges (₹) (Optional)',
-                    labelStyle: TextStyle(color: Colors.grey),
+                  decoration: InputDecoration(
+                    labelText: 'Brokerage & Transaction Charges (${pos.currencySymbol}) (Optional)',
+                    labelStyle: const TextStyle(color: Colors.grey),
                     filled: true,
-                    fillColor: Color(0xFF131722),
+                    fillColor: const Color(0xFF131722),
                   ),
                 ),
                 const SizedBox(height: 20),

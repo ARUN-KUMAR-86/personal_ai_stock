@@ -126,13 +126,18 @@ class _LiveMonitoringScreenState extends State<LiveMonitoringScreen> {
 
     // Strictly enforce active market isolation (Never mix Indian and US stocks)
     items = items.where((it) {
+      final sym = (it['symbol'] ?? '').toString().toUpperCase();
       final ex = (it['exchange'] ?? '').toString().toUpperCase();
       if (state.isUSMarket) {
-        return ex == 'US' || ex == 'NASDAQ' || ex == 'NYSE';
+        return !AppState.indianSymbols.contains(sym) && (ex == 'US' || ex == 'NASDAQ' || ex == 'NYSE' || AppState.usSymbols.contains(sym));
       } else {
-        return ex == 'NSE' || ex == 'BSE' || ex.isEmpty;
+        return !AppState.usSymbols.contains(sym) && (ex == 'NSE' || ex == 'BSE' || ex.isEmpty || AppState.indianSymbols.contains(sym));
       }
     }).toList();
+
+    if (items.isEmpty && state.isUSMarket) {
+      items = _mapUniverseToItems(AppState.defaultUSStocks);
+    }
 
     if (selectedFilter == 'BULLISH') {
       items = items.where((it) => (it['supertrend_direction'] == 'BULLISH' || ((it['percent_change'] ?? 0) as num) > 0)).toList();

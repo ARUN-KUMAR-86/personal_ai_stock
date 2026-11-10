@@ -91,7 +91,7 @@ class _ScannerScreenState extends State<ScannerScreen> {
     final curr = isUS ? '\$' : '₹';
     final isMonth = selectedHorizon.contains('MONTH');
 
-    List<StockSummary> baseList = state.stocks;
+    List<StockSummary> baseList = state.filterStocksForActiveMarket(state.stocks);
     if (selectedSignal == '⭐ WATCHLIST') {
       final stockMap = {for (var s in state.stocks) s.symbol.toUpperCase(): s};
       baseList = state.watchlistSymbols.map((sym) {

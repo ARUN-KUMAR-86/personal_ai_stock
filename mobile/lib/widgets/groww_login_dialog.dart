@@ -73,7 +73,7 @@ class _GrowwLoginDialogState extends State<GrowwLoginDialog> {
     if (mounted) {
       setState(() {
         _isLoading = false;
-        _statusMessage = 'Disconnected. Reverted to safe paper trading.';
+        _statusMessage = 'Disconnected. Switched to manual broker tracking mode.';
         _isSuccess = true;
       });
     }

@@ -44,32 +44,79 @@ def get_stock_universe(
     horizon_clean = "1-MONTH" if is_month else "1-DAY"
     horizon_pattern = "%MONTH%" if is_month else "%1-DAY%"
 
+    from app.providers.us_market_service import US_STOCKS_UNIVERSE
+    from app.providers.yahoo_provider import NIFTY_50_UNIVERSE
+
+    indian_symbols = {s["symbol"].upper() for s in NIFTY_50_UNIVERSE}
+    us_symbols = {s["symbol"].upper() for s in US_STOCKS_UNIVERSE}
+
+    # Strict database integrity purge: remove any Indian symbols erroneously tagged as US exchange
+    wrong_us_stocks = (
+        db.query(Stock)
+        .filter(Stock.exchange.in_(["US", "NASDAQ", "NYSE"]), Stock.symbol.in_(indian_symbols))
+        .all()
+    )
+    if wrong_us_stocks:
+        for w in wrong_us_stocks:
+            db.delete(w)
+        db.commit()
+
+    # And vice-versa: remove US symbols tagged as NSE/BSE
+    wrong_in_stocks = (
+        db.query(Stock)
+        .filter(Stock.exchange.in_(["NSE", "BSE"]), Stock.symbol.in_(us_symbols))
+        .all()
+    )
+    if wrong_in_stocks:
+        for w in wrong_in_stocks:
+            db.delete(w)
+        db.commit()
+
+    is_req_us = exchange.upper() in ("US", "NASDAQ", "NYSE")
+    is_req_in = exchange.upper() in ("NSE", "BSE", "INDIA")
+
     query = db.query(Stock).filter(Stock.is_active == True)
     if exchange != "ALL":
-        if exchange.upper() in ("US", "NASDAQ", "NYSE"):
-            query = query.filter(Stock.exchange.in_(["US", "NASDAQ", "NYSE"]))
-        elif exchange.upper() in ("NSE", "BSE", "INDIA"):
-            query = query.filter(Stock.exchange.in_(["NSE", "BSE"]))
+        if is_req_us:
+            query = query.filter(
+                Stock.exchange.in_(["US", "NASDAQ", "NYSE"]),
+                ~Stock.symbol.in_(indian_symbols),
+            )
+        elif is_req_in:
+            query = query.filter(
+                Stock.exchange.in_(["NSE", "BSE"]),
+                ~Stock.symbol.in_(us_symbols),
+            )
         else:
             query = query.filter(Stock.exchange == exchange)
     if sector:
         query = query.filter(Stock.sector == sector)
     stocks = query.all()
 
-    # If empty, auto-seed
-    if not stocks:
-        scanner_engine.sync_universe(db, exchange=exchange)
-        query = db.query(Stock).filter(Stock.is_active == True)
-        if exchange != "ALL":
-            if exchange.upper() in ("US", "NASDAQ", "NYSE"):
-                query = query.filter(Stock.exchange.in_(["US", "NASDAQ", "NYSE"]))
-            elif exchange.upper() in ("NSE", "BSE", "INDIA"):
-                query = query.filter(Stock.exchange.in_(["NSE", "BSE"]))
-            else:
-                query = query.filter(Stock.exchange == exchange)
-        if sector:
-            query = query.filter(Stock.sector == sector)
-        stocks = query.all()
+    # If empty or missing universe, auto-seed with verified universe
+    if not stocks or (is_req_us and len(stocks) < 10):
+        if is_req_us:
+            for s in US_STOCKS_UNIVERSE:
+                sym = s["symbol"].upper()
+                ex_name = s.get("exchange", "NASDAQ")
+                if not db.query(Stock).filter(Stock.symbol == sym, Stock.exchange == ex_name).first():
+                    db.add(Stock(
+                        symbol=sym,
+                        exchange=ex_name,
+                        name=s["name"],
+                        sector=s.get("sector", "General"),
+                        is_active=True,
+                    ))
+            db.commit()
+            stocks = (
+                db.query(Stock)
+                .filter(Stock.is_active == True, Stock.exchange.in_(["US", "NASDAQ", "NYSE"]))
+                .filter(~Stock.symbol.in_(indian_symbols))
+                .all()
+            )
+        else:
+            scanner_engine.sync_universe(db, exchange=exchange)
+            stocks = query.all()
 
     provider = get_market_data_provider()
     symbols = [s.symbol for s in stocks]

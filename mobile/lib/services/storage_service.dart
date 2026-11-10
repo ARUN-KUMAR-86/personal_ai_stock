@@ -3,6 +3,9 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/portfolio.dart';
+import '../models/stock_summary.dart';
+import '../models/signal.dart';
+import '../models/alert.dart';
 
 class StorageService {
   static const String keyBaseUrl = 'backend_base_url';
@@ -10,6 +13,10 @@ class StorageService {
   static const String keyFcmToken = 'fcm_device_token';
   static const String keyCachedPortfolio = 'cached_portfolio_json';
   static const String keyCachedPaperTrades = 'cached_paper_trades_json';
+  static const String keyCachedStocks = 'cached_stocks_json';
+  static const String keyCachedSignals = 'cached_signals_json';
+  static const String keyCachedAlerts = 'cached_alerts_json';
+  static const String keyCachedOverview = 'cached_overview_json';
   static const String keyActiveAlgorithm = 'user_active_algorithm';
   static const String keyAutoTakeProfit = 'user_auto_take_profit';
 
@@ -189,6 +196,83 @@ class StorageService {
     } catch (e) {
       debugPrint('Error adding local paper trade: $e');
     }
+  }
+
+  static Future<void> saveCachedStocks(List<StockSummary> stocks, {String market = 'INDIA'}) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final key = market.toUpperCase() == 'US' ? '${keyCachedStocks}_US' : '${keyCachedStocks}_INDIA';
+      await prefs.setString(key, jsonEncode(stocks.map((s) => s.toJson()).toList()));
+    } catch (_) {}
+  }
+
+  static Future<List<StockSummary>> getCachedStocks({String market = 'INDIA'}) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final key = market.toUpperCase() == 'US' ? '${keyCachedStocks}_US' : '${keyCachedStocks}_INDIA';
+      final str = prefs.getString(key) ?? prefs.getString(keyCachedStocks);
+      if (str != null && str.isNotEmpty) {
+        final List decoded = jsonDecode(str);
+        return decoded.map((e) => StockSummary.fromJson(e)).toList();
+      }
+    } catch (_) {}
+    return [];
+  }
+
+  static Future<void> saveCachedSignals(List<StockSignal> signals) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(keyCachedSignals, jsonEncode(signals.map((s) => s.toJson()).toList()));
+    } catch (_) {}
+  }
+
+  static Future<List<StockSignal>> getCachedSignals() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final str = prefs.getString(keyCachedSignals);
+      if (str != null && str.isNotEmpty) {
+        final List decoded = jsonDecode(str);
+        return decoded.map((e) => StockSignal.fromJson(e)).toList();
+      }
+    } catch (_) {}
+    return [];
+  }
+
+  static Future<void> saveCachedAlerts(List<StockAlert> alerts) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(keyCachedAlerts, jsonEncode(alerts.map((a) => a.toJson()).toList()));
+    } catch (_) {}
+  }
+
+  static Future<List<StockAlert>> getCachedAlerts() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final str = prefs.getString(keyCachedAlerts);
+      if (str != null && str.isNotEmpty) {
+        final List decoded = jsonDecode(str);
+        return decoded.map((e) => StockAlert.fromJson(e)).toList();
+      }
+    } catch (_) {}
+    return [];
+  }
+
+  static Future<void> saveCachedOverview(Map<String, dynamic> overview) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(keyCachedOverview, jsonEncode(overview));
+    } catch (_) {}
+  }
+
+  static Future<Map<String, dynamic>?> getCachedOverview() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final str = prefs.getString(keyCachedOverview);
+      if (str != null && str.isNotEmpty) {
+        return jsonDecode(str);
+      }
+    } catch (_) {}
+    return null;
   }
 
   static Future<String> getActiveAlgorithm() async {
