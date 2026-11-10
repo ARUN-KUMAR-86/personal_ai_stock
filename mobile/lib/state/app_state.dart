@@ -218,7 +218,7 @@ class AppState extends ChangeNotifier {
       if (cachedAl.isNotEmpty) {
         alerts = cachedAl;
       }
-      final cachedOv = await StorageService.getCachedOverview();
+      final cachedOv = await StorageService.getCachedOverview(market: activeMarket);
       if (cachedOv != null && cachedOv.isNotEmpty) {
         marketOverview = cachedOv;
         final rawTrending = cachedOv['trending'] ?? cachedOv['trending_stocks'];
@@ -253,11 +253,20 @@ class AppState extends ChangeNotifier {
     // Switch to market-specific cached stocks immediately to prevent wrong stock display
     final cached = await StorageService.getCachedStocks(market: clean);
     stocks = filterStocksForActiveMarket(cached, targetMarket: clean);
-    liveFeed = [];
-    trendingStocks = [];
-    topGainers = [];
-    topLosers = [];
-    marketIndices = [];
+    final cachedOv = await StorageService.getCachedOverview(market: clean);
+    if (cachedOv != null && cachedOv.isNotEmpty) {
+      marketOverview = cachedOv;
+      final rawIndices = cachedOv['indices'];
+      if (rawIndices is List) marketIndices = List<Map<String, dynamic>>.from(rawIndices);
+      final rawTrending = cachedOv['trending'] ?? cachedOv['trending_stocks'];
+      if (rawTrending is List) trendingStocks = List<Map<String, dynamic>>.from(rawTrending);
+    } else {
+      liveFeed = [];
+      trendingStocks = [];
+      topGainers = [];
+      topLosers = [];
+      marketIndices = [];
+    }
     notifyListeners();
 
     // Fetch market-specific overview, live feed & stock universe in parallel
@@ -283,7 +292,7 @@ class AppState extends ChangeNotifier {
       final overview = await api.getMarketOverview(activeMarket);
       if (overview.isNotEmpty) {
         marketOverview = overview;
-        StorageService.saveCachedOverview(overview);
+        StorageService.saveCachedOverview(overview, market: activeMarket);
         final rawTrending = overview['trending'] ?? overview['trending_stocks'];
         if (rawTrending is List) {
           trendingStocks = List<Map<String, dynamic>>.from(rawTrending);
@@ -1268,6 +1277,7 @@ class AppState extends ChangeNotifier {
   }
 
   Future<Map<String, dynamic>> recordManualSale({
+    int? positionId,
     required String symbol,
     String exchange = 'NSE',
     required double sellingPrice,
@@ -1277,6 +1287,7 @@ class AppState extends ChangeNotifier {
     double charges = 0.0,
   }) async {
     final result = await api.recordManualSale(
+      positionId: positionId,
       symbol: symbol,
       exchange: exchange,
       sellingPrice: sellingPrice,
@@ -1304,6 +1315,37 @@ class AppState extends ChangeNotifier {
     paperTrades.insert(0, localTrade);
     await StorageService.saveCachedPaperTrades(paperTrades);
 
+    // Optimistically update or remove sold position from local state
+    if (portfolio != null) {
+      if (positionId != null) {
+        final idx = portfolio!.positions.indexWhere((p) => p.id == positionId);
+        if (idx != -1) {
+          final pos = portfolio!.positions[idx];
+          if (quantitySold >= pos.quantity) {
+            portfolio!.positions.removeAt(idx);
+          } else {
+            portfolio!.positions[idx] = pos.copyWith(
+              quantity: pos.quantity - quantitySold,
+            );
+          }
+        }
+      } else {
+        final idx = portfolio!.positions.indexWhere((p) => p.symbol.toUpperCase() == symbol.toUpperCase());
+        if (idx != -1) {
+          final pos = portfolio!.positions[idx];
+          if (quantitySold >= pos.quantity) {
+            portfolio!.positions.removeAt(idx);
+          } else {
+            portfolio!.positions[idx] = pos.copyWith(
+              quantity: pos.quantity - quantitySold,
+            );
+          }
+        }
+      }
+      await StorageService.saveCachedPortfolio(portfolio!);
+      notifyListeners();
+    }
+
     try {
       portfolio = await api.getPortfolioSummary();
       if (portfolio != null) {
@@ -1321,6 +1363,24 @@ class AppState extends ChangeNotifier {
 
     notifyListeners();
     return result;
+  }
+
+  /// Permanently removes an erroneous holding from the portfolio and cache
+  Future<void> deletePosition(int positionId) async {
+    if (portfolio != null) {
+      portfolio!.positions.removeWhere((p) => p.id == positionId);
+      await StorageService.saveCachedPortfolio(portfolio!);
+    }
+    notifyListeners();
+    try {
+      await api.deletePosition(positionId);
+      final updated = await api.getPortfolioSummary();
+      portfolio = updated;
+      await StorageService.saveCachedPortfolio(portfolio!);
+    } catch (e) {
+      debugPrint('Error deleting position: $e');
+    }
+    notifyListeners();
   }
 
   Future<void> checkPositionMonitoring() async {
@@ -1519,6 +1579,20 @@ class AppState extends ChangeNotifier {
     }
     for (final a in alerts) {
       a.isRead = true;
+    }
+    notifyListeners();
+  }
+
+  /// Deletes and clears all notifications/alerts from screen and local cache
+  Future<void> clearAllAlerts() async {
+    alerts = [];
+    _seenAlertIds.clear();
+    await StorageService.saveCachedAlerts([]);
+    notifyListeners();
+    try {
+      await api.clearAllAlerts();
+    } catch (e) {
+      debugPrint('clearAllAlerts error: $e');
     }
     notifyListeners();
   }

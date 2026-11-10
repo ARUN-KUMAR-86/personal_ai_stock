@@ -17,6 +17,54 @@ class PortfolioScreen extends StatefulWidget {
 class _PortfolioScreenState extends State<PortfolioScreen> {
   String _selectedMarket = 'ALL'; // 'ALL', 'INDIA', 'US'
 
+  void _confirmDeletePosition(BuildContext context, Position pos) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1E222D),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            const Icon(Icons.delete_forever, color: Colors.redAccent),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'Remove ${pos.symbol}?',
+                style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+            ),
+          ],
+        ),
+        content: Text(
+          'Are you sure you want to remove ${pos.symbol} (${pos.quantity} shares @ ${pos.currencySymbol}${pos.avgEntryPrice.toStringAsFixed(2)}) from your portfolio?\n\nThis will remove the holding from active tracking immediately.',
+          style: const TextStyle(color: Colors.white70, fontSize: 13),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
+            onPressed: () async {
+              Navigator.pop(ctx);
+              await context.read<AppState>().deletePosition(pos.id);
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    backgroundColor: Colors.red.shade800,
+                    content: Text('Removed ${pos.symbol} from portfolio.'),
+                  ),
+                );
+              }
+            },
+            child: const Text('Remove Stock', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _showPositionEditDialog(BuildContext context, Position pos) {
     final slController = TextEditingController(text: pos.stopLoss?.toStringAsFixed(2) ?? '');
     final tpController = TextEditingController(text: pos.target?.toStringAsFixed(2) ?? '');
@@ -142,6 +190,24 @@ class _PortfolioScreenState extends State<PortfolioScreen> {
                         if (context.mounted) Navigator.pop(ctx);
                       },
                       child: const Text('Save Monitoring Parameters', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 44,
+                    child: OutlinedButton.icon(
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.redAccent,
+                        side: BorderSide(color: Colors.redAccent.withOpacity(0.5)),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      ),
+                      icon: const Icon(Icons.delete_outline, size: 18),
+                      label: const Text('Remove Stock from Portfolio', style: TextStyle(fontWeight: FontWeight.bold)),
+                      onPressed: () {
+                        Navigator.pop(ctx);
+                        _confirmDeletePosition(context, pos);
+                      },
                     ),
                   ),
                 ],
@@ -660,76 +726,71 @@ class _PortfolioScreenState extends State<PortfolioScreen> {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Row(
-                            children: [
-                              Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    pos.symbol,
-                                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
-                                  ),
-                                  Text(
-                                    pos.marketTag,
-                                    style: const TextStyle(color: Colors.cyanAccent, fontWeight: FontWeight.w600, fontSize: 9.5),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(width: 8),
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                decoration: BoxDecoration(
-                                  color: Colors.blue.withOpacity(0.2),
-                                  borderRadius: BorderRadius.circular(4),
-                                ),
-                                child: Text('${pos.quantity} Qty',
-                                    style: const TextStyle(color: Colors.lightBlueAccent, fontSize: 10, fontWeight: FontWeight.bold)),
-                              ),
-                              const SizedBox(width: 6),
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                decoration: BoxDecoration(
-                                  color: pos.autoSellEnabled ? Colors.green.withOpacity(0.2) : Colors.grey.withOpacity(0.2),
-                                  borderRadius: BorderRadius.circular(4),
-                                  border: Border.all(
-                                    color: pos.autoSellEnabled ? Colors.greenAccent.withOpacity(0.5) : Colors.transparent,
-                                  ),
-                                ),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
                                   children: [
-                                    if (pos.autoSellEnabled) ...[
-                                      const Icon(Icons.bolt, size: 10, color: Colors.amberAccent),
-                                      const SizedBox(width: 2),
-                                    ],
                                     Text(
-                                      pos.autoSellEnabled ? 'Auto Take Money' : 'Manual-Sell',
-                                      style: TextStyle(
-                                        color: pos.autoSellEnabled ? Colors.greenAccent : Colors.white70,
-                                        fontSize: 9,
-                                        fontWeight: FontWeight.bold,
+                                      pos.symbol,
+                                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                      decoration: BoxDecoration(
+                                        color: Colors.blue.withOpacity(0.2),
+                                        borderRadius: BorderRadius.circular(4),
+                                      ),
+                                      child: Text('${pos.quantity} Qty',
+                                          style: const TextStyle(color: Colors.lightBlueAccent, fontSize: 10, fontWeight: FontWeight.bold)),
+                                    ),
+                                    const SizedBox(width: 6),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                      decoration: BoxDecoration(
+                                        color: pos.autoSellEnabled ? Colors.green.withOpacity(0.2) : Colors.grey.withOpacity(0.2),
+                                        borderRadius: BorderRadius.circular(4),
+                                        border: Border.all(
+                                          color: pos.autoSellEnabled ? Colors.greenAccent.withOpacity(0.5) : Colors.transparent,
+                                        ),
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          if (pos.autoSellEnabled) ...[
+                                            const Icon(Icons.bolt, size: 10, color: Colors.amberAccent),
+                                            const SizedBox(width: 2),
+                                          ],
+                                          Text(
+                                            pos.autoSellEnabled ? 'Auto' : 'Manual',
+                                            style: TextStyle(
+                                              color: pos.autoSellEnabled ? Colors.greenAccent : Colors.white70,
+                                              fontSize: 9,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
+                                        ],
                                       ),
                                     ),
                                   ],
                                 ),
-                              ),
-                            ],
-                          ),
-                          Row(
-                            children: [
-                              Text(
-                                '${isProfit ? '+' : ''}${pos.currencySymbol}${pos.unrealizedPnl.toStringAsFixed(2)}',
-                                style: TextStyle(
-                                  color: isProfit ? Colors.greenAccent : Colors.redAccent,
-                                  fontSize: 15,
-                                  fontWeight: FontWeight.bold,
+                                const SizedBox(height: 2),
+                                Text(
+                                  pos.marketTag,
+                                  style: const TextStyle(color: Colors.cyanAccent, fontWeight: FontWeight.w600, fontSize: 9.5),
                                 ),
-                              ),
-                              IconButton(
-                                icon: const Icon(Icons.settings, size: 18, color: Colors.grey),
-                                onPressed: () => _showPositionEditDialog(context, pos),
-                              ),
-                            ],
+                              ],
+                            ),
+                          ),
+                          Text(
+                            '${isProfit ? '+' : ''}${pos.currencySymbol}${pos.unrealizedPnl.toStringAsFixed(2)}',
+                            style: TextStyle(
+                              color: isProfit ? Colors.greenAccent : Colors.redAccent,
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                         ],
                       ),
@@ -779,23 +840,55 @@ class _PortfolioScreenState extends State<PortfolioScreen> {
                               ],
                             ],
                           ),
-                          // Prominent "I SOLD THIS STOCK" Manual Sale Action
-                          ElevatedButton.icon(
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.red.shade700,
-                              foregroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                              visualDensity: VisualDensity.compact,
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          IconButton(
+                            icon: const Icon(Icons.settings, size: 18, color: Colors.grey),
+                            tooltip: 'Monitoring Settings',
+                            visualDensity: VisualDensity.compact,
+                            padding: const EdgeInsets.only(left: 4),
+                            constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                            onPressed: () => _showPositionEditDialog(context, pos),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: Colors.redAccent,
+                                side: BorderSide(color: Colors.redAccent.withOpacity(0.6)),
+                                padding: const EdgeInsets.symmetric(vertical: 8),
+                                visualDensity: VisualDensity.compact,
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                              ),
+                              icon: const Icon(Icons.delete_outline, size: 14),
+                              label: const Text(
+                                'REMOVE STOCK',
+                                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11),
+                              ),
+                              onPressed: () => _confirmDeletePosition(context, pos),
                             ),
-                            icon: const Icon(Icons.sell_outlined, size: 14),
-                            label: const Text(
-                              'I SOLD THIS STOCK',
-                              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: ElevatedButton.icon(
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.red.shade700,
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(vertical: 8),
+                                visualDensity: VisualDensity.compact,
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                              ),
+                              icon: const Icon(Icons.sell_outlined, size: 14),
+                              label: const Text(
+                                'I SOLD THIS',
+                                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11),
+                              ),
+                              onPressed: () {
+                                ManualSaleDialog.show(context, pos);
+                              },
                             ),
-                            onPressed: () {
-                              ManualSaleDialog.show(context, pos);
-                            },
                           ),
                         ],
                       ),
@@ -804,7 +897,7 @@ class _PortfolioScreenState extends State<PortfolioScreen> {
                         Wrap(
                           spacing: 4,
                           runSpacing: 4,
-                          children: pos.triggeredThresholds.map((t) {
+                          children: pos.triggeredThresholds.reversed.take(3).map((t) {
                             final isProfitAlert = t.contains('+') || t.contains('PROFIT');
                             return Container(
                               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),

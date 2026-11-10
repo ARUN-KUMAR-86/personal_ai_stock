@@ -226,6 +226,15 @@ class ApiService {
     );
   }
 
+  Future<void> clearAllAlerts() async {
+    final url = await _getUrl('/alerts/clear');
+    final headers = await _headers();
+    await http.post(
+      Uri.parse(url),
+      headers: headers,
+    ).timeout(const Duration(seconds: 8));
+  }
+
   Future<bool> sendTestPushAlert({String action = 'BUY'}) async {
     final url = await _getUrl('/alerts/test-push');
     final headers = await _headers();
@@ -385,6 +394,7 @@ class ApiService {
     String? sellingDate,
     String? sellingTime,
     double charges = 0.0,
+    int? positionId,
   }) async {
     final url = await _getUrl('/portfolio/manual-sell');
     final headers = await _headers();
@@ -392,6 +402,7 @@ class ApiService {
       Uri.parse(url),
       headers: headers,
       body: jsonEncode({
+        if (positionId != null) 'position_id': positionId,
         'symbol': symbol,
         'exchange': exchange,
         'selling_price': sellingPrice,
@@ -405,6 +416,19 @@ class ApiService {
       return jsonDecode(res.body);
     }
     throw Exception('Failed to record manual sale (${res.statusCode}: ${res.body})');
+  }
+
+  Future<Map<String, dynamic>> deletePosition(int positionId) async {
+    final url = await _getUrl('/portfolio/positions/$positionId');
+    final headers = await _headers();
+    final res = await http.delete(
+      Uri.parse(url),
+      headers: headers,
+    ).timeout(const Duration(seconds: 10));
+    if (res.statusCode == 200 || res.statusCode == 204) {
+      return res.body.isNotEmpty ? jsonDecode(res.body) : {'status': 'SUCCESS'};
+    }
+    throw Exception('Failed to remove position (${res.statusCode}: ${res.body})');
   }
 
   Future<List<Map<String, dynamic>>> getClosedPositions({int limit = 50}) async {

@@ -562,8 +562,26 @@ class _LiveMonitoringScreenState extends State<LiveMonitoringScreen> {
   /// 2. LIVE BENCHMARK & SECTOR INDICES RIBBON
   /// ──────────────────────────────────────────────────────────────────────────
   Widget _buildIndexRibbon(BuildContext context, AppState state, bool isDark) {
-    // If backend indices are loaded, use them; otherwise use defaults for market
-    List<Map<String, dynamic>> indices = state.marketIndices;
+    // Strictly isolate indices to the active market!
+    List<Map<String, dynamic>> indices = state.marketIndices.where((idx) {
+      final sym = (idx['symbol'] ?? '').toString().toUpperCase();
+      final name = (idx['name'] ?? '').toString().toUpperCase();
+      if (state.isUSMarket) {
+        return sym.startsWith('^G') ||
+            sym.startsWith('^IX') ||
+            sym.startsWith('^ND') ||
+            sym.startsWith('^DJ') ||
+            sym.startsWith('^RU') ||
+            sym.startsWith('XL') ||
+            name.contains('S&P') ||
+            name.contains('NASDAQ') ||
+            name.contains('DOW') ||
+            name.contains('RUSSELL');
+      } else {
+        return sym.contains('NSE') || sym.contains('BSE') || sym.contains('CNX') || name.contains('NIFTY') || name.contains('SENSEX');
+      }
+    }).toList();
+
     if (indices.isEmpty) {
       if (state.isIndianMarket) {
         indices = [

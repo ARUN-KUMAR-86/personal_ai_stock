@@ -257,17 +257,19 @@ class StorageService {
     return [];
   }
 
-  static Future<void> saveCachedOverview(Map<String, dynamic> overview) async {
+  static Future<void> saveCachedOverview(Map<String, dynamic> overview, {String market = 'INDIA'}) async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(keyCachedOverview, jsonEncode(overview));
+      final key = market.toUpperCase() == 'US' ? '${keyCachedOverview}_US' : '${keyCachedOverview}_INDIA';
+      await prefs.setString(key, jsonEncode(overview));
     } catch (_) {}
   }
 
-  static Future<Map<String, dynamic>?> getCachedOverview() async {
+  static Future<Map<String, dynamic>?> getCachedOverview({String market = 'INDIA'}) async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final str = prefs.getString(keyCachedOverview);
+      final key = market.toUpperCase() == 'US' ? '${keyCachedOverview}_US' : '${keyCachedOverview}_INDIA';
+      final str = prefs.getString(key) ?? prefs.getString(keyCachedOverview);
       if (str != null && str.isNotEmpty) {
         return jsonDecode(str);
       }

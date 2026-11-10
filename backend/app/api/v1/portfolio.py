@@ -264,10 +264,29 @@ def record_manual_sale(
             selling_time=request.selling_time,
             charges=request.charges,
             notes=request.notes,
+            position_id=request.position_id,
         )
         return res
     except Exception as e:
         logger.error(f"Manual sale recording failed: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.delete("/positions/{position_id}")
+def delete_position(
+    position_id: int,
+    db: Session = Depends(get_db),
+):
+    """
+    Permanently deletes/removes an erroneous position from the portfolio.
+    Stops monitoring and updates mark-to-market.
+    """
+    try:
+        res = PortfolioManager.delete_position(db=db, position_id=position_id)
+        PositionMonitor.check_and_update_positions(db=db)
+        return res
+    except Exception as e:
+        logger.error(f"Failed to delete position #{position_id}: {e}")
         raise HTTPException(status_code=400, detail=str(e))
 
 

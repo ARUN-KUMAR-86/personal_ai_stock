@@ -121,6 +121,7 @@ class _ManualSaleDialogState extends State<ManualSaleDialog> {
     try {
       final state = context.read<AppState>();
       final res = await state.recordManualSale(
+        positionId: widget.position.id,
         symbol: widget.position.symbol,
         exchange: widget.position.exchange,
         sellingPrice: sellPrice,

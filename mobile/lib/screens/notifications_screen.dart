@@ -19,6 +19,50 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
   static const int maxFifoNotifications = 100;
 
+  void _confirmDeleteAllAlerts(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1E222D),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Row(
+          children: [
+            Icon(Icons.delete_sweep, color: Colors.redAccent),
+            SizedBox(width: 8),
+            Text('Delete All Alerts?', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+          ],
+        ),
+        content: const Text(
+          'Are you sure you want to delete all notifications? This will wipe your alerts history from the screen and device.',
+          style: TextStyle(color: Colors.white70, fontSize: 13),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
+            onPressed: () async {
+              Navigator.pop(ctx);
+              await context.read<AppState>().clearAllAlerts();
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    backgroundColor: Colors.redAccent,
+                    content: Text('✓ All notifications deleted.'),
+                    duration: Duration(seconds: 2),
+                  ),
+                );
+              }
+            },
+            child: const Text('Delete All', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final state = context.watch<AppState>();
@@ -81,12 +125,12 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           TextButton.icon(
             style: TextButton.styleFrom(
               foregroundColor: isDark ? Colors.blueAccent : theme.primaryColor,
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
             ),
-            icon: const Icon(Icons.done_all, size: 18),
+            icon: const Icon(Icons.done_all, size: 16),
             label: const Text(
               'All Read',
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
             ),
             onPressed: () async {
               await state.markAllAlertsRead();
@@ -99,6 +143,19 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                 );
               }
             },
+          ),
+          // Prominent "Delete All" Button inside AppBar
+          TextButton.icon(
+            style: TextButton.styleFrom(
+              foregroundColor: Colors.redAccent,
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            ),
+            icon: const Icon(Icons.delete_sweep_outlined, size: 16),
+            label: const Text(
+              'Delete All',
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+            ),
+            onPressed: () => _confirmDeleteAllAlerts(context),
           ),
           const SizedBox(width: 4),
         ],
@@ -149,45 +206,76 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                     ],
                   ],
                 ),
-                // Prominent "All Read" text button inside banner
-                InkWell(
-                  onTap: () async {
-                    await state.markAllAlertsRead();
-                    if (context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('✓ All notifications marked as read.'),
-                          duration: Duration(seconds: 2),
+                Row(
+                  children: [
+                    // Prominent "All Read" text button inside banner
+                    InkWell(
+                      onTap: () async {
+                        await state.markAllAlertsRead();
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('✓ All notifications marked as read.'),
+                              duration: Duration(seconds: 2),
+                            ),
+                          );
+                        }
+                      },
+                      borderRadius: BorderRadius.circular(4),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.done_all,
+                              size: 14,
+                              color: unreadCount > 0
+                                  ? (isDark ? Colors.blueAccent : theme.primaryColor)
+                                  : Colors.grey,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              'All Read',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                                color: unreadCount > 0
+                                    ? (isDark ? Colors.blueAccent : theme.primaryColor)
+                                    : Colors.grey,
+                              ),
+                            ),
+                          ],
                         ),
-                      );
-                    }
-                  },
-                  borderRadius: BorderRadius.circular(4),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                    child: Row(
-                      children: [
-                        Icon(
-                          Icons.done_all,
-                          size: 14,
-                          color: unreadCount > 0
-                              ? (isDark ? Colors.blueAccent : theme.primaryColor)
-                              : Colors.grey,
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          'Mark All Read',
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.bold,
-                            color: unreadCount > 0
-                                ? (isDark ? Colors.blueAccent : theme.primaryColor)
-                                : Colors.grey,
-                          ),
-                        ),
-                      ],
+                      ),
                     ),
-                  ),
+                    const SizedBox(width: 8),
+                    // "Clear All" text button inside banner
+                    InkWell(
+                      onTap: () => _confirmDeleteAllAlerts(context),
+                      borderRadius: BorderRadius.circular(4),
+                      child: const Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.delete_sweep_outlined,
+                              size: 14,
+                              color: Colors.redAccent,
+                            ),
+                            SizedBox(width: 4),
+                            Text(
+                              'Clear All',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.redAccent,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
