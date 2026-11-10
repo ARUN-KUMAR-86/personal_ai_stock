@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../state/app_state.dart';
+import '../theme/app_theme.dart';
 import '../models/portfolio.dart';
 import '../widgets/priority_badge.dart';
 import '../widgets/manual_purchase_dialog.dart';
@@ -148,14 +149,16 @@ class PortfolioScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final state = context.watch<AppState>();
+    final isDark = state.isDarkMode;
     final portfolio = state.portfolio;
+    final curr = state.activeCurrencySymbol;
 
     return Scaffold(
-      backgroundColor: const Color(0xFF131722),
+      backgroundColor: AppTheme.scaffold(isDark),
       appBar: AppBar(
-        backgroundColor: const Color(0xFF1E222D),
+        backgroundColor: AppTheme.card(isDark),
         elevation: 0,
-        title: const Text('PORTFOLIO & RISK', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+        title: const Text('PORTFOLIO & TRADES', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 17, letterSpacing: 0.5)),
         actions: [
           IconButton(
             icon: const Icon(Icons.bolt, color: Colors.amberAccent),
@@ -203,12 +206,9 @@ class PortfolioScreen extends StatelessWidget {
             Container(
               margin: const EdgeInsets.only(bottom: 12),
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              decoration: BoxDecoration(
-                color: const Color(0xFF1E222D),
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(
-                  color: state.isUltraSyncActive ? Colors.tealAccent.withOpacity(0.3) : Colors.grey.withOpacity(0.3),
-                ),
+              decoration: AppTheme.cardBox(
+                isDark,
+                borderCol: state.isUltraSyncActive ? Colors.tealAccent.withOpacity(0.3) : null,
               ),
               child: Row(
                 children: [
@@ -233,7 +233,7 @@ class PortfolioScreen extends StatelessWidget {
                   Text(
                     state.isUltraSyncActive ? 'ULTRASYNC 24/7' : 'SYNC PAUSED',
                     style: TextStyle(
-                      color: state.isUltraSyncActive ? Colors.tealAccent : Colors.grey,
+                      color: state.isUltraSyncActive ? (isDark ? Colors.tealAccent : const Color(0xFF0D9488)) : Colors.grey,
                       fontSize: 11,
                       fontWeight: FontWeight.bold,
                       letterSpacing: 0.8,
@@ -249,7 +249,7 @@ class PortfolioScreen extends StatelessWidget {
                     child: Text(
                       '⚡ ${state.syncLatencyMs > 0 ? "${state.syncLatencyMs}ms" : "< 50ms"}',
                       style: TextStyle(
-                        color: state.syncLatencyMs < 150 ? Colors.greenAccent : (state.syncLatencyMs < 400 ? Colors.orangeAccent : Colors.lightBlueAccent),
+                        color: state.syncLatencyMs < 150 ? (isDark ? Colors.greenAccent : const Color(0xFF15803D)) : (state.syncLatencyMs < 400 ? Colors.orangeAccent : Colors.blue),
                         fontSize: 11,
                         fontWeight: FontWeight.bold,
                       ),
@@ -270,29 +270,37 @@ class PortfolioScreen extends StatelessWidget {
             // Portfolio Summary Card
             Container(
               padding: const EdgeInsets.all(18),
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [Color(0xFF1E222D), Color(0xFF161923)],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: Colors.white.withOpacity(0.08)),
+              decoration: AppTheme.cardBox(
+                isDark,
+                borderCol: (portfolio?.totalUnrealizedPnl ?? 0) >= 0 ? AppTheme.profit(isDark).withOpacity(0.3) : AppTheme.loss(isDark).withOpacity(0.3),
+                glow: true,
+                glowColor: (portfolio?.totalUnrealizedPnl ?? 0) >= 0 ? AppTheme.profit(isDark) : AppTheme.loss(isDark),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Row(
+                  Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text('TOTAL PORTFOLIO VALUE',
-                          style: TextStyle(color: Colors.grey, fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 0.5)),
+                      Text(
+                        'TOTAL PORTFOLIO VALUE',
+                        style: TextStyle(
+                          color: AppTheme.textMuted(isDark),
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 0.8,
+                        ),
+                      ),
                     ],
                   ),
                   const SizedBox(height: 6),
                   Text(
-                    '₹${portfolio?.totalPortfolioValue.toStringAsFixed(2) ?? '0.00'}',
-                    style: const TextStyle(color: Colors.white, fontSize: 30, fontWeight: FontWeight.bold),
+                    '$curr${portfolio?.totalPortfolioValue.toStringAsFixed(2) ?? '0.00'}',
+                    style: AppTheme.mono(
+                      fontSize: 28,
+                      fontWeight: FontWeight.w900,
+                      color: AppTheme.textPrimary(isDark),
+                    ),
                   ),
                   const SizedBox(height: 16),
                   Row(
@@ -301,25 +309,14 @@ class PortfolioScreen extends StatelessWidget {
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text('Invested Capital', style: TextStyle(color: Colors.grey, fontSize: 10)),
+                          Text('Invested Capital', style: TextStyle(color: AppTheme.textMuted(isDark), fontSize: 10.5)),
                           const SizedBox(height: 2),
                           Text(
-                            '₹${portfolio?.totalInvestedValue.toStringAsFixed(2) ?? '0.00'}',
-                            style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600),
-                          ),
-                        ],
-                      ),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text('Unrealized P&L', style: TextStyle(color: Colors.grey, fontSize: 10)),
-                          const SizedBox(height: 2),
-                          Text(
-                            '${(portfolio?.totalUnrealizedPnl ?? 0) >= 0 ? '+' : ''}₹${portfolio?.totalUnrealizedPnl.toStringAsFixed(2) ?? '0.00'}',
-                            style: TextStyle(
-                              color: (portfolio?.totalUnrealizedPnl ?? 0) >= 0 ? Colors.greenAccent : Colors.redAccent,
+                            '$curr${portfolio?.totalInvestedValue.toStringAsFixed(2) ?? '0.00'}',
+                            style: AppTheme.mono(
                               fontSize: 14,
-                              fontWeight: FontWeight.bold,
+                              fontWeight: FontWeight.w700,
+                              color: AppTheme.textPrimary(isDark),
                             ),
                           ),
                         ],
@@ -327,14 +324,14 @@ class PortfolioScreen extends StatelessWidget {
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text('Realized P&L', style: TextStyle(color: Colors.grey, fontSize: 10)),
+                          Text('Unrealized P&L', style: TextStyle(color: AppTheme.textMuted(isDark), fontSize: 10.5)),
                           const SizedBox(height: 2),
                           Text(
-                            '${(portfolio?.totalRealizedPnl ?? 0) >= 0 ? '+' : ''}₹${portfolio?.totalRealizedPnl.toStringAsFixed(2) ?? '0.00'}',
-                            style: TextStyle(
-                              color: (portfolio?.totalRealizedPnl ?? 0) >= 0 ? Colors.greenAccent : Colors.redAccent,
+                            '${(portfolio?.totalUnrealizedPnl ?? 0) >= 0 ? '+' : ''}$curr${portfolio?.totalUnrealizedPnl.toStringAsFixed(2) ?? '0.00'}',
+                            style: AppTheme.mono(
                               fontSize: 14,
-                              fontWeight: FontWeight.bold,
+                              fontWeight: FontWeight.w700,
+                              color: (portfolio?.totalUnrealizedPnl ?? 0) >= 0 ? AppTheme.profit(isDark) : AppTheme.loss(isDark),
                             ),
                           ),
                         ],
@@ -342,14 +339,29 @@ class PortfolioScreen extends StatelessWidget {
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text('Active Holdings', style: TextStyle(color: Colors.grey, fontSize: 10)),
+                          Text('Realized P&L', style: TextStyle(color: AppTheme.textMuted(isDark), fontSize: 10.5)),
+                          const SizedBox(height: 2),
+                          Text(
+                            '${(portfolio?.totalRealizedPnl ?? 0) >= 0 ? '+' : ''}$curr${portfolio?.totalRealizedPnl.toStringAsFixed(2) ?? '0.00'}',
+                            style: AppTheme.mono(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700,
+                              color: (portfolio?.totalRealizedPnl ?? 0) >= 0 ? AppTheme.profit(isDark) : AppTheme.loss(isDark),
+                            ),
+                          ),
+                        ],
+                      ),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('Active Holdings', style: TextStyle(color: AppTheme.textMuted(isDark), fontSize: 10.5)),
                           const SizedBox(height: 2),
                           Text(
                             '${portfolio?.positions.length ?? 0} Stocks',
-                            style: const TextStyle(
-                              color: Colors.white,
+                            style: AppTheme.mono(
                               fontSize: 14,
-                              fontWeight: FontWeight.w600,
+                              fontWeight: FontWeight.w700,
+                              color: AppTheme.textPrimary(isDark),
                             ),
                           ),
                         ],

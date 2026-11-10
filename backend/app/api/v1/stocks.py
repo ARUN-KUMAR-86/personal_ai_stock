@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
+from app.core.logging import logger
 from app.database.session import get_db
 from app.models.stock import Stock
 from app.models.signal import StockSignal

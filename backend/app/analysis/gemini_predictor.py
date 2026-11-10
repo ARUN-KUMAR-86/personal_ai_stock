@@ -151,7 +151,7 @@ class GeminiStockPredictor:
             ],
             "risk_assessment": [
                 f"Defensive stop loss cut trigger at ₹{stop_loss:.2f}",
-                f"Regime transition risk if price closes below swing support ₹{struct_res_low if 'struct_res_low' in locals() else stop_loss:.2f}",
+                f"Regime transition risk if price closes below swing support ₹{stop_loss:.2f}",
                 f"False breakout traps identified: {len(ens_result['false_signal_traps'])}",
             ],
             "invalidation_trigger": f"Price breach below protective stop loss ₹{stop_loss:.2f} invalidates this setup.",

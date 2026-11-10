@@ -2,8 +2,10 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../state/app_state.dart';
+import '../theme/app_theme.dart';
 import '../widgets/zed_logo.dart';
 import '../widgets/manual_purchase_dialog.dart';
+import '../widgets/mini_sparkline.dart';
 import 'stock_recommendation_screen.dart';
 
 class LiveMonitoringScreen extends StatefulWidget {
@@ -1014,27 +1016,26 @@ class _LiveMonitoringScreenState extends State<LiveMonitoringScreen> {
 
     final isPositive = pctChange >= 0;
     final tickColor = isPositive ? const Color(0xFF10B981) : const Color(0xFFEF4444);
-    final cardBg = isDark ? const Color(0xFF1E293B) : Colors.white;
 
     // Determine correct currency symbol for this stock
     final curSym = (exchange == 'US' || exchange == 'NASDAQ' || exchange == 'NYSE' || state.isUSMarket) ? '\$' : '₹';
 
-    return Card(
+    return Container(
       margin: const EdgeInsets.only(bottom: 8),
-      elevation: 0.5,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: BorderSide(
-          color: sigPriority == 'HIGH'
-              ? const Color(0xFF2563EB).withOpacity(0.5)
-              : (isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0)),
-          width: sigPriority == 'HIGH' ? 1.5 : 1.0,
-        ),
+      decoration: AppTheme.cardBox(
+        isDark,
+        borderCol: sigPriority == 'HIGH'
+            ? const Color(0xFF2563EB).withOpacity(0.6)
+            : null,
+        borderWidth: sigPriority == 'HIGH' ? 1.4 : 1.0,
+        glow: sigPriority == 'HIGH',
+        glowColor: const Color(0xFF2563EB),
       ),
-      color: cardBg,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(12),
-        onTap: () {
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(14),
+          onTap: () {
           Navigator.push(
             context,
             MaterialPageRoute(
@@ -1116,6 +1117,19 @@ class _LiveMonitoringScreenState extends State<LiveMonitoringScreen> {
                           ),
                         ),
                       ],
+                    ),
+                  ),
+
+                  // Mini Sparkline Trend Visualization
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    child: MiniSparkline.fromTrend(
+                      price: price,
+                      changePct: pctChange,
+                      high: dayHigh,
+                      low: dayLow,
+                      width: 54,
+                      height: 22,
                     ),
                   ),
 
@@ -1254,6 +1268,7 @@ class _LiveMonitoringScreenState extends State<LiveMonitoringScreen> {
           ),
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 }

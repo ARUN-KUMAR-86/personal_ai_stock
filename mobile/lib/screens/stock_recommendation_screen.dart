@@ -1,8 +1,8 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:fl_chart/fl_chart.dart';
 import '../state/app_state.dart';
+import '../theme/app_theme.dart';
 import '../models/signal.dart';
 import '../models/order.dart';
 import '../models/prediction.dart';
@@ -10,6 +10,7 @@ import '../widgets/signal_pill.dart';
 import '../widgets/priority_badge.dart';
 import '../widgets/groww_login_dialog.dart';
 import '../widgets/manual_purchase_dialog.dart';
+import '../widgets/interactive_stock_chart.dart';
 
 class StockRecommendationScreen extends StatefulWidget {
   final String symbol;
@@ -931,13 +932,14 @@ class _StockRecommendationScreenState extends State<StockRecommendationScreen> {
   @override
   Widget build(BuildContext context) {
     final state = context.watch<AppState>();
+    final isDark = state.isDarkMode;
     final currentPrice = signal?.price ?? (candles.isNotEmpty ? (candles.last['close'] as num).toDouble() : 0.0);
     final isWatched = state.isWatchlisted(widget.symbol);
 
     return Scaffold(
-      backgroundColor: const Color(0xFF131722),
+      backgroundColor: AppTheme.scaffold(isDark),
       appBar: AppBar(
-        backgroundColor: const Color(0xFF1E222D),
+        backgroundColor: AppTheme.card(isDark),
         elevation: 0,
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -1101,40 +1103,27 @@ class _StockRecommendationScreenState extends State<StockRecommendationScreen> {
                   ),
                   const SizedBox(height: 16),
 
-                  // 3. Price Trend Chart
+                  // 3. Interactive Institutional Price Chart
                   if (candles.isNotEmpty)
-                    Container(
-                      height: 170,
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF1E222D),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.white.withOpacity(0.06)),
-                      ),
-                      child: LineChart(
-                        LineChartData(
-                          gridData: const FlGridData(show: false),
-                          titlesData: const FlTitlesData(show: false),
-                          borderData: FlBorderData(show: false),
-                          lineBarsData: [
-                            LineChartBarData(
-                              spots: candles
-                                  .asMap()
-                                  .entries
-                                  .map((e) => FlSpot(e.key.toDouble(), (e.value['close'] as num).toDouble()))
-                                  .toList(),
-                              isCurved: true,
-                              color: Colors.blueAccent,
-                              barWidth: 2,
-                              dotData: const FlDotData(show: false),
-                              belowBarData: BarAreaData(
-                                show: true,
-                                color: Colors.blueAccent.withOpacity(0.1),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
+                    InteractiveStockChart(
+                      candles: candles,
+                      currencySymbol: curSym,
+                      currentPrice: currentPrice,
+                      targetPrice: (completeAnalysis != null && completeAnalysis!['target_1'] != null)
+                          ? (completeAnalysis!['target_1'] as num).toDouble()
+                          : signal?.target,
+                      stopLossPrice: (completeAnalysis != null && completeAnalysis!['stop_loss'] != null)
+                          ? (completeAnalysis!['stop_loss'] as num).toDouble()
+                          : signal?.stopLoss,
+                      activeTimeframe: _selectedHorizon == '1-MONTH' ? '1M' : '1D',
+                      isDark: isDark,
+                      onTimeframeChanged: (tf) {
+                        if (tf == '1M' && _selectedHorizon != '1-MONTH') {
+                          _switchHorizon('1-MONTH');
+                        } else if (tf == '1D' && _selectedHorizon != '1-DAY') {
+                          _switchHorizon('1-DAY');
+                        }
+                      },
                     ),
                   const SizedBox(height: 16),
 

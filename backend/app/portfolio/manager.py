@@ -339,6 +339,7 @@ class PortfolioManager:
         now_utc = datetime.now(timezone.utc)
 
         if action == "BUY":
+            deadline = now_utc + timedelta(hours=holding_period_hours) if holding_period_hours else None
             if pos:
                 total_shares = pos.quantity + quantity
                 total_cost = (pos.avg_entry_price * pos.quantity) + trade_value
@@ -346,6 +347,10 @@ class PortfolioManager:
                 pos.quantity = total_shares
                 pos.current_price = price
                 pos.fees += fees
+                pos.auto_sell_enabled = auto_sell_enabled
+                if holding_period_hours:
+                    pos.holding_period_hours = holding_period_hours
+                    pos.exit_deadline = deadline
                 if stop_loss:
                     pos.stop_loss = stop_loss
                 if target:
@@ -360,6 +365,8 @@ class PortfolioManager:
                     stop_loss=stop_loss,
                     target=target,
                     holding_period_hours=holding_period_hours,
+                    exit_deadline=deadline,
+                    auto_sell_enabled=auto_sell_enabled,
                     fees=fees,
                     is_open=True,
                     status="ACTIVE",

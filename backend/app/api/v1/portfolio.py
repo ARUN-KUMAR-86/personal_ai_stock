@@ -72,6 +72,7 @@ def get_open_positions(
 
 
 @router.get("/positions/closed", response_model=List[PositionRead])
+@router.get("/closed-positions", response_model=List[PositionRead])
 def get_closed_positions(limit: int = 50, db: Session = Depends(get_db)):
     """Retrieves closed positions with historical realized profit/loss."""
     return (

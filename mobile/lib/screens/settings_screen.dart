@@ -5,6 +5,7 @@ import '../state/app_state.dart';
 import '../services/storage_service.dart';
 import '../services/notification_service.dart';
 import '../widgets/zed_logo.dart';
+import 'trading_control_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -370,6 +371,51 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       onChanged: (val) => state.toggleDarkMode(val),
                     ),
                   ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // TRADING CONTROL & GROWW BROKER SESSION
+          _buildCard(
+            context,
+            title: 'TRADING CONTROLS & GROWW SESSION',
+            icon: Icons.account_balance_wallet_outlined,
+            iconColor: const Color(0xFF10B981),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Manage trading budget, Option B Hybrid Guard (Auto Stop-Loss), daily loss limits, and 1-tap Groww TOTP session renewal:',
+                  style: TextStyle(
+                    color: isDark ? Colors.grey.shade400 : const Color(0xFF64748B),
+                    fontSize: 12,
+                    height: 1.35,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF10B981),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    ),
+                    icon: const Icon(Icons.tune, size: 18),
+                    label: const Text(
+                      'Open Trading Controls & Budget',
+                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                    ),
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const TradingControlScreen()),
+                      );
+                    },
+                  ),
                 ),
               ],
             ),

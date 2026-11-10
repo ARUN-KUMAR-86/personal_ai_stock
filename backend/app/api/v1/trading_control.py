@@ -14,6 +14,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.database.session import get_db
+from app.core.logging import logger
 from app.models.broker import BrokerAccount, FundTransaction
 from app.models.portfolio import Position, PaperTrade
 from app.brokers.factory import get_broker_adapter

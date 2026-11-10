@@ -249,7 +249,7 @@ class ScannerEngine:
                                 "model_used": research_result["model_used"],
                                 "verdict_reason": research_result["verdict_reason"],
                                 "catalysts": research_result.get("catalysts") or [
-                                    f"Market structure indicates {struct_res.get('trend_state', 'active trend')}",
+                                    f"Market structure indicates {research_result.get('market_structure', 'active trend')}",
                                     f"Volume confirmation: RVOL is {research_result['rvol']:.2f}x average",
                                     f"Technical indicators confirm {signal_type} regime",
                                 ],

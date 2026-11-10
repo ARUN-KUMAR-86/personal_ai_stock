@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../models/alert.dart';
+import '../theme/app_theme.dart';
 import '../screens/stock_recommendation_screen.dart';
 
 class TradeAlertCard extends StatelessWidget {
@@ -317,7 +318,7 @@ class TradeAlertCard extends StatelessWidget {
         const SizedBox(height: 2),
         Text(
           value,
-          style: TextStyle(color: color, fontSize: 13, fontWeight: FontWeight.bold),
+          style: AppTheme.mono(fontSize: 13, fontWeight: FontWeight.bold, color: color),
         ),
       ],
     );
