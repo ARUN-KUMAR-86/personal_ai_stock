@@ -194,12 +194,12 @@ class DashboardScreen extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           const Text(
-                            'Local Simulation Sandbox Active',
+                            'Local Offline Cache Active',
                             style: TextStyle(color: Colors.amberAccent, fontSize: 12, fontWeight: FontWeight.bold),
                           ),
                           const SizedBox(height: 2),
                           Text(
-                            'Your paper trades and positions are saved safely on your device. Auto-reconnecting to 24/7 cloud server...',
+                            'Your trades and positions are saved safely on your device. Auto-reconnecting to 24/7 cloud server...',
                             style: TextStyle(color: Colors.grey.shade300, fontSize: 11),
                           ),
                         ],
@@ -225,14 +225,16 @@ class DashboardScreen extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Indian Markets (${state.marketStatus?.exchange ?? 'NSE'})',
+                      state.isUSMarket
+                          ? 'US Markets (${state.marketStatus?.exchange ?? "NYSE/NASDAQ"})'
+                          : 'Indian Markets (${state.marketStatus?.exchange ?? "NSE"})',
                       style: const TextStyle(color: Colors.grey, fontSize: 12),
                     ),
                     const SizedBox(height: 2),
                     Text(
                       state.marketStatus?.serverTimeIst.isNotEmpty == true
                           ? state.marketStatus!.serverTimeIst
-                          : 'IST Time',
+                          : (state.isUSMarket ? 'EST Time' : 'IST Time'),
                       style: const TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.w500),
                     ),
                   ],
@@ -708,7 +710,7 @@ class DashboardScreen extends StatelessWidget {
                   valueColor: Colors.amberAccent,
                 ),
                 StatCard(
-                  title: 'Paper Portfolio',
+                  title: 'My Portfolio',
                   value: '₹${state.portfolio?.totalPortfolioValue.toStringAsFixed(0) ?? '0'}',
                   subtitle: 'Exposure: ${state.portfolio?.portfolioExposurePct ?? 0}%',
                   icon: Icons.account_balance_wallet,
@@ -921,7 +923,7 @@ class DashboardScreen extends StatelessWidget {
                           ),
                         ),
                         Text(
-                          '₹${sig.price.toStringAsFixed(2)}',
+                          '${sig.exchange.toUpperCase() == "US" || sig.exchange.toUpperCase() == "NASDAQ" || sig.exchange.toUpperCase() == "NYSE" ? r"$" : "₹"}${sig.price.toStringAsFixed(2)}',
                           style: const TextStyle(
                             color: Colors.white,
                             fontWeight: FontWeight.bold,
@@ -978,7 +980,7 @@ class DashboardScreen extends StatelessWidget {
     final tc = state.tradingControl;
     final isTradingActive = tc?.isTradingActive ?? true;
     final isLiveBroker = state.isGrowwConnected;
-    final accountStatusText = tc?.growwAccountStatus ?? (isLiveBroker ? 'Connected' : 'Not Connected (Paper Mode)');
+    final accountStatusText = tc?.growwAccountStatus ?? (isLiveBroker ? 'Connected' : 'Not Connected (Manual Mode)');
     final isConn = accountStatusText.startsWith('Connected') && !accountStatusText.contains('Not');
     final statusColor = isConn
         ? Colors.tealAccent

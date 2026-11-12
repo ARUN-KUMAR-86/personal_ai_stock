@@ -383,7 +383,10 @@ class FCMNotifier:
     ) -> AlertHistory:
         """Dispatches an approved AI research recommendation alert."""
         norm_action = "BUY" if "BUY" in action.upper() else "SELL"
-        icon = "🟢" if norm_action == "BUY" else "🔴"
+        if norm_action == "BUY":
+            logger.info(f"Suppressed general BUY alert for {symbol} - strictly sell alerts only enabled.")
+            return None
+        icon = "🔴"
         horizon_tag = "⚡ 1-DAY" if time_horizon == "1-DAY" else "📅 1-MONTH"
         is_us = exchange.upper() in ("US", "NASDAQ", "NYSE")
         curr = "$" if is_us else "₹"

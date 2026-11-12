@@ -54,6 +54,7 @@ class ManualPurchaseRequest(BaseModel):
 
 
 class ManualSaleRequest(BaseModel):
+    position_id: Optional[int] = None
     symbol: str
     exchange: str = "NSE"
     selling_price: float

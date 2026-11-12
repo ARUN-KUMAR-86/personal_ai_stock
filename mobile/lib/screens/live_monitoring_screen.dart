@@ -126,13 +126,18 @@ class _LiveMonitoringScreenState extends State<LiveMonitoringScreen> {
 
     // Strictly enforce active market isolation (Never mix Indian and US stocks)
     items = items.where((it) {
+      final sym = (it['symbol'] ?? '').toString().toUpperCase();
       final ex = (it['exchange'] ?? '').toString().toUpperCase();
       if (state.isUSMarket) {
-        return ex == 'US' || ex == 'NASDAQ' || ex == 'NYSE';
+        return !AppState.indianSymbols.contains(sym) && (ex == 'US' || ex == 'NASDAQ' || ex == 'NYSE' || AppState.usSymbols.contains(sym));
       } else {
-        return ex == 'NSE' || ex == 'BSE' || ex.isEmpty;
+        return !AppState.usSymbols.contains(sym) && (ex == 'NSE' || ex == 'BSE' || ex.isEmpty || AppState.indianSymbols.contains(sym));
       }
     }).toList();
+
+    if (items.isEmpty && state.isUSMarket) {
+      items = _mapUniverseToItems(AppState.defaultUSStocks);
+    }
 
     if (selectedFilter == 'BULLISH') {
       items = items.where((it) => (it['supertrend_direction'] == 'BULLISH' || ((it['percent_change'] ?? 0) as num) > 0)).toList();
@@ -580,8 +585,26 @@ class _LiveMonitoringScreenState extends State<LiveMonitoringScreen> {
   /// 2. LIVE BENCHMARK & SECTOR INDICES RIBBON
   /// ──────────────────────────────────────────────────────────────────────────
   Widget _buildIndexRibbon(BuildContext context, AppState state, bool isDark) {
-    // If backend indices are loaded, use them; otherwise use defaults for market
-    List<Map<String, dynamic>> indices = state.marketIndices;
+    // Strictly isolate indices to the active market!
+    List<Map<String, dynamic>> indices = state.marketIndices.where((idx) {
+      final sym = (idx['symbol'] ?? '').toString().toUpperCase();
+      final name = (idx['name'] ?? '').toString().toUpperCase();
+      if (state.isUSMarket) {
+        return sym.startsWith('^G') ||
+            sym.startsWith('^IX') ||
+            sym.startsWith('^ND') ||
+            sym.startsWith('^DJ') ||
+            sym.startsWith('^RU') ||
+            sym.startsWith('XL') ||
+            name.contains('S&P') ||
+            name.contains('NASDAQ') ||
+            name.contains('DOW') ||
+            name.contains('RUSSELL');
+      } else {
+        return sym.contains('NSE') || sym.contains('BSE') || sym.contains('CNX') || name.contains('NIFTY') || name.contains('SENSEX');
+      }
+    }).toList();
+
     if (indices.isEmpty) {
       if (state.isIndianMarket) {
         indices = [

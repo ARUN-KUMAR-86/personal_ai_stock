@@ -90,4 +90,33 @@ class StockAlert {
       thresholdKey: json['threshold_key'],
     );
   }
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'symbol': symbol,
+        'exchange': exchange,
+        'alert_type': alertType,
+        'title': title,
+        'message': message,
+        'price': price,
+        'is_read': isRead,
+        'sent_to_fcm': sentToFcm,
+        'created_at': createdAt.toIso8601String(),
+        'action': action,
+        'suggested_investment': suggestedInvestment,
+        'estimated_quantity': estimatedQuantity,
+        'estimated_order_value': estimatedOrderValue,
+        'reason': reason,
+        'risk_level': riskLevel,
+        'stop_loss': stopLoss,
+        'target': target,
+        'status': status,
+        'order_id': orderId,
+        'broker_verified': brokerVerified,
+        'time_horizon': timeHorizon,
+        'gemini_research': geminiResearch,
+        'pnl_inr': pnlInr,
+        'pnl_pct': pnlPct,
+        'threshold_key': thresholdKey,
+      };
 }

@@ -314,6 +314,35 @@ class PositionMonitor:
                     )
                     alerts_triggered.append({"symbol": sym, "threshold": "CUSTOM_TARGET", "priority": "P1"})
 
+                # 7. Check Holding Period Expiry or Stop Loss Exit Trigger Policies
+                condition_triggered = False
+                trigger_reason = None
+
+                deadline = pos.exit_deadline
+                if deadline and deadline.tzinfo is None:
+                    deadline = deadline.replace(tzinfo=timezone.utc)
+
+                if deadline and now >= deadline:
+                    condition_triggered = True
+                    trigger_reason = f"HOLDING_PERIOD_EXPIRED ({pos.holding_period_hours}h maximum intended holding period reached)"
+                elif pos.stop_loss and curr_price <= pos.stop_loss:
+                    condition_triggered = True
+                    trigger_reason = f"STOP_LOSS_HIT (Price ₹{curr_price:.2f} <= SL ₹{pos.stop_loss:.2f})"
+                elif pos.target and curr_price >= pos.target:
+                    condition_triggered = True
+                    trigger_reason = f"TARGET_HIT (Price ₹{curr_price:.2f} >= Target ₹{pos.target:.2f})"
+
+                if condition_triggered:
+                    pos.exit_triggered = True
+                    pos.exit_reason = trigger_reason
+                    auto_sell = pos.auto_sell_enabled or settings.AUTO_SELL_ENABLED
+                    if auto_sell:
+                        pos.is_open = False
+                        pos.status = "CLOSED"
+                        pos.closed_at = now
+                        pos.realized_pnl = round((curr_price - pos.avg_entry_price) * pos.quantity, 2)
+                        pos.unrealized_pnl = 0.0
+
                 # Save updated triggered thresholds list on position
                 pos.triggered_thresholds = list(triggered_set)
                 actions.append({

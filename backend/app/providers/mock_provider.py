@@ -33,7 +33,11 @@ class MockMarketDataProvider(BaseMarketDataProvider):
         super().__init__(name="TEST_SIMULATED")
 
     def get_supported_universe(self, exchange: str = "NSE") -> List[Dict[str, Any]]:
-        return [dict(s, exchange=exchange) for s in SAMPLE_UNIVERSE]
+        ex = exchange.upper()
+        if ex in ("US", "NASDAQ", "NYSE", "GLOBAL"):
+            from app.providers.us_market_service import US_STOCKS_UNIVERSE
+            return [dict(s, exchange="US") for s in US_STOCKS_UNIVERSE]
+        return [dict(s, exchange="NSE") for s in SAMPLE_UNIVERSE]
 
     def get_quote(self, symbol: str, exchange: str = "NSE") -> QuoteRead:
         base_prices = {

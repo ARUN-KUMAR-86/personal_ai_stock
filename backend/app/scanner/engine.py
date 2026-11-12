@@ -249,7 +249,7 @@ class ScannerEngine:
                                 "model_used": research_result["model_used"],
                                 "verdict_reason": research_result["verdict_reason"],
                                 "catalysts": research_result.get("catalysts") or [
-                                    f"Market structure indicates {struct_res.get('trend_state', 'active trend')}",
+                                    f"Market structure indicates {research_result.get('market_structure', 'active trend')}",
                                     f"Volume confirmation: RVOL is {research_result['rvol']:.2f}x average",
                                     f"Technical indicators confirm {signal_type} regime",
                                 ],
@@ -295,10 +295,10 @@ class ScannerEngine:
                         db.add(pred_record)
                         db.commit()
 
-                        # Dispatch Notification ONLY if Approved
+                        # Dispatch Notification ONLY if Approved and action is SELL (Strictly Sell Alerts Only)
                         if is_approved:
                             norm_action = "BUY" if "BUY" in action else "SELL"
-                            if not notifier.should_suppress_duplicate(db, stock.symbol, norm_action):
+                            if norm_action == "SELL" and not notifier.should_suppress_duplicate(db, stock.symbol, norm_action):
                                 approved_signals_count += 1
                                 notifier.send_buy_sell_alert(
                                     db=db,
@@ -314,7 +314,9 @@ class ScannerEngine:
                                     signal_id=signal.id,
                                     time_horizon="1-DAY",
                                 )
-                                logger.info(f"DISPATCHED APPROVED NOTIFICATION for {stock.symbol}: {norm_action}")
+                                logger.info(f"DISPATCHED APPROVED SELL NOTIFICATION for {stock.symbol}: {norm_action}")
+                            elif norm_action == "BUY":
+                                logger.debug(f"Suppressed general BUY notification for {stock.symbol} (Strictly Sell Notifications enabled).")
                             else:
                                 logger.info(f"Suppressed duplicate alert for {stock.symbol} ({norm_action}) within cooldown period.")
                         else:

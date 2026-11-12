@@ -1,5 +1,6 @@
 """Portfolio execution and independent Groww manual tracking manager."""
 
+import logging
 from datetime import datetime, timezone, timedelta
 from typing import List, Dict, Any, Optional
 from sqlalchemy.orm import Session
@@ -7,6 +8,8 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.models.portfolio import Position, PaperTrade
 from app.providers.factory import get_market_data_provider
+
+logger = logging.getLogger(__name__)
 
 
 class PortfolioManager:
@@ -180,6 +183,34 @@ class PortfolioManager:
         }
 
     @classmethod
+    def delete_position(
+        cls,
+        db: Session,
+        position_id: int,
+    ) -> Dict[str, Any]:
+        """
+        Permanently removes an erroneous holding from the portfolio.
+        Stops active monitoring and cleans up open position.
+        """
+        pos = db.query(Position).filter(Position.id == position_id).first()
+        if not pos:
+            raise ValueError(f"Position #{position_id} not found.")
+
+        sym = pos.symbol
+        qty = pos.quantity
+        ex = pos.exchange or "NSE"
+
+        db.delete(pos)
+        db.commit()
+
+        logger.info(f"Permanently removed position #{position_id} ({sym} {ex}, qty {qty}) from portfolio.")
+        return {
+            "status": "SUCCESS",
+            "message": f"Successfully removed {qty} shares of {sym} from your portfolio.",
+            "deleted_position_id": position_id,
+        }
+
+    @classmethod
     def record_manual_sale(
         cls,
         db: Session,
@@ -191,11 +222,13 @@ class PortfolioManager:
         selling_time: Optional[str] = None,
         charges: float = 0.0,
         notes: Optional[str] = None,
+        position_id: Optional[int] = None,
     ) -> Dict[str, Any]:
         """
-        Records a stock sale manually executed in Groww.
+        Records a stock sale manually executed in Groww or US broker.
+        - Robust matching by position_id or flexible exchange aliases.
         - Calculates exact realized profit/loss.
-        - Updates remaining stock quantity.
+        - Updates remaining stock quantity or cleanly closes holding.
         - Stops monitoring if completely closed.
         - Preserves complete transaction history.
         """
@@ -207,23 +240,42 @@ class PortfolioManager:
         if quantity_sold <= 0:
             raise ValueError("Quantity sold must be at least 1.")
 
-        pos = (
-            db.query(Position)
-            .filter(
-                Position.symbol == sym,
-                Position.exchange == ex,
-                Position.is_open == True,
+        # 1. Match by exact position_id if provided
+        pos = None
+        if position_id:
+            pos = db.query(Position).filter(Position.id == position_id).first()
+
+        # 2. Match with flexible exchange aliases
+        if not pos:
+            is_us = ex in ("US", "NASDAQ", "NYSE")
+            target_exs = ["US", "NASDAQ", "NYSE"] if is_us else ["NSE", "BSE", "INDIA"]
+            pos = (
+                db.query(Position)
+                .filter(
+                    Position.symbol == sym,
+                    Position.exchange.in_(target_exs),
+                    Position.is_open == True,
+                )
+                .first()
             )
-            .first()
-        )
+
+        # 3. Fallback search open position by symbol alone
+        if not pos:
+            pos = (
+                db.query(Position)
+                .filter(
+                    Position.symbol == sym,
+                    Position.is_open == True,
+                )
+                .first()
+            )
 
         if not pos:
             raise ValueError(f"No active open holding found for {sym} to sell.")
 
-        if quantity_sold > pos.quantity:
-            raise ValueError(
-                f"Cannot sell {quantity_sold} shares. You currently hold {pos.quantity} shares of {sym}."
-            )
+        # If quantity sold exceeds or equals current holdings, clamp to full sell
+        if quantity_sold >= pos.quantity:
+            quantity_sold = pos.quantity
 
         now_utc = datetime.now(timezone.utc)
         sale_dt = now_utc
@@ -339,6 +391,7 @@ class PortfolioManager:
         now_utc = datetime.now(timezone.utc)
 
         if action == "BUY":
+            deadline = now_utc + timedelta(hours=holding_period_hours) if holding_period_hours else None
             if pos:
                 total_shares = pos.quantity + quantity
                 total_cost = (pos.avg_entry_price * pos.quantity) + trade_value
@@ -346,6 +399,10 @@ class PortfolioManager:
                 pos.quantity = total_shares
                 pos.current_price = price
                 pos.fees += fees
+                pos.auto_sell_enabled = auto_sell_enabled
+                if holding_period_hours:
+                    pos.holding_period_hours = holding_period_hours
+                    pos.exit_deadline = deadline
                 if stop_loss:
                     pos.stop_loss = stop_loss
                 if target:
@@ -360,6 +417,8 @@ class PortfolioManager:
                     stop_loss=stop_loss,
                     target=target,
                     holding_period_hours=holding_period_hours,
+                    exit_deadline=deadline,
+                    auto_sell_enabled=auto_sell_enabled,
                     fees=fees,
                     is_open=True,
                     status="ACTIVE",

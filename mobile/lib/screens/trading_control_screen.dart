@@ -27,7 +27,7 @@ class _TradingControlScreenState extends State<TradingControlScreen> {
     final tc = state.tradingControl;
     final isTradingActive = tc?.isTradingActive ?? true;
     final isLiveBroker = state.isGrowwConnected;
-    final accountStatusText = tc?.growwAccountStatus ?? (isLiveBroker ? 'Connected' : 'Not Connected (Paper Mode)');
+    final accountStatusText = tc?.growwAccountStatus ?? (isLiveBroker ? 'Connected' : 'Not Connected (Manual Mode)');
 
     return Scaffold(
       backgroundColor: const Color(0xFF131722),

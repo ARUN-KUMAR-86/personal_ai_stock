@@ -5,6 +5,7 @@ import '../state/app_state.dart';
 import '../models/signal.dart';
 import '../widgets/signal_pill.dart';
 import '../widgets/priority_badge.dart';
+import '../widgets/manual_purchase_dialog.dart';
 
 class StockDetailScreen extends StatefulWidget {
   final String symbol;
@@ -54,260 +55,6 @@ class _StockDetailScreenState extends State<StockDetailScreen> {
         isLoading = false;
       });
     }
-  }
-
-  void _showPaperTradeDialog(double currentPrice, StockSignal? latestSignal) {
-    int quantity = 10;
-    String action = 'BUY';
-    final slController = TextEditingController(
-      text: latestSignal?.stopLoss != null
-          ? latestSignal!.stopLoss!.toStringAsFixed(2)
-          : (currentPrice * 0.97).toStringAsFixed(2),
-    );
-    final tpController = TextEditingController(
-      text: latestSignal?.target != null
-          ? latestSignal!.target!.toStringAsFixed(2)
-          : (currentPrice * 1.05).toStringAsFixed(2),
-    );
-    int holdingHours = latestSignal?.holdingPeriodHours ?? 48;
-    bool autoSellEnabled = true;
-
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: const Color(0xFF1E222D),
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (ctx) {
-        return StatefulBuilder(
-          builder: (context, setModalState) {
-            return Padding(
-              padding: EdgeInsets.only(
-                left: 20,
-                right: 20,
-                top: 20,
-                bottom: MediaQuery.of(context).viewInsets.bottom + 20,
-              ),
-              child: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          'Paper Trade: ${widget.symbol}',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.close, color: Colors.grey),
-                          onPressed: () => Navigator.pop(ctx),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: ChoiceChip(
-                            label: const Center(child: Text('BUY')),
-                            selected: action == 'BUY',
-                            selectedColor: Colors.greenAccent.withOpacity(0.3),
-                            labelStyle: TextStyle(
-                              color: action == 'BUY' ? Colors.greenAccent : Colors.grey,
-                              fontWeight: FontWeight.bold,
-                            ),
-                            onSelected: (val) {
-                              if (val) setModalState(() => action = 'BUY');
-                            },
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: ChoiceChip(
-                            label: const Center(child: Text('SELL')),
-                            selected: action == 'SELL',
-                            selectedColor: Colors.redAccent.withOpacity(0.3),
-                            labelStyle: TextStyle(
-                              color: action == 'SELL' ? Colors.redAccent : Colors.grey,
-                              fontWeight: FontWeight.bold,
-                            ),
-                            onSelected: (val) {
-                              if (val) setModalState(() => action = 'SELL');
-                            },
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 14),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        const Text('Quantity (Shares):', style: TextStyle(color: Colors.white70)),
-                        Row(
-                          children: [
-                            IconButton(
-                              icon: const Icon(Icons.remove_circle_outline, color: Colors.blueAccent),
-                              onPressed: () {
-                                if (quantity > 1) setModalState(() => quantity -= 1);
-                              },
-                            ),
-                            Text(
-                              '$quantity',
-                              style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
-                            ),
-                            IconButton(
-                              icon: const Icon(Icons.add_circle_outline, color: Colors.blueAccent),
-                              onPressed: () {
-                                setModalState(() => quantity += 1);
-                              },
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    // Stop Loss & Target Inputs
-                    Row(
-                      children: [
-                        Expanded(
-                          child: TextField(
-                            controller: slController,
-                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                            style: const TextStyle(color: Colors.redAccent, fontSize: 13, fontWeight: FontWeight.bold),
-                            decoration: InputDecoration(
-                              labelText: 'Stop Loss (₹)',
-                              labelStyle: const TextStyle(color: Colors.grey, fontSize: 11),
-                              filled: true,
-                              fillColor: const Color(0xFF131722),
-                              contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: TextField(
-                            controller: tpController,
-                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                            style: const TextStyle(color: Colors.greenAccent, fontSize: 13, fontWeight: FontWeight.bold),
-                            decoration: InputDecoration(
-                              labelText: 'Target (₹)',
-                              labelStyle: const TextStyle(color: Colors.grey, fontSize: 11),
-                              filled: true,
-                              fillColor: const Color(0xFF131722),
-                              contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 10),
-                    // Auto-Sell / Take Money Switch
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF131722),
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(
-                          color: autoSellEnabled ? Colors.greenAccent.withOpacity(0.5) : Colors.white12,
-                        ),
-                      ),
-                      child: Row(
-                        children: [
-                          Icon(Icons.bolt, color: autoSellEnabled ? Colors.amberAccent : Colors.grey, size: 18),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Text(
-                                  'Auto Take Money / Auto-Sell',
-                                  style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
-                                ),
-                                Text(
-                                  autoSellEnabled ? 'Will auto-sell when target or stop-loss hits' : 'Manual exit only',
-                                  style: TextStyle(color: Colors.grey.shade400, fontSize: 10),
-                                ),
-                              ],
-                            ),
-                          ),
-                          Switch(
-                            value: autoSellEnabled,
-                            activeColor: Colors.greenAccent,
-                            onChanged: (val) => setModalState(() => autoSellEnabled = val),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        const Text('Estimated Value:', style: TextStyle(color: Colors.grey)),
-                        Text(
-                          '₹${(currentPrice * quantity).toStringAsFixed(2)}',
-                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    SizedBox(
-                      width: double.infinity,
-                      height: 48,
-                      child: ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: action == 'BUY' ? Colors.green : Colors.red,
-                          foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                        ),
-                        onPressed: () async {
-                          final nav = Navigator.of(ctx);
-                          final scaffold = ScaffoldMessenger.of(context);
-                          final slVal = double.tryParse(slController.text);
-                          final tpVal = double.tryParse(tpController.text);
-
-                          final success = await context.read<AppState>().executePaperTrade(
-                                symbol: widget.symbol,
-                                action: action,
-                                quantity: quantity,
-                                price: currentPrice,
-                                stopLoss: slVal,
-                                target: tpVal,
-                                holdingPeriodHours: holdingHours,
-                                autoSellEnabled: autoSellEnabled,
-                              );
-                          nav.pop();
-                          scaffold.showSnackBar(
-                            SnackBar(
-                              content: Text(success
-                                  ? '$action $quantity shares of ${widget.symbol} executed in simulation (Auto-Sell: ${autoSellEnabled ? "ON" : "OFF"}).'
-                                  : 'Trade execution failed.'),
-                              backgroundColor: success ? Colors.green : Colors.red,
-                            ),
-                          );
-                        },
-                        child: Text(
-                          'Confirm $action Order',
-                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            );
-          },
-        );
-      },
-    );
   }
 
   @override
@@ -529,21 +276,30 @@ class _StockDetailScreenState extends State<StockDetailScreen> {
                       ),
                     const SizedBox(height: 24),
 
-                    // Paper Trade Action Button
+                    // I Bought This Stock Action Button
                     SizedBox(
                       width: double.infinity,
                       height: 50,
                       child: ElevatedButton.icon(
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.blueAccent,
+                          backgroundColor: Colors.green.shade700,
                           foregroundColor: Colors.white,
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                         ),
-                        onPressed: () => _showPaperTradeDialog(currentPrice, latestSignal),
-                        icon: const Icon(Icons.flash_on),
-                        label: const Text(
-                          'Place Paper Trade',
-                          style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+                        onPressed: () {
+                          ManualPurchaseDialog.show(
+                            context,
+                            symbol: widget.symbol,
+                            exchange: widget.exchange,
+                            currentPrice: currentPrice > 0 ? currentPrice : null,
+                            targetPrice: latestSignal.target,
+                            stopLossPrice: latestSignal.stopLoss,
+                          );
+                        },
+                        icon: const Icon(Icons.add_shopping_cart, size: 20),
+                        label: Text(
+                          widget.exchange.toUpperCase() == 'US' ? 'I BOUGHT THIS STOCK (USD)' : 'I BOUGHT THIS STOCK (GROWW)',
+                          style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
                         ),
                       ),
                     ),

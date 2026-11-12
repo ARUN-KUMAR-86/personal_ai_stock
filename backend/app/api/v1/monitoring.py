@@ -95,10 +95,18 @@ def get_live_monitoring_feed(
                 query = query.filter(Stock.exchange == exchange)
         active_stocks = query.all()
 
-    symbols = [s.symbol for s in active_stocks]
-    # Fetch real-time quotes in bulk
-    ex_for_quotes = "US" if exchange.upper() in ("US", "NASDAQ", "NYSE") else ("NSE" if exchange == "ALL" else exchange)
-    quotes = provider.get_bulk_quotes(symbols, exchange=ex_for_quotes)
+    # Fetch real-time quotes in bulk segmented by market exchange
+    nse_symbols = [s.symbol for s in active_stocks if s.exchange.upper() in ("NSE", "BSE", "INDIA")]
+    us_symbols = [s.symbol for s in active_stocks if s.exchange.upper() in ("US", "NASDAQ", "NYSE")]
+    other_symbols = [s.symbol for s in active_stocks if s.symbol not in nse_symbols and s.symbol not in us_symbols]
+
+    quotes = {}
+    if nse_symbols:
+        quotes.update(provider.get_bulk_quotes(symbols=nse_symbols, exchange="NSE"))
+    if us_symbols:
+        quotes.update(provider.get_bulk_quotes(symbols=us_symbols, exchange="US"))
+    if other_symbols:
+        quotes.update(provider.get_bulk_quotes(symbols=other_symbols, exchange=exchange))
 
     # Fetch latest signals in one query
     signals = (

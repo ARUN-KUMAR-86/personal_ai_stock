@@ -169,18 +169,18 @@ class CompleteStockAnalyzer:
             enriched = df
             metrics = {}
 
-        rsi = float(metrics.get("rsi_14", 50.0))
-        ema_21 = float(metrics.get("ema_21", current_price))
-        sma_50 = float(metrics.get("sma_50", current_price))
-        sma_200 = float(metrics.get("sma_200", current_price))
-        atr_14 = float(metrics.get("atr_14", current_price * 0.02))
-        macd_val = float(metrics.get("macd", 0.0))
-        macd_signal = float(metrics.get("macd_signal", 0.0))
-        macd_hist = float(metrics.get("macd_histogram", 0.0))
-        bb_upper = float(metrics.get("bb_upper", current_price * 1.05))
-        bb_lower = float(metrics.get("bb_lower", current_price * 0.95))
-        vwap = float(metrics.get("vwap", current_price))
-        supertrend = float(metrics.get("supertrend", current_price * 0.98))
+        rsi = float(metrics.get("rsi_14") or 50.0)
+        ema_21 = float(metrics.get("ema_21") or current_price)
+        sma_50 = float(metrics.get("sma_50") or current_price)
+        sma_200 = float(metrics.get("sma_200") or current_price)
+        atr_14 = float(metrics.get("atr_14") or (current_price * 0.02))
+        macd_val = float(metrics.get("macd") or 0.0)
+        macd_signal = float(metrics.get("macd_signal") or 0.0)
+        macd_hist = float(metrics.get("macd_histogram") or 0.0)
+        bb_upper = float(metrics.get("bb_upper") or (current_price * 1.05))
+        bb_lower = float(metrics.get("bb_lower") or (current_price * 0.95))
+        vwap = float(metrics.get("vwap") or current_price)
+        supertrend = float(metrics.get("supertrend") or (current_price * 0.98))
         supertrend_dir = metrics.get("supertrend_direction", "BULLISH" if current_price >= supertrend else "BEARISH")
 
         # ─────────────────────────────────────────────────────────────

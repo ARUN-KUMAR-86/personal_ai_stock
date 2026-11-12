@@ -46,9 +46,12 @@ class GrowwMarketDataProvider(BaseMarketDataProvider):
         return self._client is not None
 
     def get_supported_universe(self, exchange: str = "NSE") -> List[Dict[str, Any]]:
-        # Groww supports all NSE and BSE listed equities
+        ex = exchange.upper()
+        if ex in ("US", "NASDAQ", "NYSE", "GLOBAL"):
+            from app.providers.us_market_service import US_STOCKS_UNIVERSE
+            return [dict(s, exchange="US") for s in US_STOCKS_UNIVERSE]
         from app.providers.yahoo_provider import NIFTY_50_UNIVERSE
-        return [dict(s, exchange=exchange) for s in NIFTY_50_UNIVERSE]
+        return [dict(s, exchange="NSE") for s in NIFTY_50_UNIVERSE]
 
     def get_quote(self, symbol: str, exchange: str = "NSE") -> QuoteRead:
         if not self.is_configured():

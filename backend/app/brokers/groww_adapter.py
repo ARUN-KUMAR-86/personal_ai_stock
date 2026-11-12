@@ -261,9 +261,9 @@ class GrowwBrokerAdapter(BaseBrokerAdapter):
         if not self.is_configured() or not self._client:
             return {
                 "is_connected": False,
-                "available_funds": 1000.0,  # Standard baseline funds for verification
+                "available_funds": 100000.0,  # Standard baseline funds for paper trading & verification
                 "unsettled_funds": 0.0,
-                "withdrawable_funds": 1000.0,
+                "withdrawable_funds": 100000.0,
                 "currency": "INR",
                 "last_synced_at": datetime.now(timezone.utc),
                 "error_message": "Groww API running with saved connection.",
@@ -272,7 +272,7 @@ class GrowwBrokerAdapter(BaseBrokerAdapter):
         try:
             self.refresh_session_if_needed()
             margins = self._client.get_margin()
-            available = float(margins.get("available_cash", margins.get("available_margin", 1000.0)))
+            available = float(margins.get("available_cash", margins.get("available_margin", 100000.0)))
             unsettled = float(margins.get("unsettled_balance", 0.0))
             withdrawable = float(margins.get("withdrawable_balance", available - unsettled))
 
@@ -289,9 +289,9 @@ class GrowwBrokerAdapter(BaseBrokerAdapter):
             logger.error(f"Failed to fetch Groww funds: {e}")
             return {
                 "is_connected": False,
-                "available_funds": 1000.0,
+                "available_funds": 100000.0,
                 "unsettled_funds": 0.0,
-                "withdrawable_funds": 1000.0,
+                "withdrawable_funds": 100000.0,
                 "currency": "INR",
                 "last_synced_at": datetime.now(timezone.utc),
                 "error_message": f"Groww API error: {str(e)}",

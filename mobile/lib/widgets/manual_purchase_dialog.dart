@@ -57,13 +57,20 @@ class _ManualPurchaseDialogState extends State<ManualPurchaseDialog> {
   late TextEditingController _targetController;
   late TextEditingController _stopLossController;
 
+  late String _selectedExchange;
   DateTime _selectedDate = DateTime.now();
   TimeOfDay _selectedTime = TimeOfDay.now();
   bool _isSubmitting = false;
 
+  bool get _isUS => (_selectedExchange == 'US' || _selectedExchange == 'NASDAQ' || _selectedExchange == 'NYSE');
+  String get _currencySymbol => _isUS ? '\$' : '₹';
+
   @override
   void initState() {
     super.initState();
+    _selectedExchange = (widget.exchange != null && widget.exchange!.isNotEmpty)
+        ? widget.exchange!.toUpperCase()
+        : 'NSE';
     _symbolController = TextEditingController(text: widget.symbol);
     _nameController = TextEditingController(text: widget.companyName ?? widget.symbol);
     _priceController = TextEditingController(
@@ -164,7 +171,7 @@ class _ManualPurchaseDialogState extends State<ManualPurchaseDialog> {
 
     try {
       final state = context.read<AppState>();
-      final effectiveEx = widget.exchange ?? state.activeExchangeDefault;
+      final effectiveEx = _selectedExchange;
       final res = await state.recordManualPurchase(
         symbol: symbol,
         exchange: effectiveEx,
@@ -240,16 +247,16 @@ class _ManualPurchaseDialogState extends State<ManualPurchaseDialog> {
                           child: const Icon(Icons.shopping_bag_outlined, color: Colors.greenAccent, size: 20),
                         ),
                         const SizedBox(width: 10),
-                        const Column(
+                        Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(
+                            const Text(
                               'I BOUGHT THIS STOCK',
                               style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
                             ),
                             Text(
-                              'Manual Groww Purchase Entry',
-                              style: TextStyle(color: Colors.grey, fontSize: 11),
+                              _isUS ? 'US Broker Purchase Entry (USD)' : 'Groww Broker Purchase Entry (INR)',
+                              style: const TextStyle(color: Colors.grey, fontSize: 11),
                             ),
                           ],
                         ),
@@ -261,7 +268,41 @@ class _ManualPurchaseDialogState extends State<ManualPurchaseDialog> {
                     ),
                   ],
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 12),
+
+                // Market Selector (India NSE vs US Stocks)
+                Row(
+                  children: [
+                    Expanded(
+                      child: ChoiceChip(
+                        label: const Center(
+                          child: Text('🇮🇳 Indian (NSE)', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold)),
+                        ),
+                        selected: !_isUS,
+                        selectedColor: Colors.blueAccent.withOpacity(0.35),
+                        side: BorderSide(color: !_isUS ? Colors.blueAccent : Colors.white12),
+                        onSelected: (val) {
+                          if (val) setState(() => _selectedExchange = 'NSE');
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: ChoiceChip(
+                        label: const Center(
+                          child: Text('🌐 US Stocks (\$)', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold)),
+                        ),
+                        selected: _isUS,
+                        selectedColor: Colors.blueAccent.withOpacity(0.35),
+                        side: BorderSide(color: _isUS ? Colors.blueAccent : Colors.white12),
+                        onSelected: (val) {
+                          if (val) setState(() => _selectedExchange = 'US');
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 14),
 
                 // Investment Preview Banner
                 Container(
@@ -276,7 +317,7 @@ class _ManualPurchaseDialogState extends State<ManualPurchaseDialog> {
                     children: [
                       const Text('Total Investment:', style: TextStyle(color: Colors.white70, fontSize: 12)),
                       Text(
-                        '₹${_calculatedInvestment.toStringAsFixed(2)}',
+                        '$_currencySymbol${_calculatedInvestment.toStringAsFixed(2)}',
                         style: const TextStyle(color: Colors.greenAccent, fontSize: 18, fontWeight: FontWeight.bold),
                       ),
                     ],
@@ -327,11 +368,11 @@ class _ManualPurchaseDialogState extends State<ManualPurchaseDialog> {
                         controller: _priceController,
                         keyboardType: const TextInputType.numberWithOptions(decimal: true),
                         style: const TextStyle(color: Colors.greenAccent, fontWeight: FontWeight.bold),
-                        decoration: const InputDecoration(
-                          labelText: 'Purchase Price (₹)*',
-                          labelStyle: TextStyle(color: Colors.grey),
+                        decoration: InputDecoration(
+                          labelText: 'Purchase Price ($_currencySymbol)*',
+                          labelStyle: const TextStyle(color: Colors.grey),
                           filled: true,
-                          fillColor: Color(0xFF131722),
+                          fillColor: const Color(0xFF131722),
                         ),
                         validator: (v) {
                           if (v == null || v.trim().isEmpty) return 'Required';
@@ -424,11 +465,11 @@ class _ManualPurchaseDialogState extends State<ManualPurchaseDialog> {
                   controller: _chargesController,
                   keyboardType: const TextInputType.numberWithOptions(decimal: true),
                   style: const TextStyle(color: Colors.white70),
-                  decoration: const InputDecoration(
-                    labelText: 'Brokerage & Other Charges (₹) (Optional)',
-                    labelStyle: TextStyle(color: Colors.grey),
+                  decoration: InputDecoration(
+                    labelText: 'Brokerage & Other Charges ($_currencySymbol) (Optional)',
+                    labelStyle: const TextStyle(color: Colors.grey),
                     filled: true,
-                    fillColor: Color(0xFF131722),
+                    fillColor: const Color(0xFF131722),
                   ),
                 ),
                 const SizedBox(height: 12),
@@ -441,11 +482,11 @@ class _ManualPurchaseDialogState extends State<ManualPurchaseDialog> {
                         controller: _targetController,
                         keyboardType: const TextInputType.numberWithOptions(decimal: true),
                         style: const TextStyle(color: Colors.greenAccent),
-                        decoration: const InputDecoration(
-                          labelText: 'Custom Target (₹)',
-                          labelStyle: TextStyle(color: Colors.grey),
+                        decoration: InputDecoration(
+                          labelText: 'Custom Target ($_currencySymbol)',
+                          labelStyle: const TextStyle(color: Colors.grey),
                           filled: true,
-                          fillColor: Color(0xFF131722),
+                          fillColor: const Color(0xFF131722),
                         ),
                       ),
                     ),
@@ -455,11 +496,11 @@ class _ManualPurchaseDialogState extends State<ManualPurchaseDialog> {
                         controller: _stopLossController,
                         keyboardType: const TextInputType.numberWithOptions(decimal: true),
                         style: const TextStyle(color: Colors.redAccent),
-                        decoration: const InputDecoration(
-                          labelText: 'Custom Stop-Loss (₹)',
-                          labelStyle: TextStyle(color: Colors.grey),
+                        decoration: InputDecoration(
+                          labelText: 'Custom Stop-Loss ($_currencySymbol)',
+                          labelStyle: const TextStyle(color: Colors.grey),
                           filled: true,
-                          fillColor: Color(0xFF131722),
+                          fillColor: const Color(0xFF131722),
                         ),
                       ),
                     ),

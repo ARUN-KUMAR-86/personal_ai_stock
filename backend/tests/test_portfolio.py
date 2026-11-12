@@ -95,3 +95,54 @@ def test_ultra_trade_endpoint():
     assert data["trade"]["quantity"] == 2
     assert "portfolio" in data
 
+
+def test_delete_position():
+    db = get_test_db()
+    trade = PortfolioManager.execute_paper_trade(
+        db=db,
+        symbol="AAPL",
+        exchange="US",
+        action="BUY",
+        quantity=5,
+        price=180.0,
+        reason="Test buy AAPL",
+    )
+    pos = db.query(Position).filter(Position.symbol == "AAPL", Position.is_open == True).first()
+    assert pos is not None
+
+    # Delete position
+    res = PortfolioManager.delete_position(db=db, position_id=pos.id)
+    assert res["status"] == "SUCCESS"
+    assert res["deleted_position_id"] == pos.id
+
+    # Verify deleted
+    deleted_pos = db.query(Position).filter(Position.id == pos.id).first()
+    assert deleted_pos is None
+
+
+def test_manual_sale_with_position_id():
+    db = get_test_db()
+    trade = PortfolioManager.execute_paper_trade(
+        db=db,
+        symbol="NVDA",
+        exchange="NASDAQ",
+        action="BUY",
+        quantity=10,
+        price=120.0,
+        reason="Test buy NVDA",
+    )
+    pos = db.query(Position).filter(Position.symbol == "NVDA", Position.is_open == True).first()
+    assert pos is not None
+
+    # Sell with position_id and exchange alias "US"
+    res = PortfolioManager.record_manual_sale(
+        db=db,
+        position_id=pos.id,
+        symbol="NVDA",
+        exchange="US",
+        selling_price=130.0,
+        quantity_sold=10,
+    )
+    assert res["status"] == "SUCCESS"
+    assert res["realized_pnl"] == 100.0  # (130 - 120) * 10
+    assert res["remaining_quantity"] == 0
