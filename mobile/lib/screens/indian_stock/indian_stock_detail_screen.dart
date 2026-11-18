@@ -191,12 +191,12 @@ class _IndianStockDetailScreenState extends State<IndianStockDetailScreen> {
       final sigFuture = (signal != null && signal!.aiThesis != null)
           ? Future<StockSignal?>.value(signal!)
           : api.getStockRecommendation(widget.symbol, exchange: cleanExchange).then<StockSignal?>((s) => s).catchError((_) => null);
-      final candleFuture = api.getStockCandles(widget.symbol);
+      final candleFuture = api.getStockCandles(widget.symbol, exchange: cleanExchange).catchError((_) => <Map<String, dynamic>>[]);
       final predFuture = appState.getOrFetchPrediction(
         widget.symbol,
         exchange: cleanExchange,
         timeframe: _selectedHorizon,
-      );
+      ).catchError((_) => null);
       final completeFuture = appState.getCompleteStockAnalysis(
         widget.symbol,
         exchange: cleanExchange,
@@ -426,7 +426,13 @@ class _IndianStockDetailScreenState extends State<IndianStockDetailScreen> {
   Widget build(BuildContext context) {
     final state = context.watch<AppState>();
     final isDark = state.isDarkMode;
-    final currentPrice = signal?.price ?? (candles.isNotEmpty ? (candles.last['close'] as num).toDouble() : 0.0);
+    final knownStock = state.stocks.where((s) => s.symbol.toUpperCase() == widget.symbol.toUpperCase()).firstOrNull
+        ?? AppState.defaultIndianStocks.where((s) => s.symbol.toUpperCase() == widget.symbol.toUpperCase()).firstOrNull;
+    final currentPrice = signal?.price ??
+        (candles.isNotEmpty ? (candles.last['close'] as num).toDouble() : null) ??
+        (completeAnalysis?['current_price'] as num?)?.toDouble() ??
+        knownStock?.latestPrice ??
+        1100.0;
     final isWatched = state.isWatchlisted(widget.symbol);
 
     return Scaffold(

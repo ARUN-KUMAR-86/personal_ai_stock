@@ -83,23 +83,41 @@ class _LiveMonitoringScreenState extends State<LiveMonitoringScreen> {
     // Filter feed items based on selected category
     List<Map<String, dynamic>> items = [];
 
+    // Ensure we have active universe stocks
+    final activeUniverse = state.stocks.isNotEmpty
+        ? state.stocks
+        : (state.isUSMarket ? AppState.defaultUSStocks : AppState.defaultIndianStocks);
+
     if (selectedFilter == 'TRENDING') {
-      items = state.trendingStocks.isNotEmpty
-          ? List.from(state.trendingStocks)
-          : _mapUniverseToItems(state.stocks);
+      if (state.trendingStocks.isNotEmpty) {
+        items = List.from(state.trendingStocks);
+      } else {
+        final trending = activeUniverse
+            .where((s) => s.isHighPriority || s.signalStrength >= 75 || s.percentChange.abs() >= 1.0)
+            .toList();
+        items = _mapUniverseToItems(trending.isNotEmpty ? trending : activeUniverse);
+      }
     } else if (selectedFilter == 'GAINERS') {
-      items = state.topGainers.isNotEmpty
-          ? List.from(state.topGainers)
-          : _mapUniverseToItems(state.stocks.where((s) => s.percentChange > 0).toList());
+      if (state.topGainers.isNotEmpty) {
+        items = List.from(state.topGainers);
+      } else {
+        final gainers = List.of(activeUniverse)..sort((a, b) => b.percentChange.compareTo(a.percentChange));
+        final posGainers = gainers.where((s) => s.percentChange > 0).toList();
+        items = _mapUniverseToItems(posGainers.isNotEmpty ? posGainers : gainers.take(8).toList());
+      }
     } else if (selectedFilter == 'LOSERS') {
-      items = state.topLosers.isNotEmpty
-          ? List.from(state.topLosers)
-          : _mapUniverseToItems(state.stocks.where((s) => s.percentChange < 0).toList());
+      if (state.topLosers.isNotEmpty) {
+        items = List.from(state.topLosers);
+      } else {
+        final losers = List.of(activeUniverse)..sort((a, b) => a.percentChange.compareTo(b.percentChange));
+        final negLosers = losers.where((s) => s.percentChange < 0).toList();
+        items = _mapUniverseToItems(negLosers.isNotEmpty ? negLosers : losers.take(8).toList());
+      }
     } else if (selectedFilter == 'WATCHLIST') {
-      items = _mapUniverseToItems(state.stocks.where((s) => state.isWatchlisted(s.symbol)).toList());
+      items = _mapUniverseToItems(activeUniverse.where((s) => state.isWatchlisted(s.symbol)).toList());
     } else if (selectedFilter == 'RECENT') {
       final recentSet = state.recentAnalyzedStocks.toSet();
-      items = _mapUniverseToItems(state.stocks.where((s) => recentSet.contains(s.symbol.toUpperCase())).toList());
+      items = _mapUniverseToItems(activeUniverse.where((s) => recentSet.contains(s.symbol.toUpperCase())).toList());
       // If none found in local universe, build stub items from recent symbols
       if (items.isEmpty && state.recentAnalyzedStocks.isNotEmpty) {
         items = state.recentAnalyzedStocks.map((sym) => {
@@ -113,14 +131,17 @@ class _LiveMonitoringScreenState extends State<LiveMonitoringScreen> {
           'signal_type': 'RECENTLY RESEARCHED',
         }).toList();
       }
+    } else if (selectedFilter == 'BULLISH') {
+      final bullish = activeUniverse.where((s) => s.percentChange > 0 || s.latestSignal.contains('BUY') || s.isBullish).toList();
+      items = _mapUniverseToItems(bullish.isNotEmpty ? bullish : activeUniverse);
+    } else if (selectedFilter == 'BEARISH') {
+      final bearish = activeUniverse.where((s) => s.percentChange < 0 || s.latestSignal.contains('SELL') || s.isBearish).toList();
+      items = _mapUniverseToItems(bearish.isNotEmpty ? bearish : activeUniverse);
     } else {
       // Default: ALL
       items = List.from(state.liveFeed);
-      if (items.isEmpty && state.stocks.isNotEmpty) {
-        items = _mapUniverseToItems(state.stocks);
-      }
-      if (items.isEmpty && state.trendingStocks.isNotEmpty) {
-        items = List.from(state.trendingStocks);
+      if (items.isEmpty) {
+        items = _mapUniverseToItems(activeUniverse);
       }
     }
 
@@ -135,14 +156,8 @@ class _LiveMonitoringScreenState extends State<LiveMonitoringScreen> {
       }
     }).toList();
 
-    if (items.isEmpty && state.isUSMarket) {
-      items = _mapUniverseToItems(AppState.defaultUSStocks);
-    }
-
-    if (selectedFilter == 'BULLISH') {
-      items = items.where((it) => (it['supertrend_direction'] == 'BULLISH' || ((it['percent_change'] ?? 0) as num) > 0)).toList();
-    } else if (selectedFilter == 'BEARISH') {
-      items = items.where((it) => (it['supertrend_direction'] == 'BEARISH' || ((it['percent_change'] ?? 0) as num) < 0)).toList();
+    if (items.isEmpty && selectedFilter == 'ALL') {
+      items = _mapUniverseToItems(state.isUSMarket ? AppState.defaultUSStocks : AppState.defaultIndianStocks);
     }
 
     // Local filter by search query if any
@@ -302,13 +317,32 @@ class _LiveMonitoringScreenState extends State<LiveMonitoringScreen> {
                 child: Center(
                   child: Column(
                     children: [
-                      Icon(Icons.sensors_off, size: 48, color: Colors.grey.shade400),
+                      Icon(
+                        selectedFilter == 'WATCHLIST'
+                            ? Icons.star_border
+                            : (selectedFilter == 'RECENT' ? Icons.history : Icons.sensors_off),
+                        size: 48,
+                        color: Colors.grey.shade400,
+                      ),
                       const SizedBox(height: 12),
                       Text(
-                        'No ${state.isIndianMarket ? "Indian" : "US"} stocks match this filter',
+                        selectedFilter == 'WATCHLIST'
+                            ? 'Your Watchlist is currently empty'
+                            : (selectedFilter == 'RECENT'
+                                ? 'No recently analyzed stocks yet'
+                                : 'No ${state.isIndianMarket ? "Indian" : "US"} stocks match this filter'),
                         style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
                       ),
                       const SizedBox(height: 6),
+                      Text(
+                        selectedFilter == 'WATCHLIST'
+                            ? 'Tap the ⭐ icon on any stock card to track it here.'
+                            : (selectedFilter == 'RECENT'
+                                ? 'Tap any stock card above to generate complete AI research.'
+                                : 'Try switching categories or tap Reset below.'),
+                        style: TextStyle(fontSize: 12, color: isDark ? Colors.white60 : Colors.black54),
+                      ),
+                      const SizedBox(height: 12),
                       TextButton.icon(
                         icon: const Icon(Icons.refresh),
                         label: const Text('Reset Category Filters'),
@@ -411,6 +445,12 @@ class _LiveMonitoringScreenState extends State<LiveMonitoringScreen> {
                 isDark: isDark,
                 onTap: () async {
                   if (!isIndia) {
+                    setState(() {
+                      selectedFilter = 'ALL';
+                      searchQuery = '';
+                      _searchController.clear();
+                      _onlineSearchResults = [];
+                    });
                     await state.selectMarket('INDIA');
                   }
                 },
@@ -431,6 +471,12 @@ class _LiveMonitoringScreenState extends State<LiveMonitoringScreen> {
                 isDark: isDark,
                 onTap: () async {
                   if (!isUS) {
+                    setState(() {
+                      selectedFilter = 'ALL';
+                      searchQuery = '';
+                      _searchController.clear();
+                      _onlineSearchResults = [];
+                    });
                     await state.selectMarket('US');
                   }
                 },
@@ -890,9 +936,17 @@ class _LiveMonitoringScreenState extends State<LiveMonitoringScreen> {
   Widget _filterChip(String filterKey, String label, bool isDark) {
     final isSelected = selectedFilter == filterKey;
     return GestureDetector(
-      onTap: () => setState(() => selectedFilter = filterKey),
+      behavior: HitTestBehavior.opaque,
+      onTap: () {
+        setState(() {
+          selectedFilter = filterKey;
+          searchQuery = '';
+          _searchController.clear();
+          _onlineSearchResults = [];
+        });
+      },
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
+        padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
         decoration: BoxDecoration(
           color: isSelected
               ? const Color(0xFF2563EB)
@@ -902,7 +956,17 @@ class _LiveMonitoringScreenState extends State<LiveMonitoringScreen> {
             color: isSelected
                 ? const Color(0xFF2563EB)
                 : (isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0)),
+            width: isSelected ? 1.5 : 1.0,
           ),
+          boxShadow: isSelected
+              ? [
+                  BoxShadow(
+                    color: const Color(0xFF2563EB).withOpacity(0.3),
+                    blurRadius: 6,
+                    offset: const Offset(0, 2),
+                  ),
+                ]
+              : null,
         ),
         child: Text(
           label,
