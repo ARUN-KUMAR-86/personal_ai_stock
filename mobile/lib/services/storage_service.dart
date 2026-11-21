@@ -61,8 +61,8 @@ class StorageService {
     // 2. Check if local ADB reverse port 8000 daemon is active on the device
     try {
       final res = await http
-          .get(Uri.parse('http://127.0.0.1:8000/api/v1/market-status'))
-          .timeout(const Duration(milliseconds: 1200));
+          .get(Uri.parse('http://127.0.0.1:8000/api/v1/health'))
+          .timeout(const Duration(milliseconds: 1500));
       if (res.statusCode == 200) {
         _cachedActiveBaseUrl = 'http://127.0.0.1:8000';
         _lastHealthCheckTime = now;

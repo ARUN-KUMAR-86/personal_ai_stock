@@ -439,7 +439,33 @@ class _PortfolioScreenState extends State<PortfolioScreen> {
       appBar: AppBar(
         backgroundColor: AppTheme.card(isDark),
         elevation: 0,
-        title: const Text('PORTFOLIO & TRADES', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 17, letterSpacing: 0.5)),
+        title: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              'PORTFOLIO & TRADES',
+              style: TextStyle(fontWeight: FontWeight.w800, fontSize: 17, letterSpacing: 0.5),
+            ),
+            const SizedBox(width: 6),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF59E0B).withOpacity(0.18),
+                borderRadius: BorderRadius.circular(4),
+                border: Border.all(color: const Color(0xFFF59E0B), width: 1.0),
+              ),
+              child: const Text(
+                'DEV',
+                style: TextStyle(
+                  fontSize: 9.5,
+                  fontWeight: FontWeight.w900,
+                  color: Color(0xFFF59E0B),
+                  letterSpacing: 0.6,
+                ),
+              ),
+            ),
+          ],
+        ),
         actions: [
           IconButton(
             icon: const Icon(Icons.bolt, color: Colors.amberAccent),

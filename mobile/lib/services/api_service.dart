@@ -77,13 +77,16 @@ class ApiService {
     throw Exception('Failed to load stocks universe');
   }
 
-  Future<List<Map<String, dynamic>>> getStockCandles(String symbol, {String timeframe = '1d'}) async {
-    final url = await _getUrl('/stocks/$symbol/candles?timeframe=$timeframe');
-    final res = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 8));
-    if (res.statusCode == 200) {
-      final List list = jsonDecode(res.body);
-      return list.map((item) => Map<String, dynamic>.from(item as Map)).toList();
-    }
+  Future<List<Map<String, dynamic>>> getStockCandles(String symbol, {String? exchange, String timeframe = '1d'}) async {
+    try {
+      final exParam = (exchange != null && exchange.isNotEmpty) ? '&exchange=$exchange' : '';
+      final url = await _getUrl('/stocks/$symbol/candles?timeframe=$timeframe$exParam');
+      final res = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 8));
+      if (res.statusCode == 200) {
+        final List list = jsonDecode(res.body);
+        return list.map((item) => Map<String, dynamic>.from(item as Map)).toList();
+      }
+    } catch (_) {}
     return [];
   }
 
