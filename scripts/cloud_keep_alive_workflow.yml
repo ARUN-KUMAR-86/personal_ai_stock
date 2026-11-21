@@ -1,10 +1,16 @@
+# Optional 24/7 Cloud Keep-Alive & Position Monitor Workflow
+# If you want GitHub Actions to run this automatically:
+# 1. Generate a GitHub Personal Access Token with the 'workflow' scope.
+# 2. Copy this file into .github/workflows/cloud_keep_alive.yml
+# Or alternatively, use a free online cron (such as cron-job.org or UptimeRobot)
+# to ping https://personal-ai-stock-backend.onrender.com/health every 10 minutes.
+
 name: Cloud Keep-Alive & 24/7 Position Monitor
 
 on:
   schedule:
-    # Runs every 10 minutes to prevent Render free-tier container from sleeping (15-minute inactivity limit)
     - cron: '*/10 * * * *'
-  workflow_dispatch: # Allows manual trigger from GitHub Actions tab
+  workflow_dispatch:
 
 jobs:
   keep_alive:
@@ -18,9 +24,6 @@ jobs:
           echo "Pinging 24/7 Cloud Backend..."
           HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" -m 35 "https://personal-ai-stock-backend.onrender.com/health" || echo "FAILED")
           echo "Health Ping HTTP Status: $HTTP_CODE"
-          if [ "$HTTP_CODE" != "200" ]; then
-            echo "Warning: Health endpoint returned $HTTP_CODE (may be waking up)"
-          fi
 
       - name: Trigger Real-Time Position Monitor & Auto-Sell Check
         run: |
