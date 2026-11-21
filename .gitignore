@@ -11,6 +11,7 @@ htmlcov/
 
 # Local Database & Secrets
 *.db
+*.sqlite
 *.sqlite3
 .env
 *.env
@@ -36,12 +37,26 @@ mobile/android/app/build/
 mobile/android/app/*.keystore
 mobile/android/app/*.jks
 *.apk
+*.aab
+
+# Binary & Third-Party Binaries
+deployment/bin/
+*.exe
+*.bin
+
+# Backups & Temporary Files
+*.bak
+*.backup
+*~
+*.tmp
 
 # IDE & OS
 .vscode/
 .idea/
+*.iml
 *.swp
 *.swo
-.DS_Store
+*.DS_Store
 Thumbs.db
 *.log
+scripts/*.log

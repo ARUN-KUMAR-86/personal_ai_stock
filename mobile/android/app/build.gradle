@@ -42,7 +42,7 @@ android {
     }
 
     defaultConfig {
-        applicationId "com.personal.aistock.dev"
+        applicationId "com.personal.aistock"
         minSdk 23
         targetSdk 35
         versionCode flutterVersionCode.toInteger()
