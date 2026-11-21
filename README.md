@@ -138,40 +138,36 @@ This utility:
 
 ---
 
-## 6. Mobile Application (Android Phone)
+## 6. Mobile Application (Android Phone — 100% Independent)
 
-### Connecting Your Android Phone to the Linux Backend
-When running on an Android phone, `localhost` refers to the phone itself, **not** your Linux computer.
-1. Find your Linux workstation's local IP address on Wi-Fi:
-   ```bash
-   ip -br addr show | grep -E 'wlan0|wlp|eth0'
-   # Example output: 192.168.1.105
-   ```
-2. In the Flutter App, navigate to **More > App Settings & LAN IP**.
-3. Set the Backend Server URL to:
-   ```
-   http://192.168.1.105:8000
-   ```
-4. Tap **Save & Test** to confirm connectivity.
+### Independent 24/7 Cloud Connectivity
+The Zed Android mobile application is built to run **completely independently** on your Android smartphone over Wi-Fi or Cellular Mobile Data (4G/5G). **Your laptop does NOT need to remain switched ON.**
+
+- **Default Cloud Backend**: `https://personal-ai-stock-backend.onrender.com`
+- **Cloud Keep-Alive**: Powered by automated GitHub Actions (`.github/workflows/cloud_keep_alive.yml`) running in the cloud every 10 minutes to keep your Render backend warm and execute position monitoring 24/7 with zero dependency on local workstations.
+- **Self-Healing Fallback**: If Render is waking from a cold start, the app displays a smooth background reconnect status and automatically updates live market data once connected.
+- **Custom Backend URL**: Navigate to **More > Settings** to verify connectivity or set a custom server if desired. Tap **Reset to 24/7 Cloud** anytime to restore default cloud connectivity.
 
 ### Building the Android APK
 On your Linux machine with Flutter SDK installed:
 ```bash
 cd /home/arun/personal-ai-stock/mobile
 flutter pub get
-flutter build apk --release
+flutter build apk --release --split-per-abi
 ```
 The installable release APK will be generated at:
 ```
-mobile/build/app/outputs/flutter-apk/app-release.apk
+mobile/build/app/outputs/flutter-apk/app-arm64-v8a-release.apk
 ```
 
 ### Installing APK on Your Android Phone
-1. Connect your Android phone to your Linux computer via USB with USB Debugging enabled:
+1. One-click direct install to connected phone:
    ```bash
-   adb install -r mobile/build/app/outputs/flutter-apk/app-release.apk
+   cd /home/arun/personal-ai-stock
+   ./scripts/auto_install_phone.sh
    ```
-2. Or transfer the `app-release.apk` file to your phone via Google Drive, WhatsApp, or local transfer, and tap the APK to install.
+2. Or transfer `mobile/build/app/outputs/flutter-apk/app-arm64-v8a-release.apk` to your phone via Google Drive, WhatsApp, or local transfer, and tap the APK to install.
+3. Once installed, unplug the USB cable. The app works anywhere using your phone's internet connection.
 
 ---
 

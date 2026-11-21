@@ -33,14 +33,14 @@ class ApiService {
   Future<bool> checkHealth() async {
     try {
       final url = await _getUrl('/health');
-      final res = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 8));
+      final res = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 15));
       if (res.statusCode == 200) return true;
     } catch (_) {}
 
-    // Resilient Cloud Fallback with wake-up handling (takes up to 25 seconds for sleeping Render):
+    // Resilient Cloud Fallback with wake-up handling (takes up to 35 seconds for sleeping Render):
     try {
       const cloudUrl = StorageService.cloudProductionUrl;
-      final res = await http.get(Uri.parse('$cloudUrl/health')).timeout(const Duration(seconds: 25));
+      final res = await http.get(Uri.parse('$cloudUrl/health')).timeout(const Duration(seconds: 35));
       if (res.statusCode == 200) {
         await StorageService.setBaseUrl(cloudUrl);
         return true;
@@ -464,7 +464,7 @@ class ApiService {
     try {
       final url = await _getUrl('/portfolio/ultra-sync?run_auto_sell=$runAutoSell');
       final headers = await _headers();
-      final res = await http.get(Uri.parse(url), headers: headers).timeout(const Duration(seconds: 5));
+      final res = await http.get(Uri.parse(url), headers: headers).timeout(const Duration(seconds: 15));
       sw.stop();
       if (res.statusCode == 200) {
         final Map<String, dynamic> data = jsonDecode(res.body);

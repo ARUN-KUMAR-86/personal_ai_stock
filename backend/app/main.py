@@ -140,7 +140,14 @@ def get_setting(key: str, db: Session = Depends(get_db)):
     record = db.query(AppSetting).filter(AppSetting.key == key).first()
     if not record:
         return {"key": key, "value": None}
-    return {"key": key, "value": record.value}
+    val = record.value
+    # Protect sensitive credentials and API keys
+    if any(s in key.upper() for s in ("KEY", "SECRET", "TOKEN", "PASSWORD")) and val:
+        if len(val) > 8:
+            val = f"{val[:4]}...{val[-4:]}"
+        else:
+            val = "***REDACTED***"
+    return {"key": key, "value": val}
 
 
 @app.get("/")
@@ -172,10 +179,13 @@ def dashboard():
 @app.get("/app.apk")
 def download_app_apk():
     """Serves the latest compiled Android APK for direct phone download & installation."""
+    base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
     apk_paths = [
-        "/home/arun/personal-ai-stock/app-arm64-v8a-release.apk",
-        "/home/arun/personal-ai-stock/mobile/build/app/outputs/flutter-apk/app-arm64-v8a-release.apk",
-        "/home/arun/personal-ai-stock/mobile/build/app/outputs/flutter-apk/app-debug.apk",
+        os.path.join(base_dir, "mobile", "build", "app", "outputs", "flutter-apk", "app-arm64-v8a-release.apk"),
+        os.path.join(base_dir, "mobile", "build", "app", "outputs", "flutter-apk", "app-release.apk"),
+        os.path.join(base_dir, "mobile", "build", "app", "outputs", "flutter-apk", "app-debug.apk"),
+        os.path.join(base_dir, "app-arm64-v8a-release.apk"),
+        os.path.join(base_dir, "app-main-arm64-v8a-release.apk"),
     ]
     for p in apk_paths:
         if os.path.exists(p):

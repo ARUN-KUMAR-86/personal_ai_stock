@@ -87,10 +87,10 @@ class EnsembleStockPredictor:
 
         return features[self.FEATURE_NAMES].fillna(0.0)
 
-    def _train_models_on_history(self, df: pd.DataFrame, horizon_bars: int = 3):
+    def _train_models_on_history(self, df: pd.DataFrame, horizon_bars: int = 3) -> Tuple[Optional[Any], Optional[Any]]:
         """Chronologically trains Gradient Boosting and Random Forest models on available bars."""
         if len(df) < 60:
-            return
+            return None, None
 
         features = self._extract_features(df)
         c = df["close"]
@@ -110,7 +110,7 @@ class EnsembleStockPredictor:
         y = np.where(ret > 0.8, 2, np.where(ret < -0.8, 0, 1))
 
         if len(X) < 40 or len(np.unique(y)) < 2:
-            return
+            return None, None
 
         try:
             gb = HistGradientBoostingClassifier(max_iter=20, max_leaf_nodes=10, random_state=42)
@@ -122,8 +122,10 @@ class EnsembleStockPredictor:
             self._rf_model = rf
 
             self._models_trained = True
+            return gb, rf
         except Exception as e:
             logger.debug(f"Note on ensemble model training: {e}")
+            return None, None
 
     def predict(
         self,
@@ -155,21 +157,23 @@ class EnsembleStockPredictor:
         macro_res = GlobalMarketEngine.evaluate_stock_macro_alignment(symbol, sector=sector, stock_df=df)
 
         # 2. Machine Learning Probabilities
-        self._train_models_on_history(df, horizon_bars=horizon_bars)
+        local_gb, local_rf = self._train_models_on_history(df, horizon_bars=horizon_bars)
+        active_gb = local_gb or self._gb_model
+        active_rf = local_rf or self._rf_model
         
         # Default statistical probabilities
         prob_down = 0.33
         prob_sideways = 0.34
         prob_up = 0.33
 
-        if self._models_trained and self._gb_model and self._rf_model:
+        if active_gb and active_rf:
             latest_feat = self._extract_features(df).iloc[[-1]]
             try:
-                gb_probs = self._gb_model.predict_proba(latest_feat)[0]
-                rf_probs = self._rf_model.predict_proba(latest_feat)[0]
+                gb_probs = active_gb.predict_proba(latest_feat)[0]
+                rf_probs = active_rf.predict_proba(latest_feat)[0]
                 
                 # Align probabilities if model has 3 classes
-                classes = list(self._gb_model.classes_)
+                classes = list(active_gb.classes_)
                 p_map = {0: 0.0, 1: 0.0, 2: 0.0}
                 for idx, c_val in enumerate(classes):
                     p_map[c_val] = (gb_probs[idx] * 0.6) + (rf_probs[idx] * 0.4)

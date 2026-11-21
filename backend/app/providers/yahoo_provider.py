@@ -157,9 +157,10 @@ class YahooMarketDataProvider(BaseMarketDataProvider):
                     pass
 
             if price is None:
-                # Fallback quote so server never freezes on slow/delisted tickers
-                price = 100.0
-                prev_close = 100.0
+                # If cached quote exists, return stale cache rather than arbitrary 100.0 price
+                if cache_key in self._quote_cache:
+                    return self._quote_cache[cache_key][0]
+                raise MarketDataProviderError(f"Market quote currently unavailable for {symbol} on {exchange}")
 
             quote = QuoteRead(
                 symbol=symbol.upper(),

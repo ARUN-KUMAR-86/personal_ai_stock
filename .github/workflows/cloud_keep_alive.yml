@@ -1,0 +1,29 @@
+name: Cloud Keep-Alive & 24/7 Position Monitor
+
+on:
+  schedule:
+    # Runs every 10 minutes to prevent Render free-tier container from sleeping (15-minute inactivity limit)
+    - cron: '*/10 * * * *'
+  workflow_dispatch: # Allows manual trigger from GitHub Actions tab
+
+jobs:
+  keep_alive:
+    name: Ping Cloud Backend & Check Positions
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Health Check Ping (Keep Container Warm)
+        run: |
+          echo "Pinging 24/7 Cloud Backend..."
+          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" -m 35 "https://personal-ai-stock-backend.onrender.com/health" || echo "FAILED")
+          echo "Health Ping HTTP Status: $HTTP_CODE"
+          if [ "$HTTP_CODE" != "200" ]; then
+            echo "Warning: Health endpoint returned $HTTP_CODE (may be waking up)"
+          fi
+
+      - name: Trigger Real-Time Position Monitor & Auto-Sell Check
+        run: |
+          echo "Triggering auto-sell & position threshold checks..."
+          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" -m 35 -X POST "https://personal-ai-stock-backend.onrender.com/api/v1/portfolio/auto-sell-check" || echo "FAILED")
+          echo "Position Monitor Check HTTP Status: $HTTP_CODE"
