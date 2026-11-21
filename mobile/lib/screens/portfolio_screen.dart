@@ -319,67 +319,90 @@ class _PortfolioScreenState extends State<PortfolioScreen> {
           ),
           const SizedBox(height: 14),
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Invested', style: TextStyle(color: AppTheme.textMuted(isDark), fontSize: 10.5)),
-                  const SizedBox(height: 2),
-                  Text(
-                    '$currencySymbol${invested.toStringAsFixed(2)}',
-                    style: AppTheme.mono(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                      color: AppTheme.textPrimary(isDark),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Invested', style: TextStyle(color: AppTheme.textMuted(isDark), fontSize: 10.5)),
+                    const SizedBox(height: 2),
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        '$currencySymbol${invested.toStringAsFixed(2)}',
+                        style: AppTheme.mono(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          color: AppTheme.textPrimary(isDark),
+                        ),
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Unrealized P&L', style: TextStyle(color: AppTheme.textMuted(isDark), fontSize: 10.5)),
-                  const SizedBox(height: 2),
-                  Text(
-                    '${unrealized >= 0 ? '+' : ''}$currencySymbol${unrealized.toStringAsFixed(2)}',
-                    style: AppTheme.mono(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                      color: unrealized >= 0 ? AppTheme.profit(isDark) : AppTheme.loss(isDark),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Unrealized P&L', style: TextStyle(color: AppTheme.textMuted(isDark), fontSize: 10.5)),
+                    const SizedBox(height: 2),
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        '${unrealized >= 0 ? '+' : ''}$currencySymbol${unrealized.toStringAsFixed(2)}',
+                        style: AppTheme.mono(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          color: unrealized >= 0 ? AppTheme.profit(isDark) : AppTheme.loss(isDark),
+                        ),
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Realized P&L', style: TextStyle(color: AppTheme.textMuted(isDark), fontSize: 10.5)),
-                  const SizedBox(height: 2),
-                  Text(
-                    '${realized >= 0 ? '+' : ''}$currencySymbol${realized.toStringAsFixed(2)}',
-                    style: AppTheme.mono(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                      color: realized >= 0 ? AppTheme.profit(isDark) : AppTheme.loss(isDark),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Realized P&L', style: TextStyle(color: AppTheme.textMuted(isDark), fontSize: 10.5)),
+                    const SizedBox(height: 2),
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        '${realized >= 0 ? '+' : ''}$currencySymbol${realized.toStringAsFixed(2)}',
+                        style: AppTheme.mono(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          color: realized >= 0 ? AppTheme.profit(isDark) : AppTheme.loss(isDark),
+                        ),
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Holdings', style: TextStyle(color: AppTheme.textMuted(isDark), fontSize: 10.5)),
-                  const SizedBox(height: 2),
-                  Text(
-                    '$holdingsCount Stocks',
-                    style: AppTheme.mono(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                      color: AppTheme.textPrimary(isDark),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Holdings', style: TextStyle(color: AppTheme.textMuted(isDark), fontSize: 10.5)),
+                    const SizedBox(height: 2),
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        '$holdingsCount Stocks',
+                        style: AppTheme.mono(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          color: AppTheme.textPrimary(isDark),
+                        ),
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ],
           ),
@@ -443,8 +466,8 @@ class _PortfolioScreenState extends State<PortfolioScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             const Text(
-              'PORTFOLIO & TRADES',
-              style: TextStyle(fontWeight: FontWeight.w800, fontSize: 17, letterSpacing: 0.5),
+              'ZED PORTFOLIO',
+              style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16, letterSpacing: 0.5),
             ),
             const SizedBox(width: 6),
             Container(

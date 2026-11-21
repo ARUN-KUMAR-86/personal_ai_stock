@@ -42,12 +42,27 @@ android {
     }
 
     defaultConfig {
-        applicationId "com.personal.aistock"
+        applicationId "com.personal.aistock.dev"
         minSdk 23
         targetSdk 35
         versionCode flutterVersionCode.toInteger()
         versionName flutterVersionName
         multiDexEnabled true
+        resValue "string", "app_name", "Zed Dev"
+    }
+
+    flavorDimensions "default"
+    productFlavors {
+        dev {
+            dimension "default"
+            applicationId "com.personal.aistock.dev"
+            resValue "string", "app_name", "Zed Dev"
+        }
+        prod {
+            dimension "default"
+            applicationId "com.personal.aistock"
+            resValue "string", "app_name", "Zed"
+        }
     }
 
     buildTypes {

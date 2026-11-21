@@ -6,6 +6,7 @@ PKG="com.personal.aistock.dev"
 
 APK=""
 for cand in \
+  "$ROOT_DIR/mobile/build/app/outputs/flutter-apk/app-dev-release.apk" \
   "$ROOT_DIR/mobile/build/app/outputs/flutter-apk/app-dev-arm64-v8a-release.apk" \
   "$ROOT_DIR/mobile/build/app/outputs/flutter-apk/app-arm64-v8a-release.apk" \
   "$ROOT_DIR/mobile/build/app/outputs/flutter-apk/app-release.apk"; do
@@ -30,7 +31,8 @@ for i in {1..60}; do
     RES=$?
     if [ $RES -eq 0 ]; then
       echo "=== ZED DEV INSTALLATION SUCCESSFUL ==="
-      $ADB -s "$DEV_ID" reverse --remove-all 2>/dev/null || true
+      echo "Forwarding ADB reverse port 8000 for local USB debugging..."
+      $ADB -s "$DEV_ID" reverse tcp:8000 tcp:8000 2>/dev/null || true
       echo "Launching Zed Dev app on device..."
       $ADB -s "$DEV_ID" shell monkey -p "$PKG" -c android.intent.category.LAUNCHER 1 >/dev/null 2>&1
       exit 0

@@ -23,6 +23,9 @@ class StorageService {
   /// Primary Production Cloud URL (Render 24/7)
   static const String cloudProductionUrl = 'https://personal-ai-stock-backend.onrender.com';
 
+  /// Standard Local Development URL (for USB debugging with adb reverse)
+  static const String localDevUrl = 'http://127.0.0.1:8000';
+
   /// Compile-time configured API URL passed via `--dart-define=API_URL=https://...`
   static const String definedApiUrl = String.fromEnvironment('API_URL', defaultValue: '');
 
@@ -36,6 +39,10 @@ class StorageService {
   }
 
   static String? _cachedActiveBaseUrl;
+
+  static void invalidateCachedUrl() {
+    _cachedActiveBaseUrl = null;
+  }
 
   static Future<String> getBaseUrl() async {
     if (_cachedActiveBaseUrl != null && _cachedActiveBaseUrl!.isNotEmpty) {
@@ -62,7 +69,7 @@ class StorageService {
       try {
         final res = await http
             .get(Uri.parse('$saved/api/v1/health'))
-            .timeout(const Duration(milliseconds: 800));
+            .timeout(const Duration(milliseconds: 700));
         if (res.statusCode == 200) {
           _cachedActiveBaseUrl = saved;
           return saved;

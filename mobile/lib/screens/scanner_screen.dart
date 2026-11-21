@@ -990,52 +990,55 @@ class _ScannerScreenState extends State<ScannerScreen> {
         title: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Row(
-              children: [
-                InkWell(
-                  onTap: () => state.toggleWatchlist(stock.symbol, exchange: stock.exchange),
-                  borderRadius: BorderRadius.circular(16),
-                  child: Padding(
-                    padding: const EdgeInsets.only(right: 8),
-                    child: Icon(
-                      state.isWatchlisted(stock.symbol) ? Icons.star : Icons.star_border,
-                      color: state.isWatchlisted(stock.symbol)
-                          ? Colors.amber
-                          : (isDark ? Colors.grey.shade500 : const Color(0xFF94A3B8)),
-                      size: 18,
+            Expanded(
+              child: Row(
+                children: [
+                  InkWell(
+                    onTap: () => state.toggleWatchlist(stock.symbol, exchange: stock.exchange),
+                    borderRadius: BorderRadius.circular(16),
+                    child: Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: Icon(
+                        state.isWatchlisted(stock.symbol) ? Icons.star : Icons.star_border,
+                        color: state.isWatchlisted(stock.symbol)
+                            ? Colors.amber
+                            : (isDark ? Colors.grey.shade500 : const Color(0xFF94A3B8)),
+                        size: 18,
+                      ),
                     ),
                   ),
-                ),
-                Text(
-                  stock.symbol,
-                  style: TextStyle(
-                    color: theme.colorScheme.onSurface,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 15,
-                  ),
-                ),
-                const SizedBox(width: 6),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-                  decoration: BoxDecoration(
-                    color: isDark ? const Color(0xFF1F2937) : const Color(0xFFF1F5F9),
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: Text(
-                    stock.exchange,
+                  Text(
+                    stock.symbol,
                     style: TextStyle(
-                      color: isDark ? Colors.grey.shade400 : const Color(0xFF64748B),
-                      fontSize: 9,
+                      color: theme.colorScheme.onSurface,
                       fontWeight: FontWeight.bold,
+                      fontSize: 15,
                     ),
                   ),
-                ),
-                if (stock.priority.isNotEmpty) ...[
                   const SizedBox(width: 6),
-                  PriorityBadge(priority: stock.explicitPriority ?? stock.priority, fontSize: 9.0),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                    decoration: BoxDecoration(
+                      color: isDark ? const Color(0xFF1F2937) : const Color(0xFFF1F5F9),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(
+                      stock.exchange,
+                      style: TextStyle(
+                        color: isDark ? Colors.grey.shade400 : const Color(0xFF64748B),
+                        fontSize: 9,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                  if (stock.priority.isNotEmpty) ...[
+                    const SizedBox(width: 6),
+                    PriorityBadge(priority: stock.explicitPriority ?? stock.priority, fontSize: 9.0),
+                  ],
                 ],
-              ],
+              ),
             ),
+            const SizedBox(width: 8),
             Row(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -1105,12 +1108,16 @@ class _ScannerScreenState extends State<ScannerScreen> {
                   children: [
                     const Icon(Icons.auto_awesome, color: Colors.purpleAccent, size: 10),
                     const SizedBox(width: 4),
-                    Text(
-                      '🤖 ${stock.predictedDirection ?? (stock.isBullish ? "BULLISH" : "BEARISH")} target $curr${stock.predictedTarget?.toStringAsFixed(2) ?? "--"} (${stock.predictedConfidence?.toStringAsFixed(0) ?? "75"}% conf • ${isMonth ? "📅 1-MO" : "⚡ 1-DAY"})',
-                      style: TextStyle(
-                        color: stock.isBullish ? Colors.greenAccent : Colors.redAccent,
-                        fontSize: 10,
-                        fontWeight: FontWeight.bold,
+                    Flexible(
+                      child: Text(
+                        '🤖 ${stock.predictedDirection ?? (stock.isBullish ? "BULLISH" : "BEARISH")} target $curr${stock.predictedTarget?.toStringAsFixed(2) ?? "--"} (${stock.predictedConfidence?.toStringAsFixed(0) ?? "75"}% conf • ${isMonth ? "📅 1-MO" : "⚡ 1-DAY"})',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: stock.isBullish ? Colors.greenAccent : Colors.redAccent,
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ),
                   ],

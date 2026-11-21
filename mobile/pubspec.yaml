@@ -1,7 +1,7 @@
 name: personal_ai_stock
 description: "Zed — Institutional AI Stock Intelligence & Real-Time Live Monitoring"
 publish_to: "none"
-version: 4.2.2+4202
+version: 4.2.5+4205
 
 environment:
   sdk: ">=3.2.0 <4.0.0"

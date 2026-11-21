@@ -102,6 +102,55 @@ class _SettingsScreenState extends State<SettingsScreen> {
     } catch (_) {}
   }
 
+  Future<void> _connectToLocal() async {
+    setState(() {
+      isSaving = true;
+      connectionStatus = 'Connecting to Local Dev (http://127.0.0.1:8000)...';
+    });
+    _urlController.text = StorageService.localDevUrl;
+    await StorageService.setBaseUrl(StorageService.localDevUrl);
+    if (!mounted) return;
+    final api = context.read<AppState>().api;
+    final ok = await api.checkHealth();
+    if (!mounted) return;
+    setState(() {
+      isSaving = false;
+      if (ok) {
+        connectionStatus = 'Connected to Local Dev Backend (Online)';
+      } else {
+        connectionStatus = 'Local server unreachable. Run run_backend.sh and adb reverse tcp:8000 tcp:8000';
+      }
+    });
+    if (ok) {
+      context.read<AppState>().refreshAll();
+    }
+  }
+
+  Future<void> _saveCustomUrl() async {
+    final custom = _urlController.text.trim();
+    if (custom.isEmpty) return;
+    setState(() {
+      isSaving = true;
+      connectionStatus = 'Testing custom endpoint: $custom...';
+    });
+    await StorageService.setBaseUrl(custom);
+    if (!mounted) return;
+    final api = context.read<AppState>().api;
+    final ok = await api.checkHealth();
+    if (!mounted) return;
+    setState(() {
+      isSaving = false;
+      if (ok) {
+        connectionStatus = 'Connected to $custom (Online)';
+      } else {
+        connectionStatus = 'Failed to reach $custom. Check address and network.';
+      }
+    });
+    if (ok) {
+      context.read<AppState>().refreshAll();
+    }
+  }
+
   Future<void> _connectToCloud() async {
     setState(() {
       isSaving = true;
@@ -371,35 +420,41 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
           const SizedBox(height: 16),
 
-          // 4. 24/7 CLOUD BACKEND (RENDER)
+          // 4. BACKEND CONNECTION & ENVIRONMENT
           _buildCard(
             context,
-            title: 'CLOUD BACKEND (NO LAPTOP NEEDED)',
+            title: 'BACKEND SERVER CONNECTION',
             icon: Icons.cloud_done_outlined,
             iconColor: const Color(0xFF2563EB),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Connected to Render Cloud 24/7 Service:',
+                  'Active Backend Endpoint:',
                   style: TextStyle(color: isDark ? Colors.grey.shade400 : const Color(0xFF64748B), fontSize: 12),
                 ),
                 const SizedBox(height: 6),
                 Container(
-                  padding: const EdgeInsets.all(8),
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                   decoration: BoxDecoration(
                     color: isDark ? const Color(0xFF0B0F19) : const Color(0xFFF1F5F9),
-                    borderRadius: BorderRadius.circular(6),
+                    borderRadius: BorderRadius.circular(8),
                     border: Border.all(color: theme.dividerColor),
                   ),
-                  child: const Row(
+                  child: Row(
                     children: [
-                      Icon(Icons.bolt, color: Color(0xFF16A34A), size: 16),
-                      SizedBox(width: 6),
+                      Icon(
+                        state.isOnline ? Icons.bolt : Icons.cloud_queue,
+                        color: state.isOnline ? const Color(0xFF16A34A) : Colors.amber,
+                        size: 16,
+                      ),
+                      const SizedBox(width: 8),
                       Expanded(
                         child: Text(
-                          'https://personal-ai-stock-backend.onrender.com',
-                          style: TextStyle(fontFamily: 'monospace', fontSize: 11, fontWeight: FontWeight.w600),
+                          _urlController.text.isNotEmpty ? _urlController.text : StorageService.cloudProductionUrl,
+                          style: const TextStyle(fontFamily: 'monospace', fontSize: 11, fontWeight: FontWeight.w600),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
                     ],
@@ -416,24 +471,71 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ),
                   ),
                 ],
-                const SizedBox(height: 10),
-                SizedBox(
-                  width: double.infinity,
-                  child: OutlinedButton.icon(
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: const Color(0xFF2563EB),
-                      side: const BorderSide(color: Color(0xFF2563EB)),
-                      padding: const EdgeInsets.symmetric(vertical: 10),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                const SizedBox(height: 12),
+                // Quick Presets: 24/7 Cloud vs Local USB Debug
+                Row(
+                  children: [
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF2563EB),
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 10),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        ),
+                        icon: const Icon(Icons.cloud_outlined, size: 16),
+                        label: const Text('24/7 Cloud', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11.5)),
+                        onPressed: isSaving ? null : _connectToCloud,
+                      ),
                     ),
-                    icon: const Icon(Icons.sync, size: 16),
-                    label: const Text('Re-Check Connection (Optional)', style: TextStyle(fontWeight: FontWeight.bold)),
-                    onPressed: isSaving ? null : _connectToCloud,
-                  ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: isDark ? Colors.white70 : const Color(0xFF334155),
+                          side: BorderSide(color: theme.dividerColor),
+                          padding: const EdgeInsets.symmetric(vertical: 10),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        ),
+                        icon: const Icon(Icons.usb, size: 16),
+                        label: const Text('Local USB', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11.5)),
+                        onPressed: isSaving ? null : _connectToLocal,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                // Custom Endpoint Input
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _urlController,
+                        style: const TextStyle(fontSize: 12, fontFamily: 'monospace'),
+                        decoration: InputDecoration(
+                          hintText: 'http://127.0.0.1:8000',
+                          isDense: true,
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF10B981),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      ),
+                      onPressed: isSaving ? null : _saveCustomUrl,
+                      child: const Text('Connect', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  '⚡ Auto-Connect is active: The app always connects to the cloud automatically on launch and self-heals in the background. Clicking is 100% optional.',
+                  '⚡ Auto-Failover Active: The app automatically uses the 24/7 Cloud whenever local development is unreachable or disconnected.',
                   style: TextStyle(
                     color: isDark ? Colors.grey.shade400 : const Color(0xFF64748B),
                     fontSize: 11,

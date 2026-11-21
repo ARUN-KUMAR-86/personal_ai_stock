@@ -101,16 +101,16 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       backgroundColor: theme.scaffoldBackgroundColor,
       appBar: AppBar(
         title: Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
             const ZedLogo(size: 24),
             const SizedBox(width: 8),
-            Text(
-              'ZED NOTIFICATIONS',
+            const Text(
+              'ZED ALERTS',
               style: TextStyle(
                 fontWeight: FontWeight.bold,
                 fontSize: 16,
                 letterSpacing: 0.5,
-                color: theme.colorScheme.onSurface,
               ),
             ),
             const SizedBox(width: 6),
@@ -135,21 +135,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         ),
         actions: [
           IconButton(
-            icon: Icon(Icons.refresh, color: theme.primaryColor),
-            tooltip: 'Refresh Notifications',
-            onPressed: () => state.refreshAll(),
-          ),
-          // Prominent "All Read" Button inside AppBar
-          TextButton.icon(
-            style: TextButton.styleFrom(
-              foregroundColor: isDark ? Colors.blueAccent : theme.primaryColor,
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            ),
-            icon: const Icon(Icons.done_all, size: 16),
-            label: const Text(
-              'All Read',
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
-            ),
+            icon: Icon(Icons.done_all, color: isDark ? Colors.blueAccent : theme.primaryColor),
+            tooltip: 'Mark All Read',
             onPressed: () async {
               await state.markAllAlertsRead();
               if (context.mounted) {
@@ -162,18 +149,15 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
               }
             },
           ),
-          // Prominent "Delete All" Button inside AppBar
-          TextButton.icon(
-            style: TextButton.styleFrom(
-              foregroundColor: Colors.redAccent,
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            ),
-            icon: const Icon(Icons.delete_sweep_outlined, size: 16),
-            label: const Text(
-              'Delete All',
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
-            ),
+          IconButton(
+            icon: const Icon(Icons.delete_sweep_outlined, color: Colors.redAccent),
+            tooltip: 'Delete All Notifications',
             onPressed: () => _confirmDeleteAllAlerts(context),
+          ),
+          IconButton(
+            icon: Icon(Icons.refresh, color: theme.primaryColor),
+            tooltip: 'Refresh Notifications',
+            onPressed: () => state.refreshAll(),
           ),
           const SizedBox(width: 4),
         ],
