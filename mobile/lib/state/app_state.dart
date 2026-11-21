@@ -561,7 +561,12 @@ class AppState extends ChangeNotifier {
       'company_fundamentals': {
         'sector': match.sector ?? 'Equities',
         'pe_ratio': 24.5,
-        'market_cap': 'Large Cap',
+        'market_cap': isUS ? 2400000000000.0 : 1500000000000.0,
+        'market_cap_label': 'Large Cap',
+        'price_to_book': 3.2,
+        'return_on_equity': 0.185,
+        'profit_margins': 0.142,
+        'earnings_per_share': isUS ? 6.45 : 45.20,
       },
       'news_headlines': [
         {'title': '${match.name} demonstrates robust operational momentum across key segments', 'sentiment': 'POSITIVE'},

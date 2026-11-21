@@ -1082,12 +1082,14 @@ class _LiveMonitoringScreenState extends State<LiveMonitoringScreen> {
                 tapTargetSize: MaterialTapTargetSize.shrinkWrap,
               ),
               onPressed: () {
+                final sig = state.latestSignals.where((s) => s.symbol.toUpperCase() == symbol.toUpperCase()).firstOrNull;
                 Navigator.push(
                   context,
                   MaterialPageRoute(
                     builder: (_) => StockRecommendationScreen(
                       symbol: symbol,
                       exchange: exchange,
+                      initialSignal: sig,
                     ),
                   ),
                 );
@@ -1146,16 +1148,18 @@ class _LiveMonitoringScreenState extends State<LiveMonitoringScreen> {
         child: InkWell(
           borderRadius: BorderRadius.circular(14),
           onTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => StockRecommendationScreen(
-                symbol: symbol,
-                exchange: exchange,
+            final sig = state.latestSignals.where((s) => s.symbol.toUpperCase() == symbol.toUpperCase()).firstOrNull;
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => StockRecommendationScreen(
+                  symbol: symbol,
+                  exchange: exchange,
+                  initialSignal: sig,
+                ),
               ),
-            ),
-          );
-        },
+            );
+          },
         child: Padding(
           padding: const EdgeInsets.all(12),
           child: Column(

@@ -42,9 +42,31 @@ class UsStockMetricsCard extends StatelessWidget {
     }
   }
 
-  static String formatUsMarketCap(num? mcap) {
-    if (mcap == null || mcap <= 0) return 'N/A';
-    final val = mcap.toDouble();
+  static num? _safeNum(dynamic val) {
+    if (val == null) return null;
+    if (val is num) return val;
+    if (val is String) {
+      final sanitized = val.replaceAll(RegExp(r'[^0-9.-]'), '');
+      return num.tryParse(sanitized);
+    }
+    return null;
+  }
+
+  static String formatUsMarketCap(dynamic mcap) {
+    if (mcap == null) return 'N/A';
+    if (mcap is String) {
+      final trimmed = mcap.trim();
+      if (trimmed.isEmpty || trimmed.toLowerCase() == 'null' || trimmed.toLowerCase() == 'none') {
+        return 'N/A';
+      }
+      final parsed = _safeNum(trimmed);
+      if (parsed == null || parsed <= 0) {
+        return trimmed; // E.g. "Mega Cap", "Large Cap", "$3.2T"
+      }
+      mcap = parsed;
+    }
+    final val = (mcap as num).toDouble();
+    if (val <= 0) return 'N/A';
     if (val >= 1e12) {
       return '\$${(val / 1e12).toStringAsFixed(2)}T';
     } else if (val >= 1e9) {
@@ -59,13 +81,17 @@ class UsStockMetricsCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final session = getUsMarketSessionStatus();
     final funds = fundamentals ?? {};
-    final mcapRaw = funds['market_cap'] as num?;
-    final mcapStr = formatUsMarketCap(mcapRaw);
-    final pe = (funds['pe_ratio'] as num?)?.toStringAsFixed(1) ?? 'N/A';
-    final eps = (funds['earnings_per_share'] as num?) != null ? '\$${(funds['earnings_per_share'] as num).toStringAsFixed(2)}' : 'N/A';
-    final pb = (funds['price_to_book'] as num?)?.toStringAsFixed(1) ?? 'N/A';
-    final roe = (funds['return_on_equity'] as num?) != null ? '${((funds['return_on_equity'] as num) * 100).toStringAsFixed(1)}%' : 'N/A';
-    final netMargin = (funds['profit_margins'] as num?) != null ? '${((funds['profit_margins'] as num) * 100).toStringAsFixed(1)}%' : 'N/A';
+    final mcapStr = formatUsMarketCap(funds['market_cap']);
+    final peNum = _safeNum(funds['pe_ratio']);
+    final pe = peNum != null ? peNum.toStringAsFixed(1) : (funds['pe_ratio']?.toString() ?? 'N/A');
+    final epsNum = _safeNum(funds['earnings_per_share']);
+    final eps = epsNum != null ? '\$${epsNum.toStringAsFixed(2)}' : (funds['earnings_per_share']?.toString() ?? 'N/A');
+    final pbNum = _safeNum(funds['price_to_book']);
+    final pb = pbNum != null ? pbNum.toStringAsFixed(1) : (funds['price_to_book']?.toString() ?? 'N/A');
+    final roeNum = _safeNum(funds['return_on_equity']);
+    final roe = roeNum != null ? '${(roeNum * (roeNum.abs() < 1 ? 100 : 1)).toStringAsFixed(1)}%' : (funds['return_on_equity']?.toString() ?? 'N/A');
+    final netMarginNum = _safeNum(funds['profit_margins']);
+    final netMargin = netMarginNum != null ? '${(netMarginNum * (netMarginNum.abs() < 1 ? 100 : 1)).toStringAsFixed(1)}%' : (funds['profit_margins']?.toString() ?? 'N/A');
     final fedStance = macro?['monetary_policy'] ?? 'Neutral / Data Dependent';
     final benchmark = macro?['benchmark_index'] ?? 'S&P 500 / NASDAQ Composite';
 

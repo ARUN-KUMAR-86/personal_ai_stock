@@ -1143,12 +1143,14 @@ class _ScannerScreenState extends State<ScannerScreen> {
           ],
         ),
         onTap: () {
+          final sig = state.latestSignals.where((s) => s.symbol.toUpperCase() == stock.symbol.toUpperCase()).firstOrNull;
           Navigator.push(
             context,
             MaterialPageRoute(
               builder: (_) => StockRecommendationScreen(
                 symbol: stock.symbol,
                 exchange: stock.exchange,
+                initialSignal: sig,
                 initialHorizon: selectedHorizon,
               ),
             ),
